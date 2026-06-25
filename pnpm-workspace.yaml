@@ -1,0 +1,12 @@
+packages:
+  - "packages/*"
+  - "apps/*"
+
+# Native binary / postinstall gerektiren güvenilir bağımlılıklar.
+# better-sqlite3: prebuild-install ile native SQLite binary'si.
+# esbuild: vitest/next için platform binary'si.
+allowBuilds:
+  better-sqlite3: true
+  electron: true
+  esbuild: true
+  sharp: true

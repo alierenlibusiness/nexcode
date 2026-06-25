@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+out/
+.next/
+release/
+*.tsbuildinfo
+
+# Local data / secrets
+nexcode.db
+nexcode.db-*
+.env
+.env.*
+!.env.example
+
+# Logs & coverage
+*.log
+coverage/
+
+# OS
+.DS_Store
+Thumbs.db
