@@ -7,6 +7,10 @@
     "node": ">=22"
   },
   "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:renderer": "pnpm --filter @nexcode/renderer dev",
+    "rebuild:electron": "node scripts/rebuild-native.mjs electron",
+    "rebuild:node": "node scripts/rebuild-native.mjs node",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "test": "vitest run",

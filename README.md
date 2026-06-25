@@ -41,34 +41,33 @@ apps/renderer      Next.js (statik export) — karanlık tema UI kabuğu
 - Node.js ≥ 22
 - pnpm ≥ 9
 
+> Bu bir **pnpm** monorepo'sudur — `npm` değil `pnpm` kullanın.
+
 ## Komutlar
 
 ```bash
 pnpm install          # bağımlılıkları kur (better-sqlite3 native binary dahil)
+pnpm dev              # TEK KOMUT: ABI hazırlığı + renderer dev + Electron'u aç
 pnpm build            # tüm paketleri derle (topolojik sıra)
 pnpm typecheck        # strict tsc tüm paketlerde
 pnpm test             # Vitest (core birim testleri)
 pnpm lint             # ESLint
 ```
 
-### Masaüstü uygulamasını çalıştırma (geliştirme)
-
-better-sqlite3'ün Electron ABI'sine göre yeniden derlenmesi gerekir:
+### Masaüstü uygulamasını çalıştırma
 
 ```bash
-pnpm --filter @nexcode/desktop rebuild-native   # better-sqlite3 → Electron ABI
-pnpm --filter @nexcode/renderer dev             # 1. terminal: Next.js dev (:3000)
-# 2. terminal:
-#   NEXCODE_RENDERER_URL=http://localhost:3000 pnpm --filter @nexcode/desktop start
+pnpm dev
 ```
 
-Üretim için `apps/renderer` `out/` export'u, Electron tarafından `file://` ile yüklenir.
+`pnpm dev` şunları otomatik yapar (bkz. [`scripts/dev.mjs`](scripts/dev.mjs)):
+better-sqlite3'ü Electron ABI'sine hazırlar → Next.js dev server'ı başlatır (:3000) →
+hazır olunca Electron penceresini açar. Üretimde `apps/renderer/out` export'u `file://` ile yüklenir.
 
-> **Native ABI notu:** `better-sqlite3` native binary'si Node ile Electron arasında
-> farklı ABI kullanır. `rebuild-native` çalıştırıldıktan sonra binary **Electron ABI'sine**
-> geçer ve `pnpm test` (Node) artık çalışmaz. Testlere dönmek için Node ABI'sini geri yükle:
-> `pnpm --filter @nexcode/core exec prebuild-install -r node` (better-sqlite3 dizininde) veya
-> `pnpm install --force`. (Bu sürtünme ileride app için ayrı bir native kopya ile giderilecek.)
+> **Native ABI notu:** `better-sqlite3` native binary'si Node ile Electron'da farklı ABI
+> kullanır. `pnpm dev` binary'yi **Electron ABI'sine** geçirir; sonrasında `pnpm test` (Node)
+> çalışmaz. Testlere dönmek için: **`pnpm rebuild:node`**. (Tek komutlar:
+> `pnpm rebuild:electron` / `pnpm rebuild:node`.)
 
 ## Standartlar
 
