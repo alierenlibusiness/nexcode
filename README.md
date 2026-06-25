@@ -51,6 +51,12 @@ pnpm --filter @nexcode/renderer dev             # 1. terminal: Next.js dev (:300
 
 Üretim için `apps/renderer` `out/` export'u, Electron tarafından `file://` ile yüklenir.
 
+> **Native ABI notu:** `better-sqlite3` native binary'si Node ile Electron arasında
+> farklı ABI kullanır. `rebuild-native` çalıştırıldıktan sonra binary **Electron ABI'sine**
+> geçer ve `pnpm test` (Node) artık çalışmaz. Testlere dönmek için Node ABI'sini geri yükle:
+> `pnpm --filter @nexcode/core exec prebuild-install -r node` (better-sqlite3 dizininde) veya
+> `pnpm install --force`. (Bu sürtünme ileride app için ayrı bir native kopya ile giderilecek.)
+
 ## Standartlar
 
 Strict TypeScript (`strict`, `noUncheckedIndexedAccess`), Conventional Commits, Vitest.

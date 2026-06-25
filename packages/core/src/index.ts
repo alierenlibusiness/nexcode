@@ -9,3 +9,11 @@ export * from "./security/secret-store";
 export * from "./ipc/channels";
 export * from "./ipc/contract";
 export * from "./logger";
+
+// Orkestrasyon çekirdeği (Faz 1) — saf (native-bağımsız) modüller
+export * from "./approval/gate";
+export * from "./agents/definitions";
+export * from "./providers/types";
+export * from "./providers/pricing";
+export * from "./providers/anthropic";
+export * from "./tasks/queue";

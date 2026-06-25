@@ -3,3 +3,4 @@
 export * from "./schema";
 export * from "./connection";
 export * from "./workspace-repo";
+export * from "./task-repo";
