@@ -1,0 +1,37 @@
+appId: com.nexcode.desktop
+productName: NEXCODE
+copyright: Copyright © 2026 NEXCODE
+
+directories:
+  output: ../../release
+  buildResources: build
+
+# Derlenmiş main/preload + renderer statik export'u paketlenir.
+files:
+  - dist/**/*
+  - package.json
+extraResources:
+  - from: ../renderer/out
+    to: renderer/out
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: msi
+      arch: [x64]
+  # Üretim için code-signing sertifikası burada yapılandırılır (PRD §21).
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+
+mac:
+  target:
+    - dmg
+  category: public.app-category.developer-tools
+
+# NOT: pnpm monorepo'da paketleme için node-linker=hoisted veya
+# `--config.nodeGypRebuild=false` + native modüllerin Electron ABI'sine
+# rebuild'i gerekir. İmzalı installer üretimi sertifika gerektirir (PRD §21).

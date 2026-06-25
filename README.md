@@ -4,9 +4,22 @@
 
 > Ürün vizyonu ve tam spesifikasyon: [`docs/PRD.md`](docs/PRD.md). Agent talimatları: [`CLAUDE.md`](CLAUDE.md).
 
-## Durum — Faz 0 (Temel & İskelet)
+## Durum — Faz 1 (Çekirdek / MVP)
 
-Bu depo şu an **Faz 0** iskeletini içerir: çalışan monorepo, strict TypeScript, IPC köprüsü, SQLite şeması, OS keychain soyutlaması, karanlık-tema kabuğu ve CI. Yol haritası için PRD §23.
+Faz 0 iskeletinin üzerine **Faz 1 orkestrasyonu** kuruldu:
+
+- **CEO → plan → onay → dispatch** döngüsü (`Orchestrator`): kullanıcı isteği CEO ile
+  görev planına çevrilir, görevler task board'a düşer, onay sonrası atanan agent'a verilir.
+- **Bağlantı modu seçimi (API / CLI):** her agent için `api_only` · `cli_only` ·
+  `cli_first` (kota dolunca API'ye fallback). UI'dan toggle ile seçilir, SQLite'da saklanır.
+  - **API modu:** Anthropic Messages API (anahtar OS keychain'de).
+  - **CLI modu:** sistemde kurulu `claude` CLI headless (`-p --output-format json`).
+- **Approval Gate:** yıkıcı eylemler her otonomi seviyesinde insan onayı gerektirir (sıfır-tolerans).
+- **In-process görev kuyruğu:** 3 denemede `blocked`'a eskalasyon (Redis'siz).
+- **UI:** API/CLI toggle'lı agent grid, istek kutusu, Kanban task board, onay paneli.
+
+Kalan: görev başına git worktree + commit, imzalı Windows installer (electron-builder
+config hazır, sertifika gerektirir). Yol haritası: PRD §23.
 
 ## Monorepo Yapısı
 

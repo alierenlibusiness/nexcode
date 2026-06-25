@@ -14,6 +14,10 @@
       "types": "./dist/db/index.d.ts",
       "default": "./dist/db/index.js"
     },
+    "./providers": {
+      "types": "./dist/providers/node.d.ts",
+      "default": "./dist/providers/node.js"
+    },
     "./keyring": {
       "types": "./dist/security/keyring-store.d.ts",
       "default": "./dist/security/keyring-store.js"

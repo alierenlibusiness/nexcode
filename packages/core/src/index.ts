@@ -11,9 +11,14 @@ export * from "./ipc/contract";
 export * from "./logger";
 
 // Orkestrasyon çekirdeği (Faz 1) — saf (native-bağımsız) modüller
+// NOT: CLI runner/adapter + factory node:child_process'e bağlı olduğundan
+// burada DEĞİL, `@nexcode/core/providers` alt yolundadır (yalnızca main process).
 export * from "./approval/gate";
 export * from "./agents/definitions";
 export * from "./providers/types";
 export * from "./providers/pricing";
 export * from "./providers/anthropic";
+export * from "./providers/connection";
 export * from "./tasks/queue";
+export * from "./orchestrator/plan";
+export * from "./orchestrator/orchestrator";

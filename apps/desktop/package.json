@@ -8,7 +8,9 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "rebuild-native": "npx -y @electron/rebuild -f -w better-sqlite3",
-    "start": "electron ."
+    "start": "electron .",
+    "package:dir": "npx -y electron-builder --windows --dir",
+    "package": "npx -y electron-builder --windows"
   },
   "dependencies": {
     "@nexcode/core": "workspace:*"

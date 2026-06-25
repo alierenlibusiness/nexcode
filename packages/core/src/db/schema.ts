@@ -22,13 +22,14 @@ CREATE TABLE IF NOT EXISTS agents (
 );
 
 CREATE TABLE IF NOT EXISTS tasks (
-  id           TEXT PRIMARY KEY,
-  agent_id     TEXT REFERENCES agents(id) ON DELETE SET NULL,
-  title        TEXT NOT NULL,
-  status       TEXT NOT NULL,
-  priority     INTEGER NOT NULL DEFAULT 0,
-  created_at   TEXT NOT NULL,
-  completed_at TEXT
+  id            TEXT PRIMARY KEY,
+  agent_id      TEXT REFERENCES agents(id) ON DELETE SET NULL,
+  assigned_role TEXT,
+  title         TEXT NOT NULL,
+  status        TEXT NOT NULL,
+  priority      INTEGER NOT NULL DEFAULT 0,
+  created_at    TEXT NOT NULL,
+  completed_at  TEXT
 );
 
 CREATE TABLE IF NOT EXISTS task_dependencies (
@@ -77,6 +78,13 @@ CREATE TABLE IF NOT EXISTS cost_logs (
   output_tokens        INTEGER NOT NULL DEFAULT 0,
   usd_cost             REAL NOT NULL DEFAULT 0,
   subscription_pool_id TEXT
+);
+
+CREATE TABLE IF NOT EXISTS agent_settings (
+  workspace_id          TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  role                  TEXT NOT NULL,
+  connection_preference TEXT NOT NULL DEFAULT 'cli_first',
+  PRIMARY KEY (workspace_id, role)
 );
 
 CREATE INDEX IF NOT EXISTS idx_agents_workspace ON agents(workspace_id);

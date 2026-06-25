@@ -1,9 +1,11 @@
 import { randomUUID } from "node:crypto";
 import type { DB } from "./connection";
 import type { Task, TaskStatus } from "../domain/task";
+import type { AgentRole } from "../domain/agent";
 
 export interface CreateTaskInput {
   title: string;
+  assignedRole?: AgentRole | null;
   agentId?: string | null;
   priority?: number;
 }
@@ -11,6 +13,7 @@ export interface CreateTaskInput {
 interface TaskRow {
   id: string;
   agent_id: string | null;
+  assigned_role: string | null;
   title: string;
   status: string;
   priority: number;
@@ -22,6 +25,7 @@ function toTask(row: TaskRow): Task {
   return {
     id: row.id,
     agentId: row.agent_id,
+    assignedRole: (row.assigned_role as AgentRole | null) ?? null,
     title: row.title,
     status: row.status as TaskStatus,
     priority: row.priority,
@@ -38,6 +42,7 @@ export class TaskRepository {
     const task: Task = {
       id: randomUUID(),
       agentId: input.agentId ?? null,
+      assignedRole: input.assignedRole ?? null,
       title: input.title,
       status: "backlog",
       priority: input.priority ?? 0,
@@ -46,11 +51,12 @@ export class TaskRepository {
     };
     this.db
       .prepare(
-        "INSERT INTO tasks (id, agent_id, title, status, priority, created_at, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO tasks (id, agent_id, assigned_role, title, status, priority, created_at, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
       )
       .run(
         task.id,
         task.agentId,
+        task.assignedRole,
         task.title,
         task.status,
         task.priority,
@@ -78,6 +84,13 @@ export class TaskRepository {
     const rows = this.db
       .prepare("SELECT * FROM tasks WHERE status = ? ORDER BY priority DESC, created_at ASC")
       .all(status) as TaskRow[];
+    return rows.map(toTask);
+  }
+
+  listAll(): Task[] {
+    const rows = this.db
+      .prepare("SELECT * FROM tasks ORDER BY created_at ASC")
+      .all() as TaskRow[];
     return rows.map(toTask);
   }
 }

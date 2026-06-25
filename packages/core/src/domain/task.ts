@@ -1,10 +1,15 @@
+import type { AgentRole } from "./agent";
+
 /** Task board kolonları / görev durumu (PRD §11 Kanban). */
 export type TaskStatus = "backlog" | "in_progress" | "review" | "blocked" | "done";
 
 /** Görev veri modeli (PRD §14). */
 export interface Task {
   id: string;
+  /** Görevi yürüten somut agent kaydının id'si (Faz 1'de genelde null). */
   agentId: string | null;
+  /** Görevin atandığı rol (CEO planlamasında belirlenir). */
+  assignedRole: AgentRole | null;
   title: string;
   status: TaskStatus;
   priority: number;
