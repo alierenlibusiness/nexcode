@@ -8,6 +8,7 @@ import {
   MessageBus,
   QuotaTracker,
   poolIdForProvider,
+  McpManager,
 } from "@nexcode/core";
 import {
   openDatabase,
@@ -16,6 +17,8 @@ import {
   ApprovalRepository,
   AgentSettingsRepository,
   CostLogRepository,
+  McpRepository,
+  SkillRepository,
 } from "@nexcode/core/db";
 import { KeyringSecretStore } from "@nexcode/core/keyring";
 import { AdapterFactory } from "@nexcode/core/providers";
@@ -93,12 +96,23 @@ async function buildContext(): Promise<IpcContext> {
     },
   });
 
+  const mcp = new McpRepository(db);
+  const skills = new SkillRepository(db);
+  const mcpManager = new McpManager(mcp);
+  await mcpManager.startAll();
+
+  // Handle teardown of MCP servers on will-quit
+  app.on("will-quit", () => {
+    void mcpManager.stopAll();
+  });
+
   const orchestrator = new Orchestrator({
     tasks,
     resolveAdapter: (model, preference) => factory.resolve(model, preference),
     getPreference: (role) => settings.getPreference(workspace.id, role),
     resolveModel: (role) => settings.resolveModel(workspace.id, role),
     messageBus,
+    mcpManager,
     onUsage: (u) => {
       // Maliyet kaydı (cost_logs) — CLI=abonelik havuzu (usd 0), API=taşma ücreti (§9.4).
       const pool = u.connectionMode === "cli" ? poolIdForProvider(u.model.provider) : null;
@@ -130,6 +144,9 @@ async function buildContext(): Promise<IpcContext> {
     workspaceId: workspace.id,
     rootDir: workspace.repoPath || process.cwd(),
     getWebContents: (): WebContents | null => mainWindow?.webContents ?? null,
+    mcp,
+    skills,
+    mcpManager,
   };
 }
 

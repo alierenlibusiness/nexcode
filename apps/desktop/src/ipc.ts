@@ -22,6 +22,13 @@ import {
   type ConnectionPreference,
   type AgentRole,
   type SecretStore,
+  mcpSaveInputSchema,
+  mcpRemoveInputSchema,
+  mcpToggleInputSchema,
+  mcpCallToolInputSchema,
+  skillsSaveInputSchema,
+  skillsRemoveInputSchema,
+  McpManager,
 } from "@nexcode/core";
 import {
   WorkspaceRepository,
@@ -29,6 +36,8 @@ import {
   ApprovalRepository,
   AgentSettingsRepository,
   CostLogRepository,
+  McpRepository,
+  SkillRepository,
 } from "@nexcode/core/db";
 import type { Orchestrator } from "@nexcode/core";
 import { readDir, readFileText, writeFileText } from "./fsbridge";
@@ -47,10 +56,11 @@ export interface IpcContext {
   secretStore: SecretStore;
   apiKeyCache: Map<string, string>;
   workspaceId: string;
-  /** IDE kabuğu için açık olan klasör kökü (Open Folder ile değişir). */
   rootDir: string;
-  /** main → renderer event push için pencerenin webContents'i. */
   getWebContents: () => WebContents | null;
+  mcp: McpRepository;
+  skills: SkillRepository;
+  mcpManager: McpManager;
 }
 
 /**
@@ -69,8 +79,8 @@ export function registerIpcHandlers(ctx: IpcContext): void {
 
   // İstek → CEO planı → görevler (PRD §8.1)
   ipcMain.handle(IpcChannels.requestPlan, async (_e, raw: unknown) => {
-    const { request } = requestPlanInputSchema.parse(raw);
-    return ctx.orchestrator.planRequest(request);
+    const { request, images } = requestPlanInputSchema.parse(raw);
+    return ctx.orchestrator.planRequest(request, images);
   });
 
   ipcMain.handle(IpcChannels.taskList, () => ctx.tasks.listAll());
@@ -170,6 +180,72 @@ export function registerIpcHandlers(ctx: IpcContext): void {
       };
     }
     return result;
+  });
+
+  // MCP
+  ipcMain.handle(IpcChannels.mcpList, () => {
+    return ctx.mcp.list().map((s) => {
+      const active = ctx.mcpManager.listActiveServers().find((item) => item.id === s.id);
+      return {
+        ...s,
+        running: active?.running ?? false,
+      };
+    });
+  });
+
+  ipcMain.handle(IpcChannels.mcpSave, async (_e, raw: unknown) => {
+    const input = mcpSaveInputSchema.parse(raw);
+    const existing = ctx.mcp.getByName(input.name);
+    if (existing) {
+      throw new Error(`MCP sunucusu '${input.name}' zaten mevcut`);
+    }
+    const created = ctx.mcp.create(input);
+    if (created.enabled) {
+      await ctx.mcpManager.startServer(created);
+    }
+    return created;
+  });
+
+  ipcMain.handle(IpcChannels.mcpRemove, async (_e, raw: unknown) => {
+    const { id } = mcpRemoveInputSchema.parse(raw);
+    await ctx.mcpManager.stopServer(id);
+    ctx.mcp.delete(id);
+  });
+
+  ipcMain.handle(IpcChannels.mcpToggle, async (_e, raw: unknown) => {
+    const { id, enabled } = mcpToggleInputSchema.parse(raw);
+    ctx.mcp.toggle(id, enabled);
+    if (enabled) {
+      const servers = ctx.mcp.list();
+      const s = servers.find((item) => item.id === id);
+      if (s) await ctx.mcpManager.startServer(s);
+    } else {
+      await ctx.mcpManager.stopServer(id);
+    }
+  });
+
+  ipcMain.handle(IpcChannels.mcpCallTool, async (_e, raw: unknown) => {
+    const { serverName, toolName, args } = mcpCallToolInputSchema.parse(raw);
+    return await ctx.mcpManager.callTool(serverName, toolName, args);
+  });
+
+  // Skills
+  ipcMain.handle(IpcChannels.skillsList, () => {
+    return ctx.skills.list();
+  });
+
+  ipcMain.handle(IpcChannels.skillsSave, (_e, raw: unknown) => {
+    const input = skillsSaveInputSchema.parse(raw);
+    const existing = ctx.skills.getByName(input.name);
+    if (existing) {
+      throw new Error(`Skill '${input.name}' zaten mevcut`);
+    }
+    return ctx.skills.create(input);
+  });
+
+  ipcMain.handle(IpcChannels.skillsRemove, (_e, raw: unknown) => {
+    const { id } = skillsRemoveInputSchema.parse(raw);
+    ctx.skills.delete(id);
   });
 
   registerFsHandlers(ctx);

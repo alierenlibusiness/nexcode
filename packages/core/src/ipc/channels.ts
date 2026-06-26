@@ -31,6 +31,16 @@ export const IpcChannels = {
   fsCurrentRoot: "fs:current-root",
   // CLI kurulu mu + API anahtarı var mı (bağlantı durumu)
   connectionStatus: "connection:status",
+  // MCP
+  mcpList: "mcp:list",
+  mcpSave: "mcp:save",
+  mcpRemove: "mcp:remove",
+  mcpToggle: "mcp:toggle",
+  mcpCallTool: "mcp:call-tool",
+  // Skills
+  skillsList: "skills:list",
+  skillsSave: "skills:save",
+  skillsRemove: "skills:remove",
   // Faz 2: terminal (shell session)
   terminalStart: "terminal:start",
   terminalInput: "terminal:input",

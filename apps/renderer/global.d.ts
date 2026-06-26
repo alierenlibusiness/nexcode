@@ -60,7 +60,7 @@ declare global {
     nexcode?: {
       createWorkspace(input: { name: string; repoPath: string }): Promise<Workspace>;
       listWorkspaces(): Promise<Workspace[]>;
-      planRequest(request: string): Promise<Task[]>;
+      planRequest(request: string, images?: Array<{ mimeType: string; data: string }>): Promise<Task[]>;
       listTasks(): Promise<Task[]>;
       dispatchTask(taskId: string): Promise<{ output: string }>;
       listPendingApprovals(): Promise<ApprovalDTO[]>;
@@ -89,6 +89,18 @@ declare global {
       terminalKill(id: string): Promise<void>;
       onTerminalData(cb: (payload: { id: string; data: string }) => void): () => void;
       onTerminalExit(cb: (payload: { id: string; code: number }) => void): () => void;
+
+      // MCP
+      listMcpServers(): Promise<Array<{ id: string; name: string; command: string; args: string[]; env: Record<string, string>; enabled: boolean; running: boolean }>>;
+      saveMcpServer(input: { name: string; command: string; args: string[]; env: Record<string, string> }): Promise<{ id: string; name: string; command: string; args: string[]; env: Record<string, string>; enabled: boolean }>;
+      removeMcpServer(id: string): Promise<void>;
+      toggleMcpServer(id: string, enabled: boolean): Promise<void>;
+      callMcpTool(serverName: string, toolName: string, args: any): Promise<any>;
+
+      // Skills
+      listSkills(): Promise<Array<{ id: string; name: string; description: string; prompt: string; createdAt: string }>>;
+      saveSkill(input: { name: string; description: string; prompt: string }): Promise<{ id: string; name: string; description: string; prompt: string; createdAt: string }>;
+      removeSkill(id: string): Promise<void>;
     };
   }
 }

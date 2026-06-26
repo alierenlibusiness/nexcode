@@ -17,8 +17,9 @@ import { TerminalPanel } from "./components/TerminalPanel";
 import { ChatPanel, type ChatEntry } from "./components/ChatPanel";
 import { AgentPanel } from "./components/AgentPanel";
 import { ConnectionsPanel } from "./components/ConnectionsPanel";
+import { McpSkillsPanel } from "./components/McpSkillsPanel";
 
-type Tab = "chat" | "agents" | "connections";
+type Tab = "chat" | "agents" | "mcp_skills" | "connections";
 
 export default function HomePage() {
   const [available, setAvailable] = useState(false);
@@ -109,12 +110,11 @@ export default function HomePage() {
       setFileContent(await window.nexcode.readFile(path));
     });
 
-  const onPlan = () =>
+  const onPlan = (text: string, images?: Array<{ mimeType: string; data: string }>) =>
     run("CEO planlıyor…", async () => {
-      if (!window.nexcode || !request.trim()) return;
-      const text = request.trim();
-      setChat((c) => [...c, { kind: "user", text }]);
-      const created = await window.nexcode.planRequest(text);
+      if (!window.nexcode || !text.trim()) return;
+      setChat((c) => [...c, { kind: "user", text, images }]);
+      const created = await window.nexcode.planRequest(text, images);
       setRequest("");
       setChat((c) => [
         ...c,
@@ -170,7 +170,7 @@ export default function HomePage() {
   const cliCount = Object.values(connStatus).filter((s) => s.cliInstalled).length;
   const keyCount = Object.values(connStatus).filter((s) => s.hasApiKey).length;
 
-  const tabLabels: Record<Tab, string> = { chat: "Sohbet", agents: "Agentlar", connections: "Bağlantılar" };
+  const tabLabels: Record<Tab, string> = { chat: "Sohbet", agents: "Agentlar", mcp_skills: "MCP & Skills", connections: "Bağlantılar" };
 
   return (
     <div className="flex h-screen flex-col bg-ink-950 text-neutral-100">
@@ -220,7 +220,7 @@ export default function HomePage() {
 
         <aside className="flex w-96 shrink-0 flex-col border-l border-ink-700 bg-ink-900/30">
           <div className="flex border-b border-ink-700 text-[11px]">
-            {(["chat", "agents", "connections"] as const).map((t) => (
+            {(["chat", "agents", "mcp_skills", "connections"] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -248,6 +248,7 @@ export default function HomePage() {
                 onPlan={onPlan}
                 onDispatch={onDispatch}
                 onResolve={onResolve}
+                setChat={setChat}
               />
             </div>
           )}
@@ -266,6 +267,12 @@ export default function HomePage() {
                 onModelChange={onModelChange}
                 onConnectionChange={onConnection}
               />
+            </div>
+          )}
+
+          {tab === "mcp_skills" && (
+            <div className="min-h-0 flex-1 overflow-auto">
+              <McpSkillsPanel disabled={!available || busy} />
             </div>
           )}
 

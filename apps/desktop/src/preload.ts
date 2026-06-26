@@ -30,6 +30,16 @@ const C = {
   terminalKill: "terminal:kill",
   terminalData: "terminal:data",
   terminalExit: "terminal:exit",
+  // MCP
+  mcpList: "mcp:list",
+  mcpSave: "mcp:save",
+  mcpRemove: "mcp:remove",
+  mcpToggle: "mcp:toggle",
+  mcpCallTool: "mcp:call-tool",
+  // Skills
+  skillsList: "skills:list",
+  skillsSave: "skills:save",
+  skillsRemove: "skills:remove",
 } as const;
 
 const api = {
@@ -37,8 +47,8 @@ const api = {
     ipcRenderer.invoke(C.workspaceCreate, input),
   listWorkspaces: (): Promise<unknown> => ipcRenderer.invoke(C.workspaceList),
 
-  planRequest: (request: string): Promise<unknown> =>
-    ipcRenderer.invoke(C.requestPlan, { request }),
+  planRequest: (request: string, images?: Array<{ mimeType: string; data: string }>): Promise<unknown> =>
+    ipcRenderer.invoke(C.requestPlan, { request, images }),
   listTasks: (): Promise<unknown> => ipcRenderer.invoke(C.taskList),
   dispatchTask: (taskId: string): Promise<unknown> =>
     ipcRenderer.invoke(C.taskDispatch, { taskId }),
@@ -92,6 +102,22 @@ const api = {
     ipcRenderer.on(C.terminalExit, listener);
     return () => ipcRenderer.removeListener(C.terminalExit, listener);
   },
+
+  // MCP
+  listMcpServers: (): Promise<unknown> => ipcRenderer.invoke(C.mcpList),
+  saveMcpServer: (input: { name: string; command: string; args: string[]; env: Record<string, string> }): Promise<unknown> =>
+    ipcRenderer.invoke(C.mcpSave, input),
+  removeMcpServer: (id: string): Promise<unknown> => ipcRenderer.invoke(C.mcpRemove, { id }),
+  toggleMcpServer: (id: string, enabled: boolean): Promise<unknown> =>
+    ipcRenderer.invoke(C.mcpToggle, { id, enabled }),
+  callMcpTool: (serverName: string, toolName: string, args: any): Promise<unknown> =>
+    ipcRenderer.invoke(C.mcpCallTool, { serverName, toolName, args }),
+
+  // Skills
+  listSkills: (): Promise<unknown> => ipcRenderer.invoke(C.skillsList),
+  saveSkill: (input: { name: string; description: string; prompt: string }): Promise<unknown> =>
+    ipcRenderer.invoke(C.skillsSave, input),
+  removeSkill: (id: string): Promise<unknown> => ipcRenderer.invoke(C.skillsRemove, { id }),
 };
 
 contextBridge.exposeInMainWorld("nexcode", api);

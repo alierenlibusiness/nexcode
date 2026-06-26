@@ -50,7 +50,25 @@ export class AnthropicAdapter implements AIProviderAdapter {
         max_tokens: req.maxTokens ?? 1024,
         ...(req.system === undefined ? {} : { system: req.system }),
         ...(req.temperature === undefined ? {} : { temperature: req.temperature }),
-        messages: req.messages.map((m) => ({ role: m.role, content: m.content })),
+        messages: req.messages.map((m) => {
+          if (m.images && this.supportsVision() && m.images.length > 0) {
+            return {
+              role: m.role,
+              content: [
+                { type: "text", text: m.content },
+                ...m.images.map((img) => ({
+                  type: "image" as const,
+                  source: {
+                    type: "base64" as const,
+                    media_type: img.mimeType,
+                    data: img.data,
+                  },
+                })),
+              ],
+            };
+          }
+          return { role: m.role, content: m.content };
+        }),
       }),
     });
 

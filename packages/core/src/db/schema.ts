@@ -90,6 +90,23 @@ CREATE TABLE IF NOT EXISTS agent_settings (
   PRIMARY KEY (workspace_id, role)
 );
 
+CREATE TABLE IF NOT EXISTS mcp_servers (
+  id          TEXT PRIMARY KEY,
+  name        TEXT NOT NULL UNIQUE,
+  command     TEXT NOT NULL,
+  args        TEXT NOT NULL,
+  env         TEXT NOT NULL,
+  enabled     INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS skills (
+  id          TEXT PRIMARY KEY,
+  name        TEXT NOT NULL UNIQUE,
+  description TEXT NOT NULL,
+  prompt      TEXT NOT NULL,
+  created_at  TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_agents_workspace ON agents(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_agent ON tasks(agent_id);
 CREATE INDEX IF NOT EXISTS idx_memory_workspace ON memory_entries(workspace_id);

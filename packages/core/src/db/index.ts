@@ -7,3 +7,5 @@ export * from "./task-repo";
 export * from "./settings-repo";
 export * from "./approval-repo";
 export * from "./cost-log-repo";
+export * from "./mcp-repo";
+export * from "./skill-repo";

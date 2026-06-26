@@ -31,3 +31,7 @@ export * from "./orchestrator/plan";
 export * from "./orchestrator/coordination";
 export * from "./orchestrator/conflict-resolver";
 export * from "./orchestrator/orchestrator";
+export * from "./mcp/client";
+export * from "./mcp/manager";
+export * from "./db/mcp-repo";
+export * from "./db/skill-repo";

@@ -25,8 +25,14 @@ export type WorkspaceDTO = z.infer<typeof workspaceSchema>;
 export const workspaceListSchema = z.array(workspaceSchema);
 
 // --- Orkestrasyon ---
+export const completionImageSchema = z.object({
+  mimeType: z.string(),
+  data: z.string(),
+});
+
 export const requestPlanInputSchema = z.object({
   request: z.string().min(1, "İstek boş olamaz"),
+  images: z.array(completionImageSchema).optional(),
 });
 export type RequestPlanInputDTO = z.infer<typeof requestPlanInputSchema>;
 
@@ -105,3 +111,40 @@ export const terminalResizeInputSchema = z.object({
   rows: z.number().int().positive(),
 });
 export const terminalKillInputSchema = z.object({ id: z.string().min(1) });
+
+// --- MCP ---
+export const mcpSaveInputSchema = z.object({
+  name: z.string().min(1, "İsim boş olamaz"),
+  command: z.string().min(1, "Komut boş olamaz"),
+  args: z.array(z.string()),
+  env: z.record(z.string()),
+});
+export type McpSaveInputDTO = z.infer<typeof mcpSaveInputSchema>;
+
+export const mcpRemoveInputSchema = z.object({
+  id: z.string().min(1),
+});
+
+export const mcpToggleInputSchema = z.object({
+  id: z.string().min(1),
+  enabled: z.boolean(),
+});
+
+export const mcpCallToolInputSchema = z.object({
+  serverName: z.string().min(1),
+  toolName: z.string().min(1),
+  args: z.any(),
+});
+
+// --- Skills ---
+export const skillsSaveInputSchema = z.object({
+  name: z.string().min(1, "İsim boş olamaz"),
+  description: z.string(),
+  prompt: z.string().min(1, "Prompt boş olamaz"),
+});
+export type SkillsSaveInputDTO = z.infer<typeof skillsSaveInputSchema>;
+
+export const skillsRemoveInputSchema = z.object({
+  id: z.string().min(1),
+});
+

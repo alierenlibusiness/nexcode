@@ -49,7 +49,23 @@ export class OpenAICompatibleAdapter implements AIProviderAdapter {
   async complete(req: CompletionRequest): Promise<CompletionResult> {
     const messages = [
       ...(req.system === undefined ? [] : [{ role: "system" as const, content: req.system }]),
-      ...req.messages.map((m) => ({ role: m.role, content: m.content })),
+      ...req.messages.map((m) => {
+        if (m.images && this.supportsVision() && m.images.length > 0) {
+          return {
+            role: m.role,
+            content: [
+              { type: "text", text: m.content },
+              ...m.images.map((img) => ({
+                type: "image_url" as const,
+                image_url: {
+                  url: `data:${img.mimeType};base64,${img.data}`,
+                },
+              })),
+            ],
+          };
+        }
+        return { role: m.role, content: m.content };
+      }),
     ];
 
     const res = await this.fetchFn(`${this.options.baseUrl}/chat/completions`, {

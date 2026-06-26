@@ -1,6 +1,6 @@
 import type { AgentRole, ConnectionMode, ModelRef } from "../domain/agent";
 import type { Task } from "../domain/task";
-import type { AIProviderAdapter, CompletionResult, TokenUsage } from "../providers/types";
+import type { AIProviderAdapter, CompletionResult, TokenUsage, CompletionImage } from "../providers/types";
 import type { ConnectionPreference } from "../providers/connection";
 import type { TaskRepository } from "../db/task-repo";
 import { getAgentDefinition } from "../agents/definitions";
@@ -8,6 +8,7 @@ import type { MessageBus } from "../agents/message-bus";
 import { followUpsForCompletion, type CompletedTaskContext } from "./coordination";
 import { parsePlan, PLAN_INSTRUCTION } from "./plan";
 import { logger } from "../logger";
+import type { McpManager } from "../mcp/manager";
 
 /** Bir model çağrısının maliyet/kota emisyonu (cost_logs + QuotaTracker beslemesi, §9.4). */
 export interface OrchestratorUsage {
@@ -31,6 +32,7 @@ export interface OrchestratorDeps {
   messageBus?: MessageBus;
   /** Her model çağrısından sonra maliyet/kota kaydı için (cost_logs + QuotaTracker). */
   onUsage?: (usage: OrchestratorUsage) => void;
+  mcpManager?: McpManager;
 }
 
 /**
@@ -51,12 +53,28 @@ export class Orchestrator {
   }
 
   /** Kullanıcı isteğini CEO ile plana çevirir ve görevleri (backlog) oluşturur. */
-  async planRequest(userRequest: string): Promise<Task[]> {
+  async planRequest(userRequest: string, images?: CompletionImage[]): Promise<Task[]> {
     const { adapter, model, systemPrompt } = this.adapterFor("ceo");
+    
+    let promptWithMcp = PLAN_INSTRUCTION + userRequest;
+    if (this.deps.mcpManager) {
+      try {
+        const tools = await this.deps.mcpManager.listAllTools();
+        if (tools.length > 0) {
+          promptWithMcp += "\n\nAvailable Model Context Protocol (MCP) Tools you can suggest using:\n";
+          for (const tool of tools) {
+            promptWithMcp += `- [${tool.serverName}] ${tool.name}: ${tool.description || "No description"} (Schema: ${JSON.stringify(tool.inputSchema)})\n`;
+          }
+        }
+      } catch (e) {
+        logger.warn("orchestrator.plan.mcp_failed", { error: String(e) });
+      }
+    }
+
     const req = {
       model: model.modelId,
       system: systemPrompt,
-      messages: [{ role: "user" as const, content: PLAN_INSTRUCTION + userRequest }],
+      messages: [{ role: "user" as const, content: promptWithMcp, images }],
     };
     const completion = await adapter.complete(req);
     this.emitUsage("ceo", null, model, adapter, req, completion);

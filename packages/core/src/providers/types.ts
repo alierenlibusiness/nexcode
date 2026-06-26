@@ -2,9 +2,15 @@ import type { ConnectionMode } from "../domain/agent";
 
 /** AI sağlayıcı soyutlaması (PRD §6.3). Faz 1 non-streaming `complete` kullanır. */
 
+export interface CompletionImage {
+  mimeType: string;
+  data: string; // base64 representation
+}
+
 export interface CompletionMessage {
   role: "user" | "assistant";
   content: string;
+  images?: CompletionImage[];
 }
 
 export interface CompletionRequest {

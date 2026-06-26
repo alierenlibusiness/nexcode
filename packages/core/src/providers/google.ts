@@ -40,10 +40,25 @@ export class GoogleAdapter implements AIProviderAdapter {
   }
 
   async complete(req: CompletionRequest): Promise<CompletionResult> {
-    const contents = req.messages.map((m) => ({
-      role: m.role === "assistant" ? "model" : "user",
-      parts: [{ text: m.content }],
-    }));
+    const contents = req.messages.map((m) => {
+      const parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = [
+        { text: m.content },
+      ];
+      if (m.images && this.supportsVision()) {
+        for (const img of m.images) {
+          parts.push({
+            inlineData: {
+              mimeType: img.mimeType,
+              data: img.data,
+            },
+          });
+        }
+      }
+      return {
+        role: m.role === "assistant" ? "model" : "user",
+        parts,
+      };
+    });
 
     const body: Record<string, unknown> = {
       contents,
