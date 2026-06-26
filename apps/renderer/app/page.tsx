@@ -9,63 +9,63 @@ import type {
   ProviderInfoDTO,
   AgentModelMap,
   CostSummaryDTO,
+  ConnectionStatusMap,
 } from "../global";
 import { FileTree } from "./components/FileTree";
-import { CodeViewer } from "./components/CodeViewer";
+import { CodeEditor } from "./components/CodeEditor";
 import { TerminalPanel } from "./components/TerminalPanel";
 import { ChatPanel, type ChatEntry } from "./components/ChatPanel";
 import { AgentPanel } from "./components/AgentPanel";
+import { ConnectionsPanel } from "./components/ConnectionsPanel";
+
+type Tab = "chat" | "agents" | "connections";
 
 export default function HomePage() {
   const [available, setAvailable] = useState(false);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
 
-  // Dosya sistemi / IDE
   const [root, setRoot] = useState<string | null>(null);
   const [entries, setEntries] = useState<FsEntryDTO[]>([]);
   const [activePath, setActivePath] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<FileContentDTO | null>(null);
 
-  // Orkestrasyon
   const [tasks, setTasks] = useState<Task[]>([]);
   const [approvals, setApprovals] = useState<ApprovalDTO[]>([]);
   const [connections, setConnections] = useState<Partial<Record<AgentRole, ConnectionPreference>>>({});
   const [request, setRequest] = useState("");
   const [chat, setChat] = useState<ChatEntry[]>([]);
 
-  // Model seçimi / sağlayıcılar
   const [providers, setProviders] = useState<ProviderInfoDTO[]>([]);
   const [agentModels, setAgentModels] = useState<AgentModelMap>({});
+  const [connStatus, setConnStatus] = useState<ConnectionStatusMap>({});
   const [cost, setCost] = useState<CostSummaryDTO | null>(null);
 
-  // API anahtarı yönetimi
-  const [keyProvider, setKeyProvider] = useState("anthropic");
-  const [apiKey, setApiKey] = useState("");
-
-  const [tab, setTab] = useState<"chat" | "agents">("chat");
+  const [tab, setTab] = useState<Tab>("chat");
 
   const refresh = useCallback(async () => {
     const api = window.nexcode;
     if (!api) return;
-    const [t, a, c, m, cs] = await Promise.all([
+    const [t, a, c, m, cs, st] = await Promise.all([
       api.listTasks(),
       api.listPendingApprovals(),
       api.getConnections(),
       api.getAgentModels(),
       api.getCostSummary(),
+      api.getConnectionStatus(),
     ]);
     setTasks(t);
     setApprovals(a);
     setConnections(c);
     setAgentModels(m);
     setCost(cs);
+    setConnStatus(st);
   }, []);
 
   useEffect(() => {
     const api = window.nexcode;
     if (!api) {
-      setStatus("Tarayıcı önizlemesi: IPC köprüsü yalnızca Electron içinde aktiftir.");
+      setStatus("Tarayıcı önizlemesi: IPC köprüsü yalnızca uygulama içinde aktiftir.");
       return;
     }
     setAvailable(true);
@@ -151,42 +151,55 @@ export default function HomePage() {
     });
 
   const onModelChange = (role: AgentRole, provider: string, modelId: string) =>
-    run(`${role} modeli → ${provider}/${modelId}`, async () => {
+    run(`${role} → ${provider}/${modelId}`, async () => {
       if (!window.nexcode) return;
       await window.nexcode.setAgentModel(role, provider, modelId);
       await refresh();
     });
 
-  const onSaveKey = () =>
-    run(`${keyProvider} anahtarı kaydedildi`, async () => {
-      if (!window.nexcode || !apiKey.trim()) return;
-      await window.nexcode.setApiKey(keyProvider, apiKey.trim());
-      setApiKey("");
+  const onSaveKey = async (provider: string, key: string) => {
+    if (!window.nexcode) return;
+    await run(`${provider} anahtarı kaydedildi`, async () => {
+      await window.nexcode!.setApiKey(provider, key);
+      await refresh();
     });
+  };
 
   const backlog = tasks.filter((t) => t.status === "backlog");
   const apiCost = cost?.totalApiCost ?? 0;
+  const cliCount = Object.values(connStatus).filter((s) => s.cliInstalled).length;
+  const keyCount = Object.values(connStatus).filter((s) => s.hasApiKey).length;
+
+  const tabLabels: Record<Tab, string> = { chat: "Sohbet", agents: "Agentlar", connections: "Bağlantılar" };
 
   return (
-    <div className="flex h-screen flex-col bg-neutral-950 text-neutral-100">
+    <div className="flex h-screen flex-col bg-ink-950 text-neutral-100">
       {/* Üst bar */}
-      <header className="flex items-center justify-between border-b border-neutral-800 px-4 py-2">
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-semibold tracking-tight">NEXCODE</span>
-          <span className="text-[11px] text-neutral-500">Faz 2 · çoklu-agent IDE</span>
+      <header className="flex items-center justify-between border-b border-ink-700 bg-ink-900/60 px-4 py-2 backdrop-blur">
+        <div className="flex items-center gap-2.5">
+          <img src="./favicon.png" alt="NEXCODE" className="h-7 w-7 rounded-md ring-1 ring-ink-700" />
+          <span className="text-base font-extrabold tracking-tight">
+            <span className="text-brand-grad">NEX</span>
+            <span className="text-chrome">CODE</span>
+          </span>
+          <span className="ml-1 rounded bg-ink-800 px-1.5 py-0.5 text-[10px] text-neutral-500">
+            çoklu-agent IDE
+          </span>
         </div>
         <div className="flex items-center gap-2 text-[11px]">
-          <span className="rounded bg-neutral-800 px-2 py-0.5 text-neutral-400">
-            Taşma (API) maliyeti: ${apiCost.toFixed(4)}
+          <span className="rounded-md border border-ink-700 bg-ink-800/50 px-2 py-0.5 text-neutral-400">
+            API: {keyCount} anahtar · CLI: {cliCount} kurulu
           </span>
-          <span className="max-w-[260px] truncate text-neutral-500">{status}</span>
+          <span className="rounded-md border border-ink-700 bg-ink-800/50 px-2 py-0.5 text-neutral-400">
+            Taşma (API): ${apiCost.toFixed(4)}
+          </span>
+          <span className="max-w-[240px] truncate text-neutral-500">{status}</span>
         </div>
       </header>
 
       {/* 3 panel */}
       <div className="flex min-h-0 flex-1">
-        {/* Sol: dosya ağacı */}
-        <aside className="w-60 shrink-0 border-r border-neutral-800 bg-neutral-900/30">
+        <aside className="w-60 shrink-0 border-r border-ink-700 bg-ink-900/30">
           <FileTree
             root={root}
             entries={entries}
@@ -196,33 +209,33 @@ export default function HomePage() {
           />
         </aside>
 
-        {/* Orta: kod + terminal */}
         <main className="flex min-w-0 flex-1 flex-col">
-          <div className="min-h-0 flex-1 border-b border-neutral-800">
-            <CodeViewer file={fileContent} path={activePath} />
+          <div className="min-h-0 flex-1 border-b border-ink-700">
+            <CodeEditor file={fileContent} path={activePath} />
           </div>
           <div className="h-56 shrink-0">
             <TerminalPanel />
           </div>
         </main>
 
-        {/* Sağ: chat / agents */}
-        <aside className="flex w-96 shrink-0 flex-col border-l border-neutral-800 bg-neutral-900/30">
-          <div className="flex border-b border-neutral-800 text-[11px]">
-            {(["chat", "agents"] as const).map((t) => (
+        <aside className="flex w-96 shrink-0 flex-col border-l border-ink-700 bg-ink-900/30">
+          <div className="flex border-b border-ink-700 text-[11px]">
+            {(["chat", "agents", "connections"] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
                 className={`flex-1 py-2 font-semibold uppercase tracking-wider transition ${
-                  tab === t ? "bg-neutral-800/60 text-neutral-100" : "text-neutral-500 hover:text-neutral-300"
+                  tab === t
+                    ? "border-b-2 border-brand-500 bg-ink-800/40 text-neutral-100"
+                    : "border-b-2 border-transparent text-neutral-500 hover:text-neutral-300"
                 }`}
               >
-                {t === "chat" ? "Sohbet" : "Agent & Model"}
+                {tabLabels[t]}
               </button>
             ))}
           </div>
 
-          {tab === "chat" ? (
+          {tab === "chat" && (
             <div className="min-h-0 flex-1">
               <ChatPanel
                 chat={chat}
@@ -237,55 +250,32 @@ export default function HomePage() {
                 onResolve={onResolve}
               />
             </div>
-          ) : (
-            <div className="min-h-0 flex-1 overflow-auto p-3">
-              {/* API anahtarları (her sağlayıcı için) */}
-              <div className="mb-3 rounded-md border border-neutral-800 bg-neutral-900/40 p-2">
-                <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
-                  API anahtarı (OS keychain)
-                </p>
-                <div className="flex gap-1">
-                  <select
-                    value={keyProvider}
-                    onChange={(e) => setKeyProvider(e.target.value)}
-                    className="rounded border border-neutral-700 bg-neutral-950 px-1 py-1 text-[11px] outline-none"
-                  >
-                    {providers.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.label}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    type="password"
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="anahtar…"
-                    className="min-w-0 flex-1 rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] outline-none focus:border-neutral-500"
-                  />
-                  <button
-                    onClick={onSaveKey}
-                    disabled={!available || busy || !apiKey.trim()}
-                    className="rounded bg-neutral-100 px-2 py-1 text-[11px] font-medium text-neutral-900 hover:bg-white disabled:opacity-40"
-                  >
-                    Kaydet
-                  </button>
-                </div>
-                <p className="mt-1 text-[9px] text-neutral-600">
-                  CLI modu anahtar gerektirmez; sistemde kurulu CLI (claude/codex/antigravity) kullanılır.
-                </p>
-              </div>
+          )}
 
-              <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
-                Her agent için AI + bağlantı (senin seçimin)
+          {tab === "agents" && (
+            <div className="min-h-0 flex-1 overflow-auto p-3">
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
+                Her agent için AI + bağlantı modu (senin seçimin)
               </p>
               <AgentPanel
                 providers={providers}
                 agentModels={agentModels}
                 connections={connections}
+                status={connStatus}
                 disabled={!available || busy}
                 onModelChange={onModelChange}
                 onConnectionChange={onConnection}
+              />
+            </div>
+          )}
+
+          {tab === "connections" && (
+            <div className="min-h-0 flex-1 overflow-auto p-3">
+              <ConnectionsPanel
+                providers={providers}
+                status={connStatus}
+                disabled={!available || busy}
+                onSaveKey={onSaveKey}
               />
             </div>
           )}

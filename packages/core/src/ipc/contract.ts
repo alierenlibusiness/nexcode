@@ -80,6 +80,11 @@ export type ProviderInfoDTO = z.infer<typeof providerInfoSchema>;
 // --- Faz 2: dosya sistemi (IDE kabuğu) ---
 export const fsReadDirInputSchema = z.object({ path: z.string().min(1) });
 export const fsReadFileInputSchema = z.object({ path: z.string().min(1) });
+export const fsWriteFileInputSchema = z.object({
+  path: z.string().min(1),
+  content: z.string(),
+});
+export type FsWriteFileInputDTO = z.infer<typeof fsWriteFileInputSchema>;
 
 export const fsEntrySchema = z.object({
   name: z.string(),

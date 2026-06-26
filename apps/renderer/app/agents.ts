@@ -8,6 +8,9 @@ export interface AgentCardInfo {
   connectionMode: ConnectionMode;
   autonomy: AutonomyLevel;
   summary: string;
+  /** Görsel kimlik: kısaltma + accent rengi (Tailwind sınıfı). */
+  short: string;
+  accent: string;
 }
 
 export const AGENT_CARDS: readonly AgentCardInfo[] = [
@@ -18,6 +21,8 @@ export const AGENT_CARDS: readonly AgentCardInfo[] = [
     connectionMode: "cli",
     autonomy: "supervised",
     summary: "Planlar, görev grafiği kurar, atar. Kod yazmaz.",
+    short: "CEO",
+    accent: "text-brand-300",
   },
   {
     role: "frontend",
@@ -26,6 +31,8 @@ export const AGENT_CARDS: readonly AgentCardInfo[] = [
     connectionMode: "cli",
     autonomy: "supervised",
     summary: "UI bileşenleri, state, stil, erişilebilirlik.",
+    short: "FE",
+    accent: "text-emerald-300",
   },
   {
     role: "backend",
@@ -34,6 +41,8 @@ export const AGENT_CARDS: readonly AgentCardInfo[] = [
     connectionMode: "cli",
     autonomy: "supervised",
     summary: "API, şema/migration, iş mantığı, entegrasyon.",
+    short: "BE",
+    accent: "text-violet-300",
   },
   {
     role: "security",
@@ -42,14 +51,18 @@ export const AGENT_CARDS: readonly AgentCardInfo[] = [
     connectionMode: "api",
     autonomy: "autonomous",
     summary: "Bağımlılık/secret tarama, review. Dosyaya yazmaz.",
+    short: "SEC",
+    accent: "text-rose-300",
   },
   {
     role: "qa",
     title: "QA · Test",
-    model: "DeepSeek V4 Flash → MiniMax M3 → Sonnet 4.6",
+    model: "DeepSeek → MiniMax → Sonnet",
     connectionMode: "api",
     autonomy: "autonomous",
     summary: "3 kademeli eskalasyon. Event-driven test.",
+    short: "QA",
+    accent: "text-amber-300",
   },
   {
     role: "devops",
@@ -58,5 +71,7 @@ export const AGENT_CARDS: readonly AgentCardInfo[] = [
     connectionMode: "api",
     autonomy: "manual",
     summary: "CI/CD, build, deploy. Önce dry-run.",
+    short: "OPS",
+    accent: "text-cyan-300",
   },
 ];

@@ -11,11 +11,13 @@ import {
   agentModelSetInputSchema,
   fsReadDirInputSchema,
   fsReadFileInputSchema,
+  fsWriteFileInputSchema,
   terminalStartInputSchema,
   terminalInputSchema,
   terminalKillInputSchema,
   ALL_AGENTS,
   listProviders,
+  providerCliKind,
   logger,
   type ConnectionPreference,
   type AgentRole,
@@ -29,8 +31,9 @@ import {
   CostLogRepository,
 } from "@nexcode/core/db";
 import type { Orchestrator } from "@nexcode/core";
-import { readDir, readFileText } from "./fsbridge";
+import { readDir, readFileText, writeFileText } from "./fsbridge";
 import { TerminalManager } from "./terminal";
+import { isCliInstalled } from "./cli-detect";
 
 const KEYCHAIN_SERVICE = "nexcode";
 
@@ -154,6 +157,21 @@ export function registerIpcHandlers(ctx: IpcContext): void {
     return stored !== null;
   });
 
+  // Faz 2: bağlantı durumu — her sağlayıcı için API anahtarı var mı + CLI kurulu mu.
+  // UI bunu "API nereye girilir / CLI nasıl bağlanır" netliği için kullanır.
+  ipcMain.handle(IpcChannels.connectionStatus, async () => {
+    const result: Record<string, { hasApiKey: boolean; cliKind: string | null; cliInstalled: boolean }> = {};
+    for (const p of listProviders()) {
+      const cliKind = providerCliKind(p.id) ?? null;
+      result[p.id] = {
+        hasApiKey: ctx.apiKeyCache.has(p.id) || (await ctx.secretStore.get(KEYCHAIN_SERVICE, p.id)) !== null,
+        cliKind,
+        cliInstalled: cliKind ? isCliInstalled(cliKind) : false,
+      };
+    }
+    return result;
+  });
+
   registerFsHandlers(ctx);
   registerTerminalHandlers(ctx);
 }
@@ -181,6 +199,12 @@ function registerFsHandlers(ctx: IpcContext): void {
   ipcMain.handle(IpcChannels.fsReadFile, (_e, raw: unknown) => {
     const { path: file } = fsReadFileInputSchema.parse(raw);
     return readFileText(file);
+  });
+
+  ipcMain.handle(IpcChannels.fsWriteFile, (_e, raw: unknown) => {
+    const { path: file, content } = fsWriteFileInputSchema.parse(raw);
+    writeFileText(file, content);
+    logger.info("fs.write_file", { path: file, bytes: content.length });
   });
 }
 

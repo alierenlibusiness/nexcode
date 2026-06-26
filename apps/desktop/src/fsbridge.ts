@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 export interface FsEntry {
@@ -45,4 +45,9 @@ export function readFileText(filePath: string): FileContent {
   }
   const content = readFileSync(filePath, "utf8");
   return { path: filePath, content, truncated: false, tooLarge: false };
+}
+
+/** Dosyaya yazar (editörden Ctrl+S kaydetme). Kullanıcının kendi düzenlemesi — insan eylemi. */
+export function writeFileText(filePath: string, content: string): void {
+  writeFileSync(filePath, content, "utf8");
 }

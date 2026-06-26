@@ -49,15 +49,15 @@ export function TerminalPanel() {
   const display = lines.replace(/\x1b\[[0-9;]*[A-Za-z]/g, "").replace(/\r/g, "");
 
   return (
-    <div className="flex h-full flex-col bg-black/40" onClick={() => inputRef.current?.focus()}>
-      <div className="border-b border-neutral-800 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
-        Terminal
+    <div className="flex h-full flex-col bg-ink-950/70" onClick={() => inputRef.current?.focus()}>
+      <div className="flex items-center gap-2 border-b border-ink-700 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
+        <span className="h-1.5 w-1.5 rounded-full bg-brand-400" /> Terminal
       </div>
       <div ref={scrollRef} className="flex-1 overflow-auto px-3 py-1 font-mono text-[11px] leading-relaxed text-neutral-300">
         <pre className="whitespace-pre-wrap break-words">{display}</pre>
       </div>
-      <div className="flex items-center gap-1 border-t border-neutral-800 px-2 py-1">
-        <span className="text-[11px] text-emerald-400">$</span>
+      <div className="flex items-center gap-1 border-t border-ink-700 px-2 py-1">
+        <span className="text-[11px] text-brand-400">$</span>
         <input
           ref={inputRef}
           value={input}

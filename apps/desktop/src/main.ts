@@ -1,4 +1,5 @@
 import path from "node:path";
+import { existsSync } from "node:fs";
 import { app, BrowserWindow, type WebContents } from "electron";
 import {
   logger,
@@ -102,11 +103,22 @@ async function buildContext(): Promise<IpcContext> {
   };
 }
 
+function resolveIcon(): string | undefined {
+  // Dev'de apps/desktop/build/icon.png; paketlide exe ikonu zaten gömülü olur.
+  const candidate = path.join(__dirname, "..", "build", "icon.png");
+  return existsSync(candidate) ? candidate : undefined;
+}
+
 async function createWindow(): Promise<void> {
+  const icon = resolveIcon();
   const win = new BrowserWindow({
     width: 1480,
     height: 920,
-    backgroundColor: "#0a0a0a",
+    minWidth: 1100,
+    minHeight: 700,
+    title: "NEXCODE",
+    backgroundColor: "#070a0f",
+    ...(icon ? { icon } : {}),
     show: false,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),

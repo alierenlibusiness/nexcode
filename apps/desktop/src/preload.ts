@@ -21,7 +21,9 @@ const C = {
   fsOpenFolder: "fs:open-folder",
   fsReadDir: "fs:read-dir",
   fsReadFile: "fs:read-file",
+  fsWriteFile: "fs:write-file",
   fsCurrentRoot: "fs:current-root",
+  connectionStatus: "connection:status",
   terminalStart: "terminal:start",
   terminalInput: "terminal:input",
   terminalResize: "terminal:resize",
@@ -63,11 +65,16 @@ const api = {
   // Faz 2: maliyet
   getCostSummary: (): Promise<unknown> => ipcRenderer.invoke(C.costSummary),
 
+  // Faz 2: bağlantı durumu (API anahtarı + CLI kurulu mu)
+  getConnectionStatus: (): Promise<unknown> => ipcRenderer.invoke(C.connectionStatus),
+
   // Faz 2: dosya sistemi (IDE kabuğu)
   openFolder: (): Promise<unknown> => ipcRenderer.invoke(C.fsOpenFolder),
   currentRoot: (): Promise<unknown> => ipcRenderer.invoke(C.fsCurrentRoot),
   readDir: (path: string): Promise<unknown> => ipcRenderer.invoke(C.fsReadDir, { path }),
   readFile: (path: string): Promise<unknown> => ipcRenderer.invoke(C.fsReadFile, { path }),
+  writeFile: (path: string, content: string): Promise<unknown> =>
+    ipcRenderer.invoke(C.fsWriteFile, { path, content }),
 
   // Faz 2: terminal
   terminalStart: (id: string, cwd?: string): Promise<unknown> =>

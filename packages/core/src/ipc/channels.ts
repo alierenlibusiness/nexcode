@@ -27,7 +27,10 @@ export const IpcChannels = {
   fsOpenFolder: "fs:open-folder",
   fsReadDir: "fs:read-dir",
   fsReadFile: "fs:read-file",
+  fsWriteFile: "fs:write-file",
   fsCurrentRoot: "fs:current-root",
+  // CLI kurulu mu + API anahtarı var mı (bağlantı durumu)
+  connectionStatus: "connection:status",
   // Faz 2: terminal (shell session)
   terminalStart: "terminal:start",
   terminalInput: "terminal:input",

@@ -49,6 +49,10 @@ export interface CostSummaryDTO {
   }>;
   totalApiCost: number;
 }
+export type ConnectionStatusMap = Record<
+  string,
+  { hasApiKey: boolean; cliKind: string | null; cliInstalled: boolean }
+>;
 
 declare global {
   interface Window {
@@ -71,11 +75,14 @@ declare global {
       setAgentModel(role: AgentRole, provider: string, modelId: string): Promise<void>;
       // Faz 2: maliyet
       getCostSummary(): Promise<CostSummaryDTO>;
+      // Faz 2: bağlantı durumu
+      getConnectionStatus(): Promise<ConnectionStatusMap>;
       // Faz 2: dosya sistemi (IDE kabuğu)
       openFolder(): Promise<RootListingDTO>;
       currentRoot(): Promise<RootListingDTO>;
       readDir(path: string): Promise<FsEntryDTO[]>;
       readFile(path: string): Promise<FileContentDTO>;
+      writeFile(path: string, content: string): Promise<void>;
       // Faz 2: terminal
       terminalStart(id: string, cwd?: string): Promise<void>;
       terminalInput(id: string, data: string): Promise<void>;

@@ -78,6 +78,19 @@ hazır olunca Electron penceresini açar. Üretimde `apps/renderer/out` export'u
 > çalışmaz. Testlere dönmek için: **`pnpm rebuild:node`**. (Tek komutlar:
 > `pnpm rebuild:electron` / `pnpm rebuild:node`.)
 
+### Kurulum sihirbazı (setup.exe) üretme
+
+```bash
+pnpm rebuild:electron                          # native modülü Electron ABI'sine hazırla
+pnpm build                                     # core + desktop + renderer/out
+pnpm --filter @nexcode/desktop package         # NSIS installer → release/NEXCODE-Setup-<sürüm>.exe
+```
+
+Üretilen `release/NEXCODE-Setup-0.1.0.exe` **sihirbazlı** (oneClick değil), **kullanıcı
+profiline kurar** (admin gerekmez; `%LOCALAPPDATA%\Programs\NEXCODE`), masaüstü + başlat
+menüsü kısayolu oluşturur. İmzalama için kod-imzalama sertifikası gerekir (PRD §21).
+better-sqlite3 ve `@napi-rs/keyring` native modülleri pakete dahildir (`asar.unpacked`).
+
 ## Standartlar
 
 Strict TypeScript (`strict`, `noUncheckedIndexedAccess`), Conventional Commits, Vitest.

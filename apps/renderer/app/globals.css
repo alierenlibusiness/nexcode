@@ -7,5 +7,61 @@
 }
 
 body {
-  @apply bg-neutral-950 text-neutral-100 antialiased;
+  @apply bg-ink-950 text-neutral-100 antialiased;
+  background-image:
+    radial-gradient(900px 500px at 80% -10%, rgba(43, 166, 255, 0.08), transparent 60%),
+    radial-gradient(700px 400px at 0% 110%, rgba(43, 166, 255, 0.05), transparent 55%);
+}
+
+@layer components {
+  /* Logodaki "NEX" mavi gradyanı */
+  .text-brand-grad {
+    @apply bg-brand-grad bg-clip-text text-transparent;
+  }
+  /* Logodaki "CORE" krom gradyanı */
+  .text-chrome {
+    @apply bg-chrome-grad bg-clip-text text-transparent;
+  }
+  .panel {
+    @apply rounded-xl border border-ink-700 bg-ink-900/70 shadow-panel backdrop-blur-sm;
+  }
+  .panel-flat {
+    @apply border border-ink-700 bg-ink-900/50;
+  }
+  .btn-brand {
+    @apply rounded-lg bg-brand-grad px-4 py-2 text-sm font-semibold text-white transition
+      hover:brightness-110 active:brightness-95 disabled:opacity-40 disabled:hover:brightness-100;
+  }
+  .btn-ghost {
+    @apply rounded-lg border border-ink-700 bg-ink-800/60 px-3 py-1.5 text-sm text-neutral-300
+      transition hover:border-brand-500/50 hover:text-white disabled:opacity-40;
+  }
+  .field {
+    @apply rounded-lg border border-ink-700 bg-ink-950/80 px-3 py-2 text-sm text-neutral-100
+      outline-none transition focus:border-brand-500/70 focus:shadow-glow-sm placeholder:text-neutral-600;
+  }
+}
+
+/* İnce, koyu kaydırma çubuğu */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #26303f transparent;
+}
+*::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #26303f;
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: #34465c;
+  background-clip: padding-box;
+}
+
+::selection {
+  background: rgba(43, 166, 255, 0.3);
 }

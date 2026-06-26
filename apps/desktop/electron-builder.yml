@@ -2,6 +2,17 @@ appId: com.nexcode.desktop
 productName: NEXCODE
 copyright: Copyright © 2026 NEXCODE
 
+# Native modül (better-sqlite3) Electron ABI'sine `pnpm rebuild:electron` ile önceden
+# hazırlanır; electron-builder'ın node-gyp rebuild'i (build araçları gerektirir) kapalı.
+npmRebuild: false
+
+# @napi-rs/keyring platform .node'unu paket dizinine kopyalar (pnpm optional dep sorunu).
+beforePack: scripts/before-pack.cjs
+
+# Tüm native binary'ler asar dışına çıkarılır (require edilebilmesi için).
+asarUnpack:
+  - "**/*.node"
+
 directories:
   output: ../../release
   buildResources: build
@@ -14,7 +25,9 @@ extraResources:
   - from: ../renderer/out
     to: renderer/out
 
+# Uygulama ikonu — Windows için gerçek .ico (NSIS installer ikonları .png kabul etmez).
 win:
+  icon: build/icon.ico
   target:
     - target: nsis
       arch: [x64]
@@ -22,12 +35,24 @@ win:
       arch: [x64]
   # Üretim için code-signing sertifikası burada yapılandırılır (PRD §21).
 
+# Sihirbazlı (assisted) NSIS installer — kullanıcı profiline kurar (admin gerekmez).
 nsis:
-  oneClick: false
-  perMachine: false
+  oneClick: false # sihirbaz sayfalarını göster
+  perMachine: false # makine geneli değil, kullanıcı profili (%LOCALAPPDATA%\Programs\NEXCODE)
   allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: NEXCODE
+  artifactName: NEXCODE-Setup-${version}.${ext}
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  installerHeaderIcon: build/icon.ico
+
+msi:
+  artifactName: NEXCODE-${version}.${ext}
 
 mac:
+  icon: build/icon.png
   target:
     - target: dmg
       arch: [arm64, x64]
@@ -37,11 +62,9 @@ mac:
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
+  # APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID ortam değişkenleri varsa notarize eder.
+  notarize: true
 
-# Notarization: electron-builder, APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID
-# ortam değişkenleri (veya notarytool keychain profili) varsa otomatik notarize eder.
-notarize: true
-
-# NOT: pnpm monorepo'da paketleme için node-linker=hoisted veya
-# `--config.nodeGypRebuild=false` + native modüllerin Electron ABI'sine
-# rebuild'i gerekir. İmzalı installer üretimi sertifika + Apple Developer hesabı gerektirir (PRD §21).
+# NOT: pnpm monorepo'da paketleme için native modüllerin (better-sqlite3) Electron ABI'sine
+# rebuild'i gerekir (pnpm dev / rebuild:electron bunu yapar). İmzalı installer üretimi
+# sertifika + (macOS için) Apple Developer hesabı gerektirir (PRD §21).

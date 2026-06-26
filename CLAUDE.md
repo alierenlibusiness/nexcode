@@ -8,7 +8,7 @@
 
 ## Proje Nedir
 
-NEXCODE, bir geliştiricinin 6 uzman AI agent'ını tek bir **workspace** üzerinden, gerçek bir yazılım ekibi gibi **paralel** yönetmesini sağlayan Electron masaüstü uygulamasıdır. Bir kod editörü **değildir**; mevcut editör/IDE iş akışının üzerine binen bir **orkestrasyon ve gözlem katmanıdır** — git, terminal ve dosya sistemiyle doğrudan çalışır. Bu sınır korunur: yalnızca diff/önizleme + gözlem; tam editör özellikleri eklenmez.
+NEXCODE, bir geliştiricinin 6 uzman AI agent'ını tek bir **workspace** üzerinden, gerçek bir yazılım ekibi gibi **paralel** yönetmesini sağlayan Electron masaüstü uygulamasıdır. Odağı bir editör değil **orkestrasyon ve gözlem katmanı** olmaya devam eder — git, terminal ve dosya sistemiyle doğrudan çalışır. VS Code benzeri 3-panel IDE kabuğu (dosya ağacı + hafif düzenlenebilir kod editörü + terminal + vibe-coding sohbeti) bu orkestrasyonu kullanışlı kılmak için vardır; ağır IDE özellikleri (dil sunucuları, debugger, eklenti ekosistemi) kapsam dışıdır.
 
 ---
 

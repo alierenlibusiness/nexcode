@@ -40,8 +40,8 @@ function TreeNode({
         onClick={toggle}
         title={entry.name}
         style={{ paddingLeft: `${String(depth * 12 + 8)}px` }}
-        className={`flex w-full items-center gap-1 truncate py-0.5 pr-2 text-left text-xs transition hover:bg-neutral-800 ${
-          isActive ? "bg-violet-500/20 text-violet-200" : "text-neutral-300"
+        className={`flex w-full items-center gap-1 truncate py-0.5 pr-2 text-left text-xs transition hover:bg-ink-800 ${
+          isActive ? "bg-brand-500/15 text-brand-200" : "text-neutral-300"
         }`}
       >
         <span className="w-3 shrink-0 text-neutral-500">
@@ -79,13 +79,13 @@ export function FileTree({
 }) {
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b border-neutral-800 px-3 py-2">
+      <div className="flex items-center justify-between border-b border-ink-700 px-3 py-2">
         <span className="truncate text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
           {root ? root.split(/[\\/]/).pop() : "Gezgin"}
         </span>
         <button
           onClick={onOpenFolder}
-          className="rounded bg-neutral-800 px-2 py-0.5 text-[10px] text-neutral-300 hover:bg-neutral-700"
+          className="rounded-md bg-brand-grad px-2 py-0.5 text-[10px] font-medium text-white transition hover:brightness-110"
         >
           Klasör Aç
         </button>

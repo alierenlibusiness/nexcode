@@ -10,6 +10,7 @@ export default tseslint.config(
       "**/node_modules/**",
       "**/next-env.d.ts",
       "**/*.config.{js,mjs,cjs,ts}",
+      "**/*.cjs", // CommonJS build araçları (ör. electron-builder hook'ları)
     ],
   },
   js.configs.recommended,

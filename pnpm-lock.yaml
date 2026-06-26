@@ -32,9 +32,15 @@ importers:
 
   apps/desktop:
     dependencies:
+      '@napi-rs/keyring':
+        specifier: ^1.1.7
+        version: 1.3.0
       '@nexcode/core':
         specifier: workspace:*
         version: link:../../packages/core
+      better-sqlite3:
+        specifier: ^11.7.0
+        version: 11.10.0
     devDependencies:
       electron:
         specifier: ^33.2.1
