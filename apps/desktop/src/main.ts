@@ -1,6 +1,7 @@
 import path from "node:path";
 import { existsSync } from "node:fs";
-import { app, BrowserWindow, type WebContents } from "electron";
+import { pathToFileURL } from "node:url";
+import { app, BrowserWindow, protocol, net, type WebContents } from "electron";
 import {
   logger,
   Orchestrator,
@@ -23,6 +24,35 @@ import { registerIpcHandlers, type IpcContext } from "./ipc";
 const KEYCHAIN_SERVICE = "nexcode";
 
 let mainWindow: BrowserWindow | null = null;
+
+// Renderer'ı özel `app://` protokolünden sunarız. Bu, Next.js statik export'unun MUTLAK
+// asset yollarını (`/_next/...`) doğru çözer — `file://` altında bunlar bozulur (PRD §5.1).
+// Şema, app hazır olmadan ÖNCE privileged kaydedilmeli.
+protocol.registerSchemesAsPrivileged([
+  { scheme: "app", privileges: { standard: true, secure: true, supportFetchAPI: true } },
+]);
+
+/** Paketli: resources/renderer/out; dev (env yoksa, dist'ten çalıştırma): ../../renderer/out. */
+function rendererRoot(): string {
+  return app.isPackaged
+    ? path.join(process.resourcesPath, "renderer", "out")
+    : path.join(__dirname, "..", "..", "renderer", "out");
+}
+
+/** `app://` isteklerini renderer/out kök dizininden dosya olarak sunar (path traversal korumalı). */
+function registerAppProtocol(): void {
+  const root = rendererRoot();
+  protocol.handle("app", (request) => {
+    const { pathname } = new URL(request.url);
+    const rel = pathname === "/" || pathname === "" ? "/index.html" : pathname;
+    const resolved = path.normalize(path.join(root, decodeURIComponent(rel)));
+    // Kökün dışına çıkışı engelle.
+    if (!resolved.startsWith(root)) {
+      return new Response("Forbidden", { status: 403 });
+    }
+    return net.fetch(pathToFileURL(resolved).toString());
+  });
+}
 
 function resolveDbPath(): string {
   return path.join(app.getPath("userData"), "nexcode.db");
@@ -131,18 +161,24 @@ async function createWindow(): Promise<void> {
   win.on("closed", () => {
     if (mainWindow === win) mainWindow = null;
   });
+  win.webContents.on("did-finish-load", () => logger.info("renderer.loaded"));
+  win.webContents.on("did-fail-load", (_e, code, desc, url) =>
+    logger.error("renderer.load_failed", { code, desc, url }),
+  );
 
   const devUrl = process.env.NEXCODE_RENDERER_URL;
   if (devUrl) {
     await win.loadURL(devUrl);
   } else {
-    await win.loadFile(path.join(__dirname, "..", "..", "renderer", "out", "index.html"));
+    // Statik export'u app:// protokolünden yükle (mutlak asset yolları çalışsın diye).
+    await win.loadURL("app://nexcode/index.html");
   }
 }
 
 app
   .whenReady()
   .then(async () => {
+    registerAppProtocol();
     const ctx = await buildContext();
     registerIpcHandlers(ctx);
     logger.info("nexcode.main.ready", { workspaceId: ctx.workspaceId });
