@@ -5,7 +5,7 @@ import type {
   CostEstimate,
   TokenUsage,
 } from "../types";
-import { type CliRunner, spawnRunner } from "./runner";
+import { type CliRunner, spawnRunner, buildTaggedPrompt, CliParseError } from "./runner";
 
 export interface ClaudeCodeAdapterOptions {
   /** CLI binary yolu (varsayılan "claude"). */
@@ -39,18 +39,9 @@ export class ClaudeCodeAdapter implements AIProviderAdapter {
     this.runner = options.runner ?? spawnRunner;
   }
 
-  private buildPrompt(req: CompletionRequest): string {
-    const parts: string[] = [];
-    if (req.system) parts.push(`[system]\n${req.system}`);
-    for (const message of req.messages) {
-      parts.push(`[${message.role}]\n${message.content}`);
-    }
-    return parts.join("\n\n");
-  }
-
   async complete(req: CompletionRequest): Promise<CompletionResult> {
     const args = ["-p", "--output-format", "json", "--model", req.model];
-    const result = await this.runner(this.binary, args, this.buildPrompt(req));
+    const result = await this.runner(this.binary, args, buildTaggedPrompt(req));
 
     if (result.exitCode !== 0) {
       throw new Error(
@@ -62,7 +53,10 @@ export class ClaudeCodeAdapter implements AIProviderAdapter {
     try {
       parsed = JSON.parse(result.stdout) as ClaudeCliJson;
     } catch {
-      throw new Error(`Claude Code CLI çıktısı parse edilemedi: ${result.stdout.slice(0, 200)}`);
+      throw new CliParseError(
+        `Claude Code CLI çıktısı parse edilemedi: ${result.stdout.slice(0, 200)}`,
+        "anthropic",
+      );
     }
 
     if (parsed.is_error) {

@@ -3,6 +3,7 @@ import { openDatabase } from "../db/connection";
 import { TaskRepository } from "../db/task-repo";
 import { Orchestrator } from "./orchestrator";
 import { parsePlan } from "./plan";
+import { MessageBus } from "../agents/message-bus";
 import type { AIProviderAdapter, CompletionResult } from "../providers/types";
 
 function stubAdapter(text: string, mode: "api" | "cli" = "api"): AIProviderAdapter {
@@ -64,5 +65,40 @@ describe("Orchestrator", () => {
     expect(output).toBe("kod üretildi");
     expect(tasks.getById(task.id)?.status).toBe("review");
     expect(resolveAdapter).toHaveBeenCalled();
+  });
+
+  it("Backend dispatch tamamlanınca Security review + QA test mesajları yayınlar (§8.3/8.5)", async () => {
+    const tasks = new TaskRepository(openDatabase(":memory:"));
+    const task = tasks.create({ title: "API yaz", assignedRole: "backend" });
+    const messageBus = new MessageBus();
+    const orch = new Orchestrator({
+      tasks,
+      resolveAdapter: () => stubAdapter("kod", "cli"),
+      getPreference: () => "cli_first",
+      messageBus,
+    });
+
+    await orch.dispatchTask(task.id);
+
+    const published = messageBus.history().map((m) => `${m.to}:${m.type}`);
+    expect(published).toEqual(["security:review_request", "qa:test_request"]);
+  });
+
+  it("resolveModel verilirse adapter o modelle çözümlenir (kullanıcı AI seçimi)", async () => {
+    const tasks = new TaskRepository(openDatabase(":memory:"));
+    const task = tasks.create({ title: "UI yaz", assignedRole: "frontend" });
+    const resolveAdapter = vi.fn(() => stubAdapter("ui", "api"));
+    const orch = new Orchestrator({
+      tasks,
+      resolveAdapter,
+      getPreference: () => "api_only",
+      resolveModel: () => ({ provider: "glm", modelId: "glm-4.6", connectionMode: "api" }),
+    });
+
+    await orch.dispatchTask(task.id);
+    expect(resolveAdapter).toHaveBeenCalledWith(
+      { provider: "glm", modelId: "glm-4.6", connectionMode: "api" },
+      "api_only",
+    );
   });
 });

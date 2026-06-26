@@ -4,22 +4,29 @@
 
 > Ürün vizyonu ve tam spesifikasyon: [`docs/PRD.md`](docs/PRD.md). Agent talimatları: [`CLAUDE.md`](CLAUDE.md).
 
-## Durum — Faz 1 (Çekirdek / MVP)
+## Durum — Faz 2 (Tam Ekip · Çoklu Sağlayıcı · IDE Kabuğu)
 
-Faz 0 iskeletinin üzerine **Faz 1 orkestrasyonu** kuruldu:
+Faz 1 orkestrasyonunun üzerine **Faz 2** kuruldu:
 
-- **CEO → plan → onay → dispatch** döngüsü (`Orchestrator`): kullanıcı isteği CEO ile
-  görev planına çevrilir, görevler task board'a düşer, onay sonrası atanan agent'a verilir.
-- **Bağlantı modu seçimi (API / CLI):** her agent için `api_only` · `cli_only` ·
-  `cli_first` (kota dolunca API'ye fallback). UI'dan toggle ile seçilir, SQLite'da saklanır.
-  - **API modu:** Anthropic Messages API (anahtar OS keychain'de).
-  - **CLI modu:** sistemde kurulu `claude` CLI headless (`-p --output-format json`).
-- **Approval Gate:** yıkıcı eylemler her otonomi seviyesinde insan onayı gerektirir (sıfır-tolerans).
-- **In-process görev kuyruğu:** 3 denemede `blocked`'a eskalasyon (Redis'siz).
-- **UI:** API/CLI toggle'lı agent grid, istek kutusu, Kanban task board, onay paneli.
+- **6 agent'ın tamamı:** CEO · Frontend · Backend · Security · QA · DevOps (PRD §8 model/bağlantı eşlemesi).
+- **Provider-agnostic AI Gateway:** Anthropic, OpenAI (GPT/Codex), Google (Gemini),
+  DeepSeek, MiniMax — ve **veri-güdümlü registry** sayesinde yeni sağlayıcı (Kimi, GLM…)
+  eklemek sadece bir kayıt eklemek (OpenAI-uyumlu API'ler tek adapter'ı paylaşır).
+- **Her agent için AI seçimi:** kullanıcı UI'dan agent başına model seçer; SQLite'da saklanır.
+- **API / CLI çift mod + otomatik geçiş:** `api_only` · `cli_only` · `cli_first`.
+  CLI adapter'ları: Claude Code · Codex CLI · Antigravity CLI. Kota dolunca (5 saatlik
+  kayan pencere, `QuotaTracker`) API'ye düşer; her çağrı `cost_logs`'a `connection_mode` ile yazılır.
+- **QA 3-kademeli eskalasyon:** DeepSeek V4 Flash → MiniMax M3 → Sonnet 4.6.
+- **Inter-agent message bus (§6.7):** Backend → Security `review_request`, tamamlanan
+  kod görevi → QA `test_request` (event-driven).
+- **Merge-time conflict resolver (§6.2):** dosya kapsamı örtüşme tespiti + paralel-batch planlama.
+- **IDE kabuğu (VS Code benzeri 3 panel):** solda **Open Folder** ile dosya ağacı, ortada
+  salt-okunur kod görüntüleyici + **terminal**, sağda **vibe-coding sohbeti** (CEO orkestrasyon) ve
+  agent/model paneli.
+- **Approval Gate** (sıfır-tolerans) ve **in-process kuyruk** (Faz 1) korunur.
 
-Kalan: görev başına git worktree + commit, imzalı Windows installer (electron-builder
-config hazır, sertifika gerektirir). Yol haritası: PRD §23.
+Kalan: görev başına git worktree + commit otomasyonu, imzalı Windows/macOS installer
+(electron-builder config + entitlements hazır, sertifika/Apple hesabı gerektirir). Yol haritası: PRD §23.
 
 ## Monorepo Yapısı
 
@@ -33,8 +40,10 @@ apps/renderer      Next.js (statik export) — karanlık tema UI kabuğu
 `@nexcode/core` alt yolları:
 
 - `@nexcode/core` — saf (native-bağımsız) API; renderer + main güvenle kullanır
+  (registry, adapter'lar, orchestrator, message bus, quota, escalation, conflict-resolver)
 - `@nexcode/core/db` — better-sqlite3 (yalnızca main process)
 - `@nexcode/core/keyring` — OS keychain (yalnızca main process)
+- `@nexcode/core/providers` — CLI adapter'ları + AdapterFactory (node:child_process; yalnızca main)
 
 ## Gereksinimler
 

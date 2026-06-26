@@ -29,9 +29,19 @@ nsis:
 
 mac:
   target:
-    - dmg
+    - target: dmg
+      arch: [arm64, x64]
   category: public.app-category.developer-tools
+  # Notarization için gerekli (PRD §21, Faz 2 macOS paketleme):
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+
+# Notarization: electron-builder, APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID
+# ortam değişkenleri (veya notarytool keychain profili) varsa otomatik notarize eder.
+notarize: true
 
 # NOT: pnpm monorepo'da paketleme için node-linker=hoisted veya
 # `--config.nodeGypRebuild=false` + native modüllerin Electron ABI'sine
-# rebuild'i gerekir. İmzalı installer üretimi sertifika gerektirir (PRD §21).
+# rebuild'i gerekir. İmzalı installer üretimi sertifika + Apple Developer hesabı gerektirir (PRD §21).

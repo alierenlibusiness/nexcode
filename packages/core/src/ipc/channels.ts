@@ -17,6 +17,25 @@ export const IpcChannels = {
   // Sır/anahtar yönetimi (OS keychain)
   secretSetApiKey: "secret:set-api-key",
   secretHasApiKey: "secret:has-api-key",
+  // Faz 2: sağlayıcı/model registry + agent başına model seçimi
+  providerList: "provider:list",
+  agentModelGetAll: "agent-model:get-all",
+  agentModelSet: "agent-model:set",
+  // Faz 2: maliyet özeti (cost dashboard)
+  costSummary: "cost:summary",
+  // Faz 2: dosya sistemi (IDE kabuğu — open folder / ağaç / dosya okuma)
+  fsOpenFolder: "fs:open-folder",
+  fsReadDir: "fs:read-dir",
+  fsReadFile: "fs:read-file",
+  fsCurrentRoot: "fs:current-root",
+  // Faz 2: terminal (shell session)
+  terminalStart: "terminal:start",
+  terminalInput: "terminal:input",
+  terminalResize: "terminal:resize",
+  terminalKill: "terminal:kill",
+  // main → renderer event kanalları (push)
+  terminalData: "terminal:data",
+  terminalExit: "terminal:exit",
 } as const;
 
 export type IpcChannel = (typeof IpcChannels)[keyof typeof IpcChannels];

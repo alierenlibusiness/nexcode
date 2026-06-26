@@ -5,7 +5,8 @@ import type {
   CostEstimate,
   TokenUsage,
 } from "./types";
-import { getAnthropicPricing } from "./pricing";
+import { getPricing } from "./pricing";
+import { computeCost } from "./cost";
 
 export interface AnthropicAdapterOptions {
   apiKey: string;
@@ -19,13 +20,6 @@ interface AnthropicResponseBody {
   content: Array<{ type: string; text?: string }>;
   stop_reason: string | null;
   usage: { input_tokens: number; output_tokens: number };
-}
-
-/** Rough token tahmini (~4 karakter/token) — gerçek usage yoksa kullanılır. */
-function estimateTokens(req: CompletionRequest): number {
-  const chars =
-    (req.system?.length ?? 0) + req.messages.reduce((sum, m) => sum + m.content.length, 0);
-  return Math.ceil(chars / 4);
 }
 
 /** Anthropic Messages API adapter'ı (API anahtarı modu, PRD §5.6, §8.1/8.3). */
@@ -81,13 +75,7 @@ export class AnthropicAdapter implements AIProviderAdapter {
   }
 
   estimateCost(req: CompletionRequest, usage?: TokenUsage): CostEstimate {
-    const pricing = getAnthropicPricing(req.model);
-    const inputTokens = usage?.inputTokens ?? estimateTokens(req);
-    const outputTokens = usage?.outputTokens ?? (req.maxTokens ?? 1024);
-    const usd =
-      (inputTokens / 1_000_000) * pricing.inputPerMTok +
-      (outputTokens / 1_000_000) * pricing.outputPerMTok;
-    return { usd, inputTokens, outputTokens };
+    return computeCost(getPricing("anthropic", req.model), req, usage);
   }
 
   supportsTools(): boolean {

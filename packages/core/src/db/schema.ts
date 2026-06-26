@@ -84,6 +84,9 @@ CREATE TABLE IF NOT EXISTS agent_settings (
   workspace_id          TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
   role                  TEXT NOT NULL,
   connection_preference TEXT NOT NULL DEFAULT 'cli_first',
+  -- Kullanıcının agent için seçtiği model (NULL = agent varsayılanı, PRD §7/§8 + §9.5):
+  model_provider        TEXT,
+  model_id              TEXT,
   PRIMARY KEY (workspace_id, role)
 );
 

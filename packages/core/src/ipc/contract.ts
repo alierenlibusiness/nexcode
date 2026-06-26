@@ -54,3 +54,49 @@ export const secretSetApiKeyInputSchema = z.object({
 export type SecretSetApiKeyInputDTO = z.infer<typeof secretSetApiKeyInputSchema>;
 
 export const secretHasApiKeyInputSchema = z.object({ provider: z.string().min(1) });
+
+// --- Faz 2: agent başına model seçimi (kullanıcı AI seçer) ---
+export const agentModelSetInputSchema = z.object({
+  role: agentRoleSchema,
+  provider: z.string().min(1),
+  modelId: z.string().min(1),
+});
+export type AgentModelSetInputDTO = z.infer<typeof agentModelSetInputSchema>;
+
+export const providerModelSchema = z.object({
+  modelId: z.string(),
+  label: z.string(),
+  vision: z.boolean().optional(),
+});
+export const providerInfoSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  kind: z.enum(["anthropic", "openai-compatible", "google"]),
+  cli: z.string().optional(),
+  models: z.array(providerModelSchema),
+});
+export type ProviderInfoDTO = z.infer<typeof providerInfoSchema>;
+
+// --- Faz 2: dosya sistemi (IDE kabuğu) ---
+export const fsReadDirInputSchema = z.object({ path: z.string().min(1) });
+export const fsReadFileInputSchema = z.object({ path: z.string().min(1) });
+
+export const fsEntrySchema = z.object({
+  name: z.string(),
+  path: z.string(),
+  kind: z.enum(["file", "directory"]),
+});
+export type FsEntryDTO = z.infer<typeof fsEntrySchema>;
+
+// --- Faz 2: terminal ---
+export const terminalStartInputSchema = z.object({
+  id: z.string().min(1),
+  cwd: z.string().optional(),
+});
+export const terminalInputSchema = z.object({ id: z.string().min(1), data: z.string() });
+export const terminalResizeInputSchema = z.object({
+  id: z.string().min(1),
+  cols: z.number().int().positive(),
+  rows: z.number().int().positive(),
+});
+export const terminalKillInputSchema = z.object({ id: z.string().min(1) });

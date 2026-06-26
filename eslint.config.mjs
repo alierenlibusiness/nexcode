@@ -15,6 +15,19 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
+    // Node ortamı script'leri (build/dev yardımcıları).
+    files: ["scripts/**/*.mjs"],
+    languageOptions: {
+      globals: {
+        process: "readonly",
+        console: "readonly",
+        setTimeout: "readonly",
+        Buffer: "readonly",
+        URL: "readonly",
+      },
+    },
+  },
+  {
     languageOptions: {
       ecmaVersion: 2023,
       sourceType: "module",

@@ -1,4 +1,4 @@
-import { ipcMain } from "electron";
+import { ipcMain, dialog, type WebContents } from "electron";
 import {
   IpcChannels,
   createWorkspaceInputSchema,
@@ -8,7 +8,14 @@ import {
   connectionSetInputSchema,
   secretSetApiKeyInputSchema,
   secretHasApiKeyInputSchema,
-  FAZ1_AGENTS,
+  agentModelSetInputSchema,
+  fsReadDirInputSchema,
+  fsReadFileInputSchema,
+  terminalStartInputSchema,
+  terminalInputSchema,
+  terminalKillInputSchema,
+  ALL_AGENTS,
+  listProviders,
   logger,
   type ConnectionPreference,
   type AgentRole,
@@ -19,8 +26,11 @@ import {
   TaskRepository,
   ApprovalRepository,
   AgentSettingsRepository,
+  CostLogRepository,
 } from "@nexcode/core/db";
 import type { Orchestrator } from "@nexcode/core";
+import { readDir, readFileText } from "./fsbridge";
+import { TerminalManager } from "./terminal";
 
 const KEYCHAIN_SERVICE = "nexcode";
 
@@ -29,10 +39,15 @@ export interface IpcContext {
   tasks: TaskRepository;
   approvals: ApprovalRepository;
   settings: AgentSettingsRepository;
+  costLogs: CostLogRepository;
   orchestrator: Orchestrator;
   secretStore: SecretStore;
   apiKeyCache: Map<string, string>;
   workspaceId: string;
+  /** IDE kabuğu için açık olan klasör kökü (Open Folder ile değişir). */
+  rootDir: string;
+  /** main → renderer event push için pencerenin webContents'i. */
+  getWebContents: () => WebContents | null;
 }
 
 /**
@@ -74,7 +89,7 @@ export function registerIpcHandlers(ctx: IpcContext): void {
   // Bağlantı modu (API/CLI) — kullanıcının per-agent seçimi (PRD §9.5)
   ipcMain.handle(IpcChannels.connectionGetAll, () => {
     const result: Partial<Record<AgentRole, ConnectionPreference>> = {};
-    for (const agent of FAZ1_AGENTS) {
+    for (const agent of ALL_AGENTS) {
       result[agent.role] = ctx.settings.getPreference(ctx.workspaceId, agent.role);
     }
     return result;
@@ -86,7 +101,45 @@ export function registerIpcHandlers(ctx: IpcContext): void {
     logger.info("connection.set", { role, preference });
   });
 
-  // Sır/anahtar — OS keychain (PRD §5.7, §12)
+  // Faz 2: sağlayıcı/model registry (UI model seçimi için)
+  ipcMain.handle(IpcChannels.providerList, () =>
+    listProviders().map((p) => ({
+      id: p.id,
+      label: p.label,
+      kind: p.kind,
+      cli: p.cli,
+      models: p.models.map((m) => ({ modelId: m.modelId, label: m.label, vision: m.vision })),
+    })),
+  );
+
+  // Faz 2: agent başına model seçimi (kullanıcı hangi AI'yı seçer)
+  ipcMain.handle(IpcChannels.agentModelGetAll, () => {
+    const result: Record<string, { provider: string; modelId: string; isDefault: boolean }> = {};
+    for (const agent of ALL_AGENTS) {
+      const model = ctx.settings.resolveModel(ctx.workspaceId, agent.role);
+      const choice = ctx.settings.getModelChoice(ctx.workspaceId, agent.role);
+      result[agent.role] = {
+        provider: model.provider,
+        modelId: model.modelId,
+        isDefault: choice === null,
+      };
+    }
+    return result;
+  });
+
+  ipcMain.handle(IpcChannels.agentModelSet, (_e, raw: unknown) => {
+    const { role, provider, modelId } = agentModelSetInputSchema.parse(raw);
+    ctx.settings.setModelChoice(ctx.workspaceId, role, { provider, modelId });
+    logger.info("agent_model.set", { role, provider, modelId });
+  });
+
+  // Faz 2: maliyet özeti (cost dashboard)
+  ipcMain.handle(IpcChannels.costSummary, () => ({
+    byConnectionMode: ctx.costLogs.summaryByConnectionMode(),
+    totalApiCost: ctx.costLogs.totalApiCost(),
+  }));
+
+  // Faz 2: sır/anahtar — OS keychain (PRD §5.7, §12)
   ipcMain.handle(IpcChannels.secretSetApiKey, async (_e, raw: unknown) => {
     const { provider, apiKey } = secretSetApiKeyInputSchema.parse(raw);
     await ctx.secretStore.set(KEYCHAIN_SERVICE, provider, apiKey);
@@ -99,5 +152,57 @@ export function registerIpcHandlers(ctx: IpcContext): void {
     if (ctx.apiKeyCache.has(provider)) return true;
     const stored = await ctx.secretStore.get(KEYCHAIN_SERVICE, provider);
     return stored !== null;
+  });
+
+  registerFsHandlers(ctx);
+  registerTerminalHandlers(ctx);
+}
+
+/** IDE kabuğu: Open Folder + dosya ağacı + dosya okuma (PRD §6.1 dosya sistemi erişimi). */
+function registerFsHandlers(ctx: IpcContext): void {
+  ipcMain.handle(IpcChannels.fsOpenFolder, async () => {
+    const result = await dialog.showOpenDialog({ properties: ["openDirectory"] });
+    if (result.canceled || !result.filePaths[0]) return { root: ctx.rootDir, entries: readDir(ctx.rootDir) };
+    ctx.rootDir = result.filePaths[0];
+    logger.info("fs.open_folder", { root: ctx.rootDir });
+    return { root: ctx.rootDir, entries: readDir(ctx.rootDir) };
+  });
+
+  ipcMain.handle(IpcChannels.fsCurrentRoot, () => ({
+    root: ctx.rootDir,
+    entries: readDir(ctx.rootDir),
+  }));
+
+  ipcMain.handle(IpcChannels.fsReadDir, (_e, raw: unknown) => {
+    const { path: dir } = fsReadDirInputSchema.parse(raw);
+    return readDir(dir);
+  });
+
+  ipcMain.handle(IpcChannels.fsReadFile, (_e, raw: unknown) => {
+    const { path: file } = fsReadFileInputSchema.parse(raw);
+    return readFileText(file);
+  });
+}
+
+/** Terminal/komut konsolu (PRD §5.2). main → renderer push: terminalData / terminalExit. */
+function registerTerminalHandlers(ctx: IpcContext): void {
+  const term = new TerminalManager({
+    onData: (id, data) => ctx.getWebContents()?.send(IpcChannels.terminalData, { id, data }),
+    onExit: (id, code) => ctx.getWebContents()?.send(IpcChannels.terminalExit, { id, code }),
+  });
+
+  ipcMain.handle(IpcChannels.terminalStart, (_e, raw: unknown) => {
+    const { id, cwd } = terminalStartInputSchema.parse(raw);
+    term.start(id, cwd ?? ctx.rootDir);
+  });
+
+  ipcMain.handle(IpcChannels.terminalInput, (_e, raw: unknown) => {
+    const { id, data } = terminalInputSchema.parse(raw);
+    term.run(id, data);
+  });
+
+  ipcMain.handle(IpcChannels.terminalKill, (_e, raw: unknown) => {
+    const { id } = terminalKillInputSchema.parse(raw);
+    term.kill(id);
   });
 }

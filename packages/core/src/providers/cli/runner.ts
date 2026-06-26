@@ -1,9 +1,34 @@
 import { spawn } from "node:child_process";
+import type { CompletionRequest } from "../types";
 
 export interface CliRunResult {
   stdout: string;
   stderr: string;
   exitCode: number;
+}
+
+/**
+ * CLI çıktısı beklenen formatta parse edilemediğinde fırlatılır (PRD §6.3, R3).
+ * Factory bunu yakalayıp agent'ı API moduna zarif geçirebilir.
+ */
+export class CliParseError extends Error {
+  constructor(
+    message: string,
+    readonly provider: string,
+  ) {
+    super(message);
+    this.name = "CliParseError";
+  }
+}
+
+/** Rol etiketli düz-metin prompt — CLI'lar tek prompt string'i alır (sistem + mesajlar). */
+export function buildTaggedPrompt(req: CompletionRequest): string {
+  const parts: string[] = [];
+  if (req.system) parts.push(`[system]\n${req.system}`);
+  for (const message of req.messages) {
+    parts.push(`[${message.role}]\n${message.content}`);
+  }
+  return parts.join("\n\n");
 }
 
 /** Bir CLI alt sürecini çalıştırıp stdout/stderr/exit toplar. */

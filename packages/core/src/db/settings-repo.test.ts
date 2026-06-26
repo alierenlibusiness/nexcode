@@ -29,3 +29,39 @@ describe("AgentSettingsRepository", () => {
     expect(settings.getPreference(workspaceId, "frontend")).toBe("cli_first");
   });
 });
+
+describe("AgentSettingsRepository — model seçimi (Faz 2, kullanıcı AI seçer)", () => {
+  it("seçim yoksa resolveModel agent varsayılanını döner", () => {
+    const { settings, workspaceId } = setup();
+    const m = settings.resolveModel(workspaceId, "frontend");
+    expect(m).toMatchObject({ provider: "openai", modelId: "gpt-5.5" });
+    expect(settings.getModelChoice(workspaceId, "frontend")).toBeNull();
+  });
+
+  it("kullanıcı seçimi resolveModel'i override eder (ör. Frontend → GLM)", () => {
+    const { settings, workspaceId } = setup();
+    settings.setModelChoice(workspaceId, "frontend", { provider: "glm", modelId: "glm-4.6" });
+    expect(settings.resolveModel(workspaceId, "frontend")).toMatchObject({
+      provider: "glm",
+      modelId: "glm-4.6",
+    });
+    expect(settings.getModelChoice(workspaceId, "frontend")).toEqual({
+      provider: "glm",
+      modelId: "glm-4.6",
+    });
+  });
+
+  it("model seçimi connection_preference'ı bozmaz", () => {
+    const { settings, workspaceId } = setup();
+    settings.setPreference(workspaceId, "qa", "api_only");
+    settings.setModelChoice(workspaceId, "qa", { provider: "kimi", modelId: "kimi-k2" });
+    expect(settings.getPreference(workspaceId, "qa")).toBe("api_only");
+  });
+
+  it("registry'de olmayan model reddedilir", () => {
+    const { settings, workspaceId } = setup();
+    expect(() =>
+      settings.setModelChoice(workspaceId, "backend", { provider: "glm", modelId: "yok" }),
+    ).toThrow(/registry/);
+  });
+});

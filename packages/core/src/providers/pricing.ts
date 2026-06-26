@@ -1,18 +1,23 @@
+import { getModelInfo } from "./registry";
+
 /**
- * Model fiyatlandırması — $/1M token (PRD §9, varsayım değerleri; uygulama anında
- * gerçek liste fiyatıyla doğrulanmalı).
+ * Model fiyatlandırması — $/1M token. TEK kaynak `registry.ts`'dir; bu modül yalnızca
+ * fiyata erişim için ince bir yardımcıdır (PRD §9). Varsayım değerleri uygulama anında
+ * gerçek liste fiyatıyla doğrulanmalı.
  */
 export interface ModelPricing {
   inputPerMTok: number;
   outputPerMTok: number;
 }
 
-export const ANTHROPIC_PRICING: Readonly<Record<string, ModelPricing>> = {
-  "claude-opus-4-8": { inputPerMTok: 15, outputPerMTok: 75 },
-  "claude-sonnet-4-6": { inputPerMTok: 3, outputPerMTok: 15 },
-  "claude-haiku-4-5": { inputPerMTok: 0.8, outputPerMTok: 4 },
-};
+const ZERO_PRICING: ModelPricing = { inputPerMTok: 0, outputPerMTok: 0 };
 
+/** Sağlayıcı + model için fiyat (bilinmiyorsa sıfır — maliyet 0 raporlanır, hata fırlatmaz). */
+export function getPricing(provider: string, modelId: string): ModelPricing {
+  return getModelInfo(provider, modelId)?.pricing ?? ZERO_PRICING;
+}
+
+/** Geriye dönük uyumluluk (Faz 1 çağrıları). */
 export function getAnthropicPricing(modelId: string): ModelPricing {
-  return ANTHROPIC_PRICING[modelId] ?? { inputPerMTok: 0, outputPerMTok: 0 };
+  return getPricing("anthropic", modelId);
 }

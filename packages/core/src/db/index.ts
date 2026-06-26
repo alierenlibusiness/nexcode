@@ -6,3 +6,4 @@ export * from "./workspace-repo";
 export * from "./task-repo";
 export * from "./settings-repo";
 export * from "./approval-repo";
+export * from "./cost-log-repo";

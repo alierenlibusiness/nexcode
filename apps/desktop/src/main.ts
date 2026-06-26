@@ -1,18 +1,27 @@
 import path from "node:path";
-import { app, BrowserWindow } from "electron";
-import { logger, Orchestrator } from "@nexcode/core";
+import { app, BrowserWindow, type WebContents } from "electron";
+import {
+  logger,
+  Orchestrator,
+  MessageBus,
+  QuotaTracker,
+  poolIdForProvider,
+} from "@nexcode/core";
 import {
   openDatabase,
   WorkspaceRepository,
   TaskRepository,
   ApprovalRepository,
   AgentSettingsRepository,
+  CostLogRepository,
 } from "@nexcode/core/db";
 import { KeyringSecretStore } from "@nexcode/core/keyring";
 import { AdapterFactory } from "@nexcode/core/providers";
 import { registerIpcHandlers, type IpcContext } from "./ipc";
 
 const KEYCHAIN_SERVICE = "nexcode";
+
+let mainWindow: BrowserWindow | null = null;
 
 function resolveDbPath(): string {
   return path.join(app.getPath("userData"), "nexcode.db");
@@ -24,28 +33,58 @@ async function buildContext(): Promise<IpcContext> {
   const tasks = new TaskRepository(db);
   const approvals = new ApprovalRepository(db);
   const settings = new AgentSettingsRepository(db);
+  const costLogs = new CostLogRepository(db);
   const secretStore = new KeyringSecretStore();
   const apiKeyCache = new Map<string, string>();
+  const messageBus = new MessageBus();
+  const quota = new QuotaTracker();
 
   // Faz 1 tek workspace: yoksa varsayılan oluştur.
-  const workspace = workspaces.list()[0] ?? workspaces.create({ name: "Default", repoPath: process.cwd() });
+  const workspace =
+    workspaces.list()[0] ?? workspaces.create({ name: "Default", repoPath: process.cwd() });
 
-  // Mevcut Anthropic anahtarını keychain'den senkron cache'e yükle.
-  try {
-    const existing = await secretStore.get(KEYCHAIN_SERVICE, "anthropic");
-    if (existing) apiKeyCache.set("anthropic", existing);
-  } catch (error) {
-    logger.warn("keychain.preload_failed", { error: String(error) });
+  // Mevcut API anahtarlarını keychain'den senkron cache'e yükle (tüm sağlayıcılar).
+  for (const provider of ["anthropic", "openai", "google", "deepseek", "minimax", "kimi", "glm"]) {
+    try {
+      const existing = await secretStore.get(KEYCHAIN_SERVICE, provider);
+      if (existing) apiKeyCache.set(provider, existing);
+    } catch (error) {
+      logger.warn("keychain.preload_failed", { provider, error: String(error) });
+    }
   }
 
   const factory = new AdapterFactory({
     getApiKey: (provider) => apiKeyCache.get(provider) ?? null,
+    // Kota dolduğunda CLI yerine API moduna geç (PRD §9.4).
+    isCliQuotaAvailable: (provider) => {
+      const pool = poolIdForProvider(provider);
+      return pool ? quota.isAvailable(pool) : true;
+    },
   });
 
   const orchestrator = new Orchestrator({
     tasks,
     resolveAdapter: (model, preference) => factory.resolve(model, preference),
     getPreference: (role) => settings.getPreference(workspace.id, role),
+    resolveModel: (role) => settings.resolveModel(workspace.id, role),
+    messageBus,
+    onUsage: (u) => {
+      // Maliyet kaydı (cost_logs) — CLI=abonelik havuzu (usd 0), API=taşma ücreti (§9.4).
+      const pool = u.connectionMode === "cli" ? poolIdForProvider(u.model.provider) : null;
+      costLogs.record({
+        agentId: null,
+        taskId: u.taskId,
+        provider: u.model.provider,
+        modelId: u.model.modelId,
+        connectionMode: u.connectionMode,
+        inputTokens: u.usage.inputTokens,
+        outputTokens: u.usage.outputTokens,
+        usdCost: u.usdCost,
+        subscriptionPoolId: pool ?? null,
+      });
+      // CLI çağrıları abonelik kotasını tüketir → QuotaTracker'a yaz.
+      if (pool) quota.record(pool, u.usage.inputTokens + u.usage.outputTokens);
+    },
   });
 
   return {
@@ -53,17 +92,20 @@ async function buildContext(): Promise<IpcContext> {
     tasks,
     approvals,
     settings,
+    costLogs,
     orchestrator,
     secretStore,
     apiKeyCache,
     workspaceId: workspace.id,
+    rootDir: workspace.repoPath || process.cwd(),
+    getWebContents: (): WebContents | null => mainWindow?.webContents ?? null,
   };
 }
 
 async function createWindow(): Promise<void> {
   const win = new BrowserWindow({
-    width: 1320,
-    height: 860,
+    width: 1480,
+    height: 920,
     backgroundColor: "#0a0a0a",
     show: false,
     webPreferences: {
@@ -72,8 +114,11 @@ async function createWindow(): Promise<void> {
       nodeIntegration: false,
     },
   });
-
+  mainWindow = win;
   win.once("ready-to-show", () => win.show());
+  win.on("closed", () => {
+    if (mainWindow === win) mainWindow = null;
+  });
 
   const devUrl = process.env.NEXCODE_RENDERER_URL;
   if (devUrl) {
