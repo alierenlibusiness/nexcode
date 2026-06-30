@@ -114,17 +114,35 @@ export default function HomePage() {
     run("CEO planlıyor…", async () => {
       if (!window.nexcode || !text.trim()) return;
       setChat((c) => [...c, { kind: "user", text, images }]);
-      const created = await window.nexcode.planRequest(text, images);
+      const result = await window.nexcode.planRequest(text, images);
       setRequest("");
-      setChat((c) => [
-        ...c,
-        {
-          kind: "system",
-          text:
-            `CEO ${String(created.length)} görev üretti:\n` +
-            created.map((t) => `• [${t.assignedRole ?? "?"}] ${t.title}`).join("\n"),
-        },
-      ]);
+      if (result.tasks.length > 0) {
+        setChat((c) => [
+          ...c,
+          {
+            kind: "system",
+            text:
+              `CEO ${String(result.tasks.length)} görev üretti:\n` +
+              result.tasks.map((t) => `• [${t.assignedRole ?? "?"}] ${t.title}`).join("\n"),
+          },
+        ]);
+      } else if (result.textResponse) {
+        setChat((c) => [
+          ...c,
+          {
+            kind: "agent",
+            text: result.textResponse!,
+          },
+        ]);
+      } else {
+        setChat((c) => [
+          ...c,
+          {
+            kind: "system",
+            text: "CEO plan üretemedi veya boş yanıt döndürdü.",
+          },
+        ]);
+      }
       await refresh();
     });
 

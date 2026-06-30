@@ -29,8 +29,8 @@ describe("parsePlan", () => {
     expect(parsePlan(out)).toEqual([{ title: "API yaz", role: "backend" }]);
   });
 
-  it("geçersiz rolü reddeder", () => {
-    expect(() => parsePlan('[{"title":"x","role":"wizard"}]')).toThrow();
+  it("geçersiz rolü reddeder ve null döner", () => {
+    expect(parsePlan('[{"title":"x","role":"wizard"}]')).toBeNull();
   });
 });
 
@@ -44,7 +44,7 @@ describe("Orchestrator", () => {
       getPreference: () => "cli_first",
     });
 
-    const created = await orch.planRequest("Login özelliği ekle");
+    const { tasks: created } = await orch.planRequest("Login özelliği ekle");
     expect(created).toHaveLength(2);
     expect(created[0]?.title).toBe("Login API");
     expect(created[0]?.assignedRole).toBe("backend");

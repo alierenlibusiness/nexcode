@@ -60,7 +60,7 @@ declare global {
     nexcode?: {
       createWorkspace(input: { name: string; repoPath: string }): Promise<Workspace>;
       listWorkspaces(): Promise<Workspace[]>;
-      planRequest(request: string, images?: Array<{ mimeType: string; data: string }>): Promise<Task[]>;
+      planRequest(request: string, images?: Array<{ mimeType: string; data: string }>): Promise<{ tasks: Task[]; textResponse?: string }>;
       listTasks(): Promise<Task[]>;
       dispatchTask(taskId: string): Promise<{ output: string }>;
       listPendingApprovals(): Promise<ApprovalDTO[]>;

@@ -52,8 +52,8 @@ export class Orchestrator {
     return { adapter, model, systemPrompt: def.systemPrompt };
   }
 
-  /** Kullanıcı isteğini CEO ile plana çevirir ve görevleri (backlog) oluşturur. */
-  async planRequest(userRequest: string, images?: CompletionImage[]): Promise<Task[]> {
+  /** Kullanıcı isteğini CEO ile plana çevirir ve görevleri (backlog) veya metin yanıtını oluşturur. */
+  async planRequest(userRequest: string, images?: CompletionImage[]): Promise<{ tasks: Task[]; textResponse?: string }> {
     const { adapter, model, systemPrompt } = this.adapterFor("ceo");
     
     let promptWithMcp = PLAN_INSTRUCTION + userRequest;
@@ -80,14 +80,22 @@ export class Orchestrator {
     this.emitUsage("ceo", null, model, adapter, req, completion);
 
     const planned = parsePlan(completion.text);
+    if (planned === null) {
+      logger.info("orchestrator.plan.conversational", {
+        connectionMode: adapter.connectionMode,
+      });
+      return { tasks: [], textResponse: completion.text };
+    }
+
     logger.info("orchestrator.plan", {
       taskCount: planned.length,
       connectionMode: adapter.connectionMode,
     });
 
-    return planned.map((item) =>
+    const tasks = planned.map((item) =>
       this.deps.tasks.create({ title: item.title, assignedRole: item.role }),
     );
+    return { tasks };
   }
 
   /** Onaylanmış bir görevi atanan agent'a verir; üretilen çıktı metnini döner. */
