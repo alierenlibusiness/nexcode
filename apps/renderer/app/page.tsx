@@ -211,7 +211,14 @@ export default function HomePage() {
 
         <main className="flex min-w-0 flex-1 flex-col">
           <div className="min-h-0 flex-1 border-b border-ink-700">
-            <CodeEditor file={fileContent} path={activePath} />
+            <CodeEditor
+              file={fileContent}
+              path={activePath}
+              onClose={() => {
+                setActivePath(null);
+                setFileContent(null);
+              }}
+            />
           </div>
           <div className="h-56 shrink-0">
             <TerminalPanel />

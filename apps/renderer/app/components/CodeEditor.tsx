@@ -3,20 +3,91 @@
 import { useEffect, useRef, useState } from "react";
 import type { FileContentDTO } from "../../global";
 
+/**
+ * Regex tabanlı hafif syntax highlighter.
+ * Yorumları, stringleri, anahtar kelimeleri ve fonksiyon adlarını renklendirir.
+ */
+function highlightCode(code: string, fileName: string): string {
+  // HTML karakterlerini kaçır
+  let html = code
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
+  const ext = fileName.split(".").pop()?.toLowerCase() || "";
+
+  // 1. Yorumları ayıkla ve koru (//, /* */ veya <!-- -->)
+  const comments: string[] = [];
+  html = html.replace(/(\/\/.*|\/\*[\s\S]*?\*\/|&lt;!--[\s\S]*?--&gt;)/g, (match) => {
+    comments.push(match);
+    return `__COMMENT_PLACEHOLDER_${comments.length - 1}__`;
+  });
+
+  // 2. Stringleri ayıkla ve koru ("...", '...', `...`)
+  const strings: string[] = [];
+  html = html.replace(/(["'`])(.*?)\1/g, (match) => {
+    strings.push(match);
+    return `__STRING_PLACEHOLDER_${strings.length - 1}__`;
+  });
+
+  // 3. Dosya türüne göre renklendirme kuralları
+  if (ext === "html" || ext === "xml") {
+    // HTML etiketleri (&lt;tag, &lt;/tag, /&gt;)
+    html = html.replace(/(&lt;\/?[a-zA-Z0-9:-]+)/g, '<span class="text-brand-400 font-bold">$1</span>');
+    html = html.replace(/(\/?&gt;)/g, '<span class="text-brand-400 font-bold">$1</span>');
+    // Nitelik (attribute) isimleri (örn: id, class, src)
+    html = html.replace(/\b([a-zA-Z:-]+)(?=\s*=\s*__STRING)/g, '<span class="text-amber-400">$1</span>');
+  } else if (ext === "css") {
+    // CSS özellikleri (renk:, margin:)
+    html = html.replace(/([a-zA-Z-]+\s*)(?=:)/g, '<span class="text-sky-400">$1</span>');
+    // CSS seçicileri (class, id, etiketler)
+    html = html.replace(/(#[a-zA-Z0-9_-]+|\.[a-zA-Z0-9_-]+|[a-zA-Z0-9_-]+)(?=\s*\{)/g, '<span class="text-brand-400 font-bold">$1</span>');
+  } else {
+    // Programlama dilleri (JS, TS, C++, Rust, Go, Python vb.)
+    // Anahtar Kelimeler
+    const keywords = /\b(const|let|var|function|return|class|extends|import|export|from|default|true|false|if|else|for|while|async|await|new|try|catch|type|interface|as|any|string|number|boolean|void|null|undefined|public|private|readonly|typeof|instanceof|throw|switch|case|break|continue|package|struct|fn|pub|impl|use|module|namespace|let|mut|in|of|static|void)\b/g;
+    html = html.replace(keywords, '<span class="text-brand-400 font-bold">$1</span>');
+
+    // Yerleşik Objeler / Türler
+    const builtins = /\b(document|window|console|Object|Array|String|Number|Boolean|Function|Promise|Map|Set|Error|Math|JSON|process|global|require|module|exports)\b/g;
+    html = html.replace(builtins, '<span class="text-amber-400">$1</span>');
+
+    // Fonksiyon Çağrıları: name(
+    html = html.replace(/\b([a-zA-Z_]\w*)(?=\s*\()/g, '<span class="text-sky-400">$1</span>');
+
+    // Sayılar
+    html = html.replace(/\b(\d+(?:\.\d+)?)\b/g, '<span class="text-pink-400">$1</span>');
+  }
+
+  // 4. Stringleri ve yorumları geri yerleştir
+  strings.forEach((str, i) => {
+    html = html.replace(new RegExp(`__STRING_PLACEHOLDER_${i}__`, "g"), `<span class="text-emerald-400">${str}</span>`);
+  });
+
+  comments.forEach((comment, i) => {
+    html = html.replace(new RegExp(`__COMMENT_PLACEHOLDER_${i}__`, "g"), `<span class="text-neutral-500 italic">${comment}</span>`);
+  });
+
+  return html;
+}
+
 export function CodeEditor({
   file,
   path,
   onSaved,
+  onClose,
 }: {
   file: FileContentDTO | null;
   path: string | null;
   onSaved?: (path: string) => void;
+  onClose?: () => void;
 }) {
   const [value, setValue] = useState("");
   const [original, setOriginal] = useState("");
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const preRef = useRef<HTMLPreElement>(null);
   const gutterRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -94,18 +165,30 @@ export function CodeEditor({
   }
 
   const lineCount = value.split("\n").length;
-  const fileName = path.split(/[\\/]/).pop();
+  const fileName = path.split(/[\\/]/).pop() || "";
 
   return (
     <div className="flex h-full flex-col bg-ink-950/10">
       {/* Tab bar header */}
       <div className="flex h-10 items-center justify-between border-b border-ink-700 bg-ink-900/60 px-3 py-1.5">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="text-xs font-bold text-neutral-200 select-none">{fileName}</span>
+          <div className="flex items-center gap-1.5 rounded-t-lg bg-ink-950/80 px-3 py-1.5 border border-b-0 border-ink-700 shadow-sm">
+            <span className="text-xs font-bold text-neutral-200 select-none">{fileName}</span>
+            <button
+              onClick={onClose}
+              title="Dosyayı Kapat"
+              className="rounded p-0.5 hover:bg-ink-800 text-neutral-500 hover:text-neutral-300 transition"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
           {dirty && (
             <span title="Kaydedilmemiş değişiklikler var" className="h-1.5 w-1.5 rounded-full bg-brand-400 animate-pulse" />
           )}
-          <span className="truncate text-[10px] text-neutral-500 font-mono select-none" title={path}>{path}</span>
+          <span className="truncate text-[9px] text-neutral-500 font-mono select-none" title={path}>{path}</span>
         </div>
         <button
           onClick={() => void save()}
@@ -116,8 +199,9 @@ export function CodeEditor({
         </button>
       </div>
 
-      {/* Editor Body */}
+      {/* Editor Body with Syntax Highlighting Layering */}
       <div className="relative flex min-h-0 flex-1 overflow-hidden font-mono text-[11px] leading-[1.6]">
+        {/* Line numbers gutter */}
         <div
           ref={gutterRef}
           className="select-none overflow-hidden border-r border-ink-800 bg-ink-950/40 py-2.5 text-right text-neutral-600 font-mono"
@@ -129,18 +213,41 @@ export function CodeEditor({
             </div>
           ))}
         </div>
-        <textarea
-          ref={taRef}
-          value={value}
-          spellCheck={false}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={onKeyDown}
-          onScroll={(e) => {
-            if (gutterRef.current) gutterRef.current.scrollTop = e.currentTarget.scrollTop;
-          }}
-          className="flex-1 resize-none bg-transparent px-3 py-2.5 text-neutral-200 outline-none overflow-y-auto selection:bg-brand-500/30"
-          style={{ fontFamily: "'JetBrains Mono', 'Fira Code', 'SF Mono', Monaco, Consolas, monospace" }}
-        />
+
+        {/* Text Container */}
+        <div className="relative flex-1 min-w-0 h-full overflow-hidden">
+          {/* Highlighted layer underneath */}
+          <pre
+            ref={preRef}
+            className="absolute inset-0 w-full h-full pointer-events-none px-3 py-2.5 whitespace-pre overflow-auto select-none bg-transparent m-0"
+            style={{
+              fontFamily: "'JetBrains Mono', 'Fira Code', 'SF Mono', Monaco, Consolas, monospace",
+              scrollbarWidth: "none",
+            }}
+            dangerouslySetInnerHTML={{ __html: highlightCode(value, fileName) }}
+          />
+
+          {/* Interactive textarea layer on top */}
+          <textarea
+            ref={taRef}
+            value={value}
+            spellCheck={false}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={onKeyDown}
+            onScroll={(e) => {
+              if (gutterRef.current) gutterRef.current.scrollTop = e.currentTarget.scrollTop;
+              if (preRef.current) {
+                preRef.current.scrollTop = e.currentTarget.scrollTop;
+                preRef.current.scrollLeft = e.currentTarget.scrollLeft;
+              }
+            }}
+            className="absolute inset-0 w-full h-full resize-none bg-transparent px-3 py-2.5 text-transparent caret-white outline-none overflow-auto selection:bg-brand-500/25"
+            style={{
+              fontFamily: "'JetBrains Mono', 'Fira Code', 'SF Mono', Monaco, Consolas, monospace",
+              WebkitTextFillColor: "transparent",
+            }}
+          />
+        </div>
       </div>
     </div>
   );

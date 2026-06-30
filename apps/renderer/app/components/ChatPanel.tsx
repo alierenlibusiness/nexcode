@@ -166,19 +166,58 @@ export function ChatPanel({
 
   return (
     <div className="flex h-full flex-col bg-ink-950/20">
-      <div className="flex items-center gap-2 border-b border-ink-700 bg-ink-900/40 px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider text-brand-300">
-        <span className="h-1.5 w-1.5 rounded-full bg-brand-400 animate-pulse" /> Orkestrasyon & Vibe Coding
+      <div className="flex items-center justify-between border-b border-ink-700 bg-ink-900/40 px-3 py-2.5">
+        <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-brand-300 select-none">
+          <span className="h-1.5 w-1.5 rounded-full bg-brand-400 animate-pulse" /> Orkestrasyon & Sohbet
+        </div>
+        {chat.length > 0 && (
+          <button
+            onClick={() => setChat([])}
+            title="Sohbeti Temizle"
+            className="rounded p-1 hover:bg-ink-800 text-neutral-500 hover:text-rose-400 transition"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 6h18"/>
+              <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+              <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+            </svg>
+          </button>
+        )}
       </div>
 
       {/* Messages */}
       <div className="flex-1 space-y-3 overflow-y-auto p-3">
         {chat.length === 0 && (
-          <div className="text-[11px] text-neutral-500 bg-ink-900/20 border border-ink-800 rounded-lg p-3 space-y-1.5">
-            <p className="font-bold text-neutral-300">NEXCODE Çoklu-Agent IDE</p>
-            <p>Bir talimat yazarak planlamayı başlatın. Örn: <code className="text-brand-300">"Kullanıcı kayıt sayfası tasarla"</code></p>
-            <p className="pt-1 text-neutral-400">Komutlar:</p>
-            <p className="font-mono text-[10px] text-brand-400/80">/mcp - MCP sunucularını listeler</p>
-            <p className="font-mono text-[10px] text-brand-400/80">/skill - Kayıtlı prompt şablonlarını listeler</p>
+          <div className="space-y-3">
+            <div className="text-[11px] text-neutral-500 bg-ink-900/20 border border-ink-800 rounded-lg p-3 space-y-1.5 select-text">
+              <p className="font-bold text-neutral-300">NEXCODE Çoklu-Agent Planlayıcı</p>
+              <p>Bir talimat yazarak planlamayı başlatın. Örn: <code className="text-brand-300">"Kullanıcı kayıt sayfası tasarla"</code></p>
+              <p className="pt-1 text-neutral-400">Komutlar:</p>
+              <p className="font-mono text-[10px] text-brand-400/80">/mcp - MCP sunucularını listeler</p>
+              <p className="font-mono text-[10px] text-brand-400/80">/skill - Kayıtlı prompt şablonlarını listeler</p>
+            </div>
+
+            {/* Quick Actions / Templates */}
+            <div className="grid grid-cols-1 gap-1.5">
+              <button
+                onClick={() => onRequestChange("Proje klasöründeki dosyaları analiz et ve yapısal özet çıkar.")}
+                className="w-full text-left rounded-lg border border-ink-800 bg-ink-900/10 px-3 py-2 text-[10px] text-neutral-400 transition hover:border-brand-500/20 hover:text-neutral-200"
+              >
+                📂 Proje klasöründeki dosyaları analiz et...
+              </button>
+              <button
+                onClick={() => onRequestChange("Yeni bir modern, responsive ve glassmorphic kullanıcı arayüzü tasarla.")}
+                className="w-full text-left rounded-lg border border-ink-800 bg-ink-900/10 px-3 py-2 text-[10px] text-neutral-400 transition hover:border-brand-500/20 hover:text-neutral-200"
+              >
+                🎨 Yeni bir modern arayüz tasarla...
+              </button>
+              <button
+                onClick={() => onRequestChange("Kod tabanındaki olası hataları ve güvenlik açıklarını denetle, düzelt.")}
+                className="w-full text-left rounded-lg border border-ink-800 bg-ink-900/10 px-3 py-2 text-[10px] text-neutral-400 transition hover:border-brand-500/20 hover:text-neutral-200"
+              >
+                🛠 Olası hataları ve güvenlik açıklarını denetle...
+              </button>
+            </div>
           </div>
         )}
         {chat.map((m, i) => (

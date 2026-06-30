@@ -1,15 +1,13 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, statSync } from "node:fs";
-import path from "node:path";
+import { existsSync } from "node:fs";
 import os from "node:os";
 
 /**
- * Hafif terminal/komut konsolu (PRD §5.2 terminal entegrasyonu). node-pty yerine
- * dayanıklı, native-derlemesiz bir yaklaşım: renderer tam komut satırı gönderir, main
- * onu workspace cwd'sinde yürütür ve çıktıyı stream eder. `cd` ile cwd kalıcı izlenir.
- *
- * NOT: Tam TTY (cursor app'ler, renkli prompt) gerekirse ileride node-pty'ye yükseltilir
- * (CLAUDE.md tech stack). Vibe-coding için "komut çalıştır + çıktı gör" bu modelle yeterli.
+ * Dayanıklı ve tam etkileşimli terminal yöneticisi (Persistent Shell).
+ * node-pty gerektirmeden, işletim sisteminin varsayılan kabuğunu (Windows için powershell/cmd,
+ * macOS/Linux için bash/zsh) arka planda tek bir kalıcı alt süreç (interactive process) olarak başlatır.
+ * Kullanıcı girdilerini doğrudan bu kabuğun standart girdisine (stdin) yönlendirir.
+ * Bu sayede cd komutları, ortam değişkenleri ve etkileşimli komutlar doğal olarak çalışır.
  */
 export interface TerminalCallbacks {
   onData: (id: string, data: string) => void;
@@ -18,12 +16,15 @@ export interface TerminalCallbacks {
 
 interface Session {
   cwd: string;
-  running: ChildProcess | null;
+  shell: ChildProcess;
 }
 
-function shellFor(): { bin: string; flag: string } {
-  if (process.platform === "win32") return { bin: process.env["ComSpec"] ?? "powershell.exe", flag: "-Command" };
-  return { bin: process.env["SHELL"] ?? "/bin/bash", flag: "-c" };
+function shellBinary(): string {
+  if (process.platform === "win32") {
+    // Windows için powershell veya cmd
+    return process.env["ComSpec"] ?? "powershell.exe";
+  }
+  return process.env["SHELL"] ?? "/bin/bash";
 }
 
 export class TerminalManager {
@@ -32,68 +33,93 @@ export class TerminalManager {
   constructor(private readonly cb: TerminalCallbacks) {}
 
   start(id: string, cwd: string): void {
+    // Eğer bir oturum zaten varsa kapat
+    if (this.sessions.has(id)) {
+      this.kill(id);
+    }
+
     const root = cwd && existsSync(cwd) ? cwd : os.homedir();
-    this.sessions.set(id, { cwd: root, running: null });
-    this.cb.onData(id, `NEXCODE terminal — ${root}\r\n`);
-    this.prompt(id);
+    const bin = shellBinary();
+
+    try {
+      // Kalıcı kabuk sürecini başlat
+      const shell = spawn(bin, [], {
+        cwd: root,
+        env: {
+          ...process.env,
+          TERM: "xterm-256color",
+        },
+      });
+
+      this.sessions.set(id, { cwd: root, shell });
+
+      // Çıktıları dinle ve renderer'a stream et
+      shell.stdout?.on("data", (data: Buffer) => {
+        this.cb.onData(id, data.toString().replace(/\n/g, "\r\n"));
+      });
+
+      shell.stderr?.on("data", (data: Buffer) => {
+        this.cb.onData(id, data.toString().replace(/\n/g, "\r\n"));
+      });
+
+      shell.on("error", (err) => {
+        this.cb.onData(id, `\r\nHata: Terminal başlatılamadı veya çöktü: ${err.message}\r\n`);
+      });
+
+      shell.on("close", (code) => {
+        this.sessions.delete(id);
+        this.cb.onData(id, `\r\n[Terminal oturumu sonlandı. Çıkış kodu: ${String(code)}]\r\n`);
+        this.cb.onExit(id, code ?? 0);
+      });
+
+    } catch (error: unknown) {
+      const err = error as Error;
+      this.cb.onData(id, `\r\nTerminal başlatılırken kritik hata oluştu: ${err.message}\r\n`);
+    }
   }
 
-  private prompt(id: string): void {
-    const s = this.sessions.get(id);
-    if (s) this.cb.onData(id, `\r\n${s.cwd}> `);
-  }
-
-  /** Renderer'dan gelen tam komut satırı. */
+  /** Renderer'dan gelen kullanıcı girdisini kabuğa yaz */
   run(id: string, line: string): void {
     const s = this.sessions.get(id);
-    if (!s) return;
-    const command = line.trim();
-    this.cb.onData(id, `${command}\r\n`);
-
-    if (!command) return this.prompt(id);
-    if (command === "clear" || command === "cls") {
-      this.cb.onData(id, "\x1b[2J\x1b[H");
-      return this.prompt(id);
-    }
-    // `cd` cwd'yi kalıcı değiştirir (pipe-shell tek komut başına izole olduğundan elde tutulur).
-    if (command === "cd" || command.startsWith("cd ")) {
-      const target = command.slice(2).trim() || os.homedir();
-      const next = path.resolve(s.cwd, target);
-      if (existsSync(next) && statSync(next).isDirectory()) {
-        s.cwd = next;
-      } else {
-        this.cb.onData(id, `cd: dizin bulunamadı: ${target}\r\n`);
-      }
-      return this.prompt(id);
+    if (!s) {
+      this.cb.onData(id, `\r\nAktif bir terminal oturumu bulunamadı. Yeniden başlatılıyor...\r\n`);
+      return;
     }
 
-    const { bin, flag } = shellFor();
-    const child = spawn(bin, [flag, command], { cwd: s.cwd, windowsHide: true });
-    s.running = child;
-    child.stdout.on("data", (c: Buffer) => this.cb.onData(id, c.toString().replace(/\n/g, "\r\n")));
-    child.stderr.on("data", (c: Buffer) => this.cb.onData(id, c.toString().replace(/\n/g, "\r\n")));
-    child.on("error", (e) => this.cb.onData(id, `hata: ${e.message}\r\n`));
-    child.on("close", (code) => {
-      s.running = null;
-      if (code && code !== 0) this.cb.onData(id, `[çıkış kodu ${String(code)}]\r\n`);
-      this.prompt(id);
-    });
+    // Ctrl+C kesme sinyali simülasyonu
+    if (line === "\x03") {
+      s.shell.kill("SIGINT");
+      return;
+    }
+
+    // Ekran temizleme komutları
+    const trimmed = line.trim().toLowerCase();
+    if (trimmed === "clear" || trimmed === "cls") {
+      this.cb.onData(id, "\x1b[2J\x1b[H"); // Ekranı temizle ve imleci başa al
+    }
+
+    // Girdiyi kabuğun standart girdisine (stdin) yaz ve satır atla
+    s.shell.stdin?.write(line + "\n");
   }
 
   kill(id: string): void {
     const s = this.sessions.get(id);
-    if (s?.running) {
+    if (s) {
       try {
-        s.running.kill();
+        // Alt süreç ağacını güvenle sonlandır
+        s.shell.stdin?.end();
+        s.shell.kill("SIGKILL");
       } catch {
         /* yoksay */
       }
+      this.sessions.delete(id);
     }
-    this.sessions.delete(id);
     this.cb.onExit(id, 0);
   }
 
   killAll(): void {
-    for (const id of [...this.sessions.keys()]) this.kill(id);
+    for (const id of [...this.sessions.keys()]) {
+      this.kill(id);
+    }
   }
 }
