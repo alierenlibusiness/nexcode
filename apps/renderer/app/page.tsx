@@ -170,30 +170,30 @@ export default function HomePage() {
   const cliCount = Object.values(connStatus).filter((s) => s.cliInstalled).length;
   const keyCount = Object.values(connStatus).filter((s) => s.hasApiKey).length;
 
-  const tabLabels: Record<Tab, string> = { chat: "Sohbet", agents: "Agentlar", mcp_skills: "MCP & Skills", connections: "Bağlantılar" };
+  const tabLabels: Record<Tab, string> = { chat: "Sohbet", agents: "Ajanlar (Agents)", mcp_skills: "MCP & Skills", connections: "Bağlantı Ayarları" };
 
   return (
     <div className="flex h-screen flex-col bg-ink-950 text-neutral-100">
       {/* Üst bar */}
-      <header className="flex items-center justify-between border-b border-ink-700 bg-ink-900/60 px-4 py-2 backdrop-blur">
+      <header className="flex items-center justify-between border-b border-ink-700 bg-ink-900/60 px-4 py-2 backdrop-blur shadow-sm">
         <div className="flex items-center gap-2.5">
           <img src="./favicon.png" alt="NEXCODE" className="h-7 w-7 rounded-md ring-1 ring-ink-700" />
-          <span className="text-base font-extrabold tracking-tight">
-            <span className="text-brand-grad">NEX</span>
-            <span className="text-chrome">CODE</span>
+          <span className="text-base font-extrabold tracking-tight select-none">
+            <span className="text-brand-grad font-black">NEX</span>
+            <span className="text-chrome font-black">CODE</span>
           </span>
-          <span className="ml-1 rounded bg-ink-800 px-1.5 py-0.5 text-[10px] text-neutral-500">
-            çoklu-agent IDE
+          <span className="ml-1 rounded bg-brand-500/10 border border-brand-500/20 px-1.5 py-0.5 text-[9px] text-brand-300 font-bold select-none uppercase tracking-wider">
+            Multi-Agent IDE
           </span>
         </div>
-        <div className="flex items-center gap-2 text-[11px]">
-          <span className="rounded-md border border-ink-700 bg-ink-800/50 px-2 py-0.5 text-neutral-400">
-            API: {keyCount} anahtar · CLI: {cliCount} kurulu
+        <div className="flex items-center gap-2 text-[10px] font-mono select-none">
+          <span className="rounded-lg border border-ink-700 bg-ink-800/40 px-2.5 py-1 text-neutral-400">
+            API KEYS: {keyCount} · CLI TOOLS: {cliCount}
           </span>
-          <span className="rounded-md border border-ink-700 bg-ink-800/50 px-2 py-0.5 text-neutral-400">
-            Taşma (API): ${apiCost.toFixed(4)}
+          <span className="rounded-lg border border-ink-700 bg-ink-800/40 px-2.5 py-1 text-neutral-400">
+            API COST: ${apiCost.toFixed(4)}
           </span>
-          <span className="max-w-[240px] truncate text-neutral-500">{status}</span>
+          <span className="max-w-[240px] truncate text-brand-400 font-semibold">{status}</span>
         </div>
       </header>
 

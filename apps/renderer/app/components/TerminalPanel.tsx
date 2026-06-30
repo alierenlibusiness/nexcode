@@ -4,11 +4,6 @@ import { useEffect, useRef, useState } from "react";
 
 const TERMINAL_ID = "main";
 
-/**
- * Hafif terminal/komut konsolu (PRD §5.2). main bir kalıcı-cwd shell oturumu yürütür;
- * burada çıktıyı stream eder, komut satırını göndeririz. ANSI temizleme minimaldir
- * (clear dışında); vibe-coding için "komut çalıştır + çıktı gör" yeterli.
- */
 export function TerminalPanel() {
   const [lines, setLines] = useState<string>("");
   const [input, setInput] = useState("");
@@ -21,7 +16,6 @@ export function TerminalPanel() {
     const off = api.onTerminalData(({ id, data }) => {
       if (id !== TERMINAL_ID) return;
       setLines((prev) => {
-        // Basit \x1b[2J (clear) desteği
         if (data.includes("\x1b[2J")) return "";
         return prev + data;
       });
@@ -44,20 +38,49 @@ export function TerminalPanel() {
     setInput("");
   }
 
-  // ANSI prompt sequence'lerini görüntü için sadeleştir (\r → satır başı).
+  // Clear console log manually
+  function clearConsole() {
+    setLines("");
+  }
+
+  // Remove ANSI escape sequences
   // eslint-disable-next-line no-control-regex
   const display = lines.replace(/\x1b\[[0-9;]*[A-Za-z]/g, "").replace(/\r/g, "");
 
   return (
-    <div className="flex h-full flex-col bg-ink-950/70" onClick={() => inputRef.current?.focus()}>
-      <div className="flex items-center gap-2 border-b border-ink-700 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
-        <span className="h-1.5 w-1.5 rounded-full bg-brand-400" /> Terminal
+    <div className="flex h-full flex-col bg-ink-950/70 border-t border-ink-800" onClick={() => inputRef.current?.focus()}>
+      <div className="flex h-9 items-center justify-between bg-ink-900/60 px-3 border-b border-ink-800/60">
+        <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-neutral-500 select-none">
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-brand-400">
+            <polyline points="4 17 10 11 4 5"/>
+            <line x1="12" y1="19" x2="20" y2="19"/>
+          </svg>
+          <span>Terminal Konsolu</span>
+        </div>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            clearConsole();
+          }}
+          title="Konsolu Temizle"
+          className="rounded p-1 hover:bg-ink-800 text-neutral-500 hover:text-neutral-300 transition"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 6h18"/>
+            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+          </svg>
+        </button>
       </div>
-      <div ref={scrollRef} className="flex-1 overflow-auto px-3 py-1 font-mono text-[11px] leading-relaxed text-neutral-300">
-        <pre className="whitespace-pre-wrap break-words">{display}</pre>
+
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-2 font-mono text-[10px] leading-relaxed text-neutral-300 select-text">
+        <pre className="whitespace-pre-wrap break-words" style={{ fontFamily: "'JetBrains Mono', 'Fira Code', monospace" }}>
+          {display || "nexcode terminal hazır.\n"}
+        </pre>
       </div>
-      <div className="flex items-center gap-1 border-t border-ink-700 px-2 py-1">
-        <span className="text-[11px] text-brand-400">$</span>
+
+      <div className="flex items-center gap-1.5 border-t border-ink-800/40 bg-ink-950 px-3 py-1.5">
+        <span className="text-[10px] font-bold font-mono text-brand-400 select-none">$</span>
         <input
           ref={inputRef}
           value={input}
@@ -65,8 +88,9 @@ export function TerminalPanel() {
           onKeyDown={(e) => {
             if (e.key === "Enter") submit();
           }}
-          placeholder="komut yaz, Enter ile çalıştır (örn. git status)"
+          placeholder="Komut çalıştırın (örn. git status, npm install)..."
           className="flex-1 bg-transparent font-mono text-[11px] text-neutral-100 outline-none placeholder:text-neutral-700"
+          style={{ fontFamily: "'JetBrains Mono', 'Fira Code', monospace" }}
         />
       </div>
     </div>

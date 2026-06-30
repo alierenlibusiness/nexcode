@@ -184,10 +184,10 @@ export function McpSkillsPanel({
       {/* MCP Servers Section */}
       <div className="space-y-3">
         <h3 className="text-xs font-bold uppercase tracking-wider text-brand-300 flex items-center gap-1.5">
-          <span className="h-1.5 w-1.5 rounded-full bg-brand-400 animate-pulse" /> MCP Sunucuları (Stdio)
+          <span className="h-1.5 w-1.5 rounded-full bg-brand-400 animate-pulse" /> MCP Sunucuları (Model Context Protocol)
         </h3>
         <p className="text-[10px] leading-relaxed text-neutral-400">
-          Uygulamanın araç havuzunu genişletmek için harici MCP sunucuları tanımlayın.
+          Ajanların sisteminizle etkileşime geçebilmesi ve harici veri kaynaklarını yönetebilmesi için stdio tabanlı MCP sunucuları entegre edin.
         </p>
 
         {/* Server List */}
