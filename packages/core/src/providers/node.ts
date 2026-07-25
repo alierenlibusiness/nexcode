@@ -4,4 +4,6 @@ export * from "./cli/runner";
 export * from "./cli/claude-code";
 export * from "./cli/codex";
 export * from "./cli/antigravity";
+export * from "./cli/discovery";
+export * from "./cli/health";
 export * from "./factory";

@@ -23,7 +23,17 @@ export * from "./engine/routing";
 export * from "./engine/verdict";
 export * from "./engine/recovery";
 export * from "./engine/prompt";
+export * from "./engine/live-diff";
 export * from "./engine/engine";
+// Runtime servisleri (saf çekirdek; dosya sistemi erişimi port'lar üzerinden)
+export * from "./skills/registry";
+export * from "./checkpoints/checkpoints";
+export * from "./schedule/schedule";
+export * from "./sandbox/sandbox";
+export * from "./context/project-context";
+export * from "./notify/webhook";
+export * from "./providers/cli/adapters";
+export * from "./doctor";
 export * from "./approval/gate";
 export * from "./agents/definitions";
 export * from "./agents/escalation";
