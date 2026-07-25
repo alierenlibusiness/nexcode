@@ -110,7 +110,7 @@ const api = {
   removeMcpServer: (id: string): Promise<unknown> => ipcRenderer.invoke(C.mcpRemove, { id }),
   toggleMcpServer: (id: string, enabled: boolean): Promise<unknown> =>
     ipcRenderer.invoke(C.mcpToggle, { id, enabled }),
-  callMcpTool: (serverName: string, toolName: string, args: any): Promise<unknown> =>
+  callMcpTool: (serverName: string, toolName: string, args: Record<string, unknown>): Promise<unknown> =>
     ipcRenderer.invoke(C.mcpCallTool, { serverName, toolName, args }),
 
   // Skills

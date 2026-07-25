@@ -28,7 +28,7 @@ describe("SkillRepository", () => {
 
     const list = repo.list();
     expect(list.length).toBe(1);
-    expect(list[0].name).toBe("test_skill");
+    expect(list[0]?.name).toBe("test_skill");
 
     const fetched = repo.getByName("test_skill");
     expect(fetched).not.toBeNull();

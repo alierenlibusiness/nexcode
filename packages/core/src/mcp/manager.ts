@@ -1,4 +1,4 @@
-import { McpClient, type McpTool, type McpServerConfig } from "./client";
+import { McpClient, type McpTool, type McpServerConfig, type JsonObject, type JsonValue } from "./client";
 import type { McpRepository } from "../db/mcp-repo";
 import { logger } from "../logger";
 
@@ -55,13 +55,9 @@ export class McpManager {
 
   /** Çalışan sunucuları ve durumlarını listeler. */
   listActiveServers(): Array<{ id: string; name: string; running: boolean; tools: McpTool[] }> {
-    const all = this.repo.list();
-    const result: Array<{ id: string; name: string; running: boolean; tools: McpTool[] }> = [];
-
-    // listTools is async, so we'll return cached tools or retrieve active client tools synchronously.
-    // To keep it simple and sync, we'll let the renderer list tools through async calls, or we can get tools async.
-    // Let's make an async listActiveServers or list all tools async.
-    return all.map((s) => {
+    // listTools asenkron olduğu için araç listesi burada boş bırakılır; renderer
+    // birleşik listeyi `listAllTools()` üzerinden asenkron alır.
+    return this.repo.list().map((s) => {
       const client = this.clients.get(s.id);
       return {
         id: s.id,
@@ -75,7 +71,7 @@ export class McpManager {
   /** Tüm çalışan sunuculardaki araçları birleştirilmiş listede döner. */
   async listAllTools(): Promise<McpToolWithServer[]> {
     const result: McpToolWithServer[] = [];
-    for (const [id, client] of this.clients.entries()) {
+    for (const client of this.clients.values()) {
       try {
         const tools = await client.listTools();
         for (const t of tools) {
@@ -84,15 +80,15 @@ export class McpManager {
             serverName: client.config.name,
           });
         }
-      } catch (e) {
-        logger.error("mcp.manager.list_tools_failed", { name: client.config.name, error: String(e) });
+      } catch (error) {
+        logger.error("mcp.manager.list_tools_failed", { name: client.config.name, error: String(error) });
       }
     }
     return result;
   }
 
   /** Belirli bir aracı sunucu adına göre tetikler. */
-  async callTool(serverName: string, toolName: string, args: any): Promise<any> {
+  async callTool(serverName: string, toolName: string, args: JsonObject): Promise<JsonValue> {
     const client = Array.from(this.clients.values()).find((c) => c.config.name === serverName);
     if (!client) {
       throw new Error(`MCP sunucusu '${serverName}' aktif değil`);

@@ -30,7 +30,7 @@ describe("McpRepository", () => {
 
     const list = repo.list();
     expect(list.length).toBe(1);
-    expect(list[0].name).toBe("test-server");
+    expect(list[0]?.name).toBe("test-server");
   });
 
   it("should support toggling and deleting records", () => {

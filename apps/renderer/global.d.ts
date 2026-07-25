@@ -1,4 +1,11 @@
-import type { Workspace, Task, AgentRole, ConnectionPreference } from "@nexcode/core";
+import type {
+  Workspace,
+  Task,
+  AgentRole,
+  ConnectionPreference,
+  JsonObject,
+  JsonValue,
+} from "@nexcode/core";
 
 export interface ApprovalDTO {
   id: string;
@@ -95,7 +102,7 @@ declare global {
       saveMcpServer(input: { name: string; command: string; args: string[]; env: Record<string, string> }): Promise<{ id: string; name: string; command: string; args: string[]; env: Record<string, string>; enabled: boolean }>;
       removeMcpServer(id: string): Promise<void>;
       toggleMcpServer(id: string, enabled: boolean): Promise<void>;
-      callMcpTool(serverName: string, toolName: string, args: any): Promise<any>;
+      callMcpTool(serverName: string, toolName: string, args: JsonObject): Promise<JsonValue>;
 
       // Skills
       listSkills(): Promise<Array<{ id: string; name: string; description: string; prompt: string; createdAt: string }>>;

@@ -1,6 +1,10 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { logger } from "../logger";
 
+/** JSON-RPC üzerinden taşınabilen değerler — MCP sözleşmesinde `any` yerine kullanılır. */
+export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+export type JsonObject = { [key: string]: JsonValue };
+
 export interface McpServerConfig {
   id: string;
   name: string;
@@ -13,13 +17,30 @@ export interface McpServerConfig {
 export interface McpTool {
   name: string;
   description?: string;
-  inputSchema?: any;
+  inputSchema?: JsonObject;
+}
+
+/** JSON-RPC 2.0 yanıtı (MCP sunucusundan gelen). */
+interface JsonRpcResponse {
+  jsonrpc?: string;
+  id?: number | string | null;
+  result?: JsonValue;
+  error?: JsonValue;
+}
+
+interface PendingRequest {
+  resolve: (value: JsonValue) => void;
+  reject: (error: unknown) => void;
+}
+
+function isJsonObject(value: JsonValue | undefined): value is JsonObject {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export class McpClient {
   private proc: ChildProcess | null = null;
   private messageId = 0;
-  private pendingRequests = new Map<number, { resolve: (val: any) => void; reject: (err: any) => void }>();
+  private pendingRequests = new Map<number, PendingRequest>();
   private buffer = "";
 
   constructor(public readonly config: McpServerConfig) {}
@@ -44,15 +65,14 @@ export class McpClient {
 
     this.proc.stdout?.on("data", (chunk: Buffer) => {
       this.buffer += chunk.toString();
-      let newlineIndex;
+      let newlineIndex: number;
       while ((newlineIndex = this.buffer.indexOf("\n")) !== -1) {
         const line = this.buffer.slice(0, newlineIndex).trim();
         this.buffer = this.buffer.slice(newlineIndex + 1);
         if (line) {
           try {
-            const msg = JSON.parse(line);
-            this.handleMessage(msg);
-          } catch (e) {
+            this.handleMessage(JSON.parse(line) as JsonRpcResponse);
+          } catch {
             logger.warn("mcp.client.parse_error", { name: this.config.name, raw: line.slice(0, 100) });
           }
         }
@@ -63,24 +83,23 @@ export class McpClient {
     await this.initialize();
   }
 
-  private handleMessage(msg: any): void {
-    if (msg.id !== undefined && msg.id !== null) {
-      const pending = this.pendingRequests.get(msg.id);
-      if (pending) {
-        this.pendingRequests.delete(msg.id);
-        if (msg.error) {
-          pending.reject(msg.error);
-        } else {
-          pending.resolve(msg.result);
-        }
-      }
+  private handleMessage(msg: JsonRpcResponse): void {
+    if (typeof msg.id !== "number") return;
+    const pending = this.pendingRequests.get(msg.id);
+    if (!pending) return;
+    this.pendingRequests.delete(msg.id);
+    if (msg.error !== undefined && msg.error !== null) {
+      pending.reject(msg.error);
+    } else {
+      pending.resolve(msg.result ?? null);
     }
   }
 
-  private send(method: string, params: any = {}): Promise<any> {
-    return new Promise((resolve, reject) => {
+  private send(method: string, params: JsonObject = {}): Promise<JsonValue> {
+    return new Promise<JsonValue>((resolve, reject) => {
       if (!this.proc || this.proc.killed) {
-        return reject(new Error(`MCP server '${this.config.name}' is not running`));
+        reject(new Error(`MCP server '${this.config.name}' is not running`));
+        return;
       }
       const id = ++this.messageId;
       this.pendingRequests.set(id, { resolve, reject });
@@ -112,20 +131,30 @@ export class McpClient {
   async listTools(): Promise<McpTool[]> {
     try {
       const res = await this.send("tools/list");
-      return res.tools || [];
-    } catch (e) {
-      logger.error("mcp.client.list_tools_failed", { name: this.config.name, error: String(e) });
+      if (!isJsonObject(res) || !Array.isArray(res.tools)) return [];
+      return res.tools.filter(isJsonObject).map((tool) => {
+        const description = tool.description;
+        const inputSchema = tool.inputSchema;
+        return {
+          name: String(tool.name ?? ""),
+          ...(typeof description === "string" ? { description } : {}),
+          ...(isJsonObject(inputSchema) ? { inputSchema } : {}),
+        };
+      });
+    } catch (error) {
+      logger.error("mcp.client.list_tools_failed", { name: this.config.name, error: String(error) });
       return [];
     }
   }
 
-  async callTool(name: string, args: any): Promise<any> {
+  async callTool(name: string, args: JsonObject): Promise<JsonValue> {
     try {
       const res = await this.send("tools/call", { name, arguments: args });
-      return res.content || [];
-    } catch (e) {
-      logger.error("mcp.client.call_tool_failed", { name: this.config.name, tool: name, error: String(e) });
-      throw e;
+      if (isJsonObject(res) && res.content !== undefined) return res.content;
+      return [];
+    } catch (error) {
+      logger.error("mcp.client.call_tool_failed", { name: this.config.name, tool: name, error: String(error) });
+      throw error;
     }
   }
 
@@ -138,7 +167,7 @@ export class McpClient {
   }
 
   private rejectAllPending(reason: string): void {
-    for (const [id, pending] of this.pendingRequests.entries()) {
+    for (const pending of this.pendingRequests.values()) {
       pending.reject(new Error(reason));
     }
     this.pendingRequests.clear();
