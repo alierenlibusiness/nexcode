@@ -1,0 +1,208 @@
+import { normalizeConfig, type AgentProfile, type NexcodeConfig } from "./schema";
+
+/**
+ * Yıkıcı ya da geri alınamaz işlemleri işaret eden metinler. `approvalMode: "ask"` iken
+ * bunlardan birini içeren plan yürütülmeden önce insan onayına alınır (PRD §12).
+ */
+export const DEFAULT_RISKY_PATTERNS: readonly string[] = [
+  "rm -rf",
+  "rm ",
+  "Remove-Item",
+  "del ",
+  "rmdir",
+  "git push",
+  "git push --force",
+  "git reset --hard",
+  "git clean",
+  "git branch -D",
+  "deploy",
+  "DROP TABLE",
+  "DROP DATABASE",
+  "DELETE FROM",
+  "TRUNCATE",
+  "ALTER TABLE",
+  "format ",
+  "shutdown",
+  "Stop-Computer",
+  "Invoke-RestMethod",
+  "Invoke-WebRequest",
+  "curl -X POST",
+  "curl -X PUT",
+  "curl -X DELETE",
+  "npm publish",
+  "pnpm publish",
+  "docker push",
+  "kubectl delete",
+  "terraform apply",
+  "terraform destroy",
+  "mail",
+  "smtp",
+];
+
+/**
+ * Yerleşik 6 alan agent'ı — hibrit roster'ın sabit çekirdeği (PRD §8).
+ * Her biri bir orkestrasyon rolü taşır; bu rol alabileceği görev türünü BAĞLAYICI kılar.
+ * Keşfedilen CLI agent'ları bunların yanına eklenir, yerlerini almaz.
+ */
+export const DEFAULT_AGENT_PROFILES: Readonly<Record<string, AgentProfile>> = {
+  ceo: {
+    id: "ceo",
+    name: "CEO · Orchestrator",
+    enabled: true,
+    role: "operator",
+    domain: "ceo",
+    roleFile: "operator.md",
+    connection: "cli_first",
+    autonomy: "supervised",
+    model: { provider: "anthropic", modelId: "claude-opus-4-8" },
+    modelOverride: false,
+    args: [],
+    adapter: "claude",
+    discovered: false,
+  },
+  frontend: {
+    id: "frontend",
+    name: "Frontend",
+    enabled: true,
+    role: "executor",
+    domain: "frontend",
+    roleFile: "executor.md",
+    connection: "cli_first",
+    autonomy: "supervised",
+    model: { provider: "openai", modelId: "gpt-5.5" },
+    modelOverride: false,
+    args: [],
+    adapter: "codex",
+    discovered: false,
+  },
+  backend: {
+    id: "backend",
+    name: "Backend",
+    enabled: true,
+    role: "executor",
+    domain: "backend",
+    roleFile: "executor.md",
+    connection: "cli_first",
+    autonomy: "supervised",
+    model: { provider: "anthropic", modelId: "claude-opus-4-8" },
+    modelOverride: false,
+    args: [],
+    adapter: "claude",
+    discovered: false,
+  },
+  security: {
+    id: "security",
+    name: "Security",
+    enabled: true,
+    role: "reviewer",
+    domain: "security",
+    roleFile: "reviewer.md",
+    // Tetiklemeli rol — sürekli/yüksek hacimli değil, bu yüzden API anahtarı yeterli.
+    connection: "api_only",
+    autonomy: "autonomous",
+    model: { provider: "anthropic", modelId: "claude-opus-4-8" },
+    modelOverride: false,
+    args: [],
+    discovered: false,
+  },
+  qa: {
+    id: "qa",
+    name: "QA · Test",
+    enabled: true,
+    role: "reviewer",
+    domain: "qa",
+    roleFile: "reviewer.md",
+    connection: "api_only",
+    autonomy: "autonomous",
+    // Eskalasyon zincirinin ilk (en ucuz) kademesi; zincir `escalation.qa` altındadır.
+    model: { provider: "deepseek", modelId: "deepseek-v4-flash" },
+    modelOverride: false,
+    args: [],
+    discovered: false,
+  },
+  devops: {
+    id: "devops",
+    name: "DevOps",
+    enabled: true,
+    role: "executor",
+    domain: "devops",
+    roleFile: "executor.md",
+    connection: "api_only",
+    // Production'a otonom dokunmaz — her adım insan onayı ister.
+    autonomy: "manual",
+    model: { provider: "google", modelId: "gemini-3.5-flash" },
+    modelOverride: false,
+    args: [],
+    discovered: false,
+  },
+};
+
+/**
+ * Config dosyası okunamadığında ya da bozuk olduğunda kullanılan güvenli taban.
+ * `resources/nexcode.config.default.json` ile aynı değerleri taşır; o dosya
+ * kullanıcıya görünen paylaşılabilir şablon, bu ise kod içi son çare kopyasıdır.
+ */
+export const FALLBACK_CONFIG: NexcodeConfig = normalizeConfig({
+  version: 1,
+  language: "system",
+  approvalMode: "auto",
+  workingDir: ".",
+  dailyCallBudget: 150,
+  pollSeconds: 15,
+  memoryCharBudget: 8000,
+  teamContextCharBudget: 30000,
+  taskPromptCharBudget: 6000,
+  agentTimeoutSeconds: 900,
+  cliSilenceTimeoutSeconds: 300,
+  autonomousConsentAcceptedAt: null,
+  discoveryIgnoredAdapters: [],
+  liveDiff: true,
+  liveDiffIntervalMs: 2500,
+  versioning: true,
+  versioningRetention: 20,
+  sandbox: { mode: "workspace", extraWritableDirs: [] },
+  projectContext: true,
+  projectContextCharBudget: 6000,
+  notify: { webhookUrl: "", onComplete: true, onFailed: true },
+  operator: {
+    agentId: "ceo",
+    roleFile: "operator.md",
+    maxRounds: 6,
+    maxDelegationsPerRound: 8,
+    maxInfrastructureRecoveryRounds: 2,
+    protocolRetries: 2,
+    passFastPath: true,
+  },
+  resilience: { transientRetries: 2, retryBaseSeconds: 3, maxFailoverAgents: 1 },
+  cliSettings: {
+    claude: { model: "", modelPreferences: [], modelExclude: [] },
+    codex: { model: "", reasoningEffort: "medium", serviceTier: "fast", modelPreferences: [], modelExclude: [] },
+    gemini: { model: "", modelPreferences: [], modelExclude: [] },
+    opencode: {
+      model: "",
+      modelPreferences: ["*deepseek*free*", "*free*", "*"],
+      modelExclude: ["ollama/*", "lmstudio/*", "llamacpp/*", "local/*", "localhost/*"],
+    },
+    antigravity: { model: "", modelPreferences: [], modelExclude: [] },
+  },
+  skills: {
+    enabled: [],
+    autoMatch: true,
+    catalogLimit: 12,
+    maxSkillsPerAssignment: 3,
+    charBudget: 2400,
+    referenceCharBudget: 1200,
+  },
+  agents: DEFAULT_AGENT_PROFILES,
+  schedules: [],
+  escalation: {
+    // Ucuzdan pahalıya: basit görev ilk kademede çözülür, yalnızca gerekirse yükselir.
+    qa: [
+      { provider: "deepseek", modelId: "deepseek-v4-flash" },
+      { provider: "minimax", modelId: "minimax-m3" },
+      { provider: "anthropic", modelId: "claude-sonnet-4-6" },
+    ],
+  },
+  quota: { windowHours: 5, maxCallsPerWindow: 50 },
+  riskyPatterns: DEFAULT_RISKY_PATTERNS,
+});

@@ -1,0 +1,270 @@
+{
+  "_comment": "TEMPLATE — copied to your personal config.json on first run. Installed CLIs (Claude Code / Codex / Gemini / OpenCode / Antigravity) are auto-detected and added as specialist agents. config.json is machine-specific and git-ignored; THIS file is shareable and is the settings baseline everyone sees. Keys starting with _ are documentation only and are stripped at load time.",
+
+  "version": 1,
+
+  "_language_comment": "UI language. 'system' follows the OS locale and falls back to English.",
+  "language": "system",
+
+  "_approvalMode_comment": "'auto' executes the operator plan directly. 'ask' holds any plan matching riskyPatterns for human approval; the plan is hashed, so an edited plan invalidates its approval.",
+  "approvalMode": "auto",
+
+  "_workingDir_comment": "Default working folder. '.' means the folder opened in the app. Agents can only write here unless sandbox.mode is 'off'.",
+  "workingDir": ".",
+
+  "_budget_comment": "Guard rails. dailyCallBudget caps total model calls per day; pollSeconds is how long the engine idles when the queue is empty.",
+  "dailyCallBudget": 150,
+  "pollSeconds": 15,
+
+  "_context_comment": "Character budgets for assembled prompts. memoryCharBudget trims workspace memory from the end; teamContextCharBudget caps the team/round state handed to the operator.",
+  "memoryCharBudget": 8000,
+  "teamContextCharBudget": 30000,
+
+  "_taskPromptCharBudget_comment": "If your task text exceeds this (e.g. a 1000-line spec), the full text is written to .nexcode/TASK-<id>.md in the working folder and the prompt carries only a head+tail digest plus a 'read the full text from the file' marker. This keeps the strict JSON operator protocol intact and stops context from being silently truncated.",
+  "taskPromptCharBudget": 6000,
+
+  "_timeout_comment": "agentTimeoutSeconds is the hard ceiling for one delegation. cliSilenceTimeoutSeconds ends a delegation that produced no new output for that long — progress already recorded is preserved. Per-adapter silence limits (codex/gemini 180s, claude 240s, opencode 300s) override this where they are stricter.",
+  "agentTimeoutSeconds": 900,
+  "cliSilenceTimeoutSeconds": 300,
+
+  "_consent_comment": "The engine refuses to start until autonomous operation is explicitly accepted in the app. Set by the consent dialog, never by hand.",
+  "autonomousConsentAcceptedAt": null,
+
+  "_discovery_comment": "Auto-discovered adapters you deleted. They are not recreated on the next scan.",
+  "discoveryIgnoredAdapters": [],
+
+  "_liveDiff_comment": "Live line-level diff feeding the Live Code surface. The engine enforces a 500ms floor on the interval. Per file 256 KiB / 5000 lines, 24 MiB / 2000 files at task start, 1000 rendered lines per event. Binary and oversized files are summarized; .env, credentials and private keys are never put in an event payload.",
+  "liveDiff": true,
+  "liveDiffIntervalMs": 2500,
+
+  "_versioning_comment": "Snapshot the working folder before agents start. 'Restore this version' brings back modified and deleted files and removes files created after the task. A redo checkpoint is taken before every restore, so undo is itself undoable. Restore is only allowed while the engine is idle.",
+  "versioning": true,
+  "versioningRetention": 20,
+
+  "sandbox": {
+    "_comment": "Agent jail. 'workspace' = agents may only write inside the working folder; writes outside are blocked (no Docker or Git required). 'off' restores unrestricted behaviour. extraWritableDirs lists absolute paths outside the working folder that stay writable — useful for monorepos.",
+    "mode": "workspace",
+    "extraWritableDirs": []
+  },
+
+  "_projectContext_comment": "Each working folder keeps a .nexcode/CONTEXT.md project profile. It is loaded for the operator when a task opens, so the whole codebase does not have to be re-scanned; at task end the operator REVISES the profile (it is a profile, not a changelog). false falls back to plain global memory.",
+  "projectContext": true,
+  "projectContextCharBudget": 6000,
+
+  "notify": {
+    "_comment": "POSTs {text,...} to the webhook when a task completes or fails. Compatible with Slack incoming webhooks. An empty URL disables notifications.",
+    "webhookUrl": "",
+    "onComplete": true,
+    "onFailed": true
+  },
+
+  "operator": {
+    "_comment": "The operator is the technical lead: it plans, delegates and judges deliverables, but never writes code itself. Its role file is fixed to operator.md; you may edit the content, not the name.",
+    "agentId": "ceo",
+    "roleFile": "operator.md",
+    "maxRounds": 6,
+    "maxDelegationsPerRound": 8,
+    "maxInfrastructureRecoveryRounds": 2,
+    "protocolRetries": 2,
+    "_passFastPath_comment": "When every assignment in a round finished and the newest review says VERDICT: PASS, skip the second operator evaluation call and deliver. Set false to force the older, more expensive evaluation path.",
+    "passFastPath": true
+  },
+
+  "resilience": {
+    "_comment": "On transient provider failures (rate limit / overload / network) the delegation is retried on the same agent with exponential backoff. On a permanent failure the work is handed to a healthy agent with the same capability. Going back to the operator and spending a fresh planning round is the last resort.",
+    "transientRetries": 2,
+    "retryBaseSeconds": 3,
+    "maxFailoverAgents": 1
+  },
+
+  "cliSettings": {
+    "_comment": "CLI-wide model policy. Priority: explicit agent override > this value > the CLI's own default. An empty model uses the CLI account/organisation default.",
+    "claude": {
+      "_comment": "Empty model uses your Claude Code account default. The UI lists the models your own session actually reports (via the Agent SDK initialize response) and applies the choice as `claude --model <name>`.",
+      "model": "",
+      "modelPreferences": [],
+      "modelExclude": []
+    },
+    "codex": {
+      "model": "",
+      "reasoningEffort": "medium",
+      "serviceTier": "fast",
+      "modelPreferences": [],
+      "modelExclude": []
+    },
+    "gemini": {
+      "_comment": "Gemini CLI uses its own default model.",
+      "model": "",
+      "modelPreferences": [],
+      "modelExclude": []
+    },
+    "opencode": {
+      "_comment": "Naming an explicit model skips auto-selection entirely (most reliable — copy a line from `opencode models`). Left empty, modelPreferences patterns are tried in order and the FIRST match wins; '*' is a wildcard. Provider names differ per user (yours may be opencode-go, minimax, openrouter or your own server), so no provider is hardcoded — reorder the list to put your own first. modelExclude lists providers not assumed reachable; delete a line to use your local server.",
+      "model": "",
+      "modelPreferences": ["*deepseek*free*", "*free*", "*"],
+      "modelExclude": ["ollama/*", "lmstudio/*", "llamacpp/*", "local/*", "localhost/*"]
+    },
+    "antigravity": {
+      "model": "",
+      "modelPreferences": [],
+      "modelExclude": []
+    }
+  },
+
+  "skills": {
+    "_comment": "Only skills in the enabled list are scanned. The operator sees a task-scoped shortlist rather than the whole catalogue; the specialist reads the full guide from disk only when needed. On first run this list is filled with every bundled skill (turn them off in Settings > Skills); the scorer then surfaces only the relevant ones per task.",
+    "enabled": [],
+    "autoMatch": true,
+    "catalogLimit": 12,
+    "maxSkillsPerAssignment": 3,
+    "charBudget": 2400,
+    "referenceCharBudget": 1200
+  },
+
+  "_agents_comment": "The fixed six-agent core. 'role' is binding: it decides which assignment kinds the agent may receive (executor -> implement, reviewer -> review, planner -> plan/research, operator -> none). Discovered CLI agents are added alongside these, never in place of them. 'connection' picks the transport: api_only, cli_only, or cli_first (falls back to the API when the subscription quota window is exhausted).",
+  "agents": {
+    "ceo": {
+      "id": "ceo",
+      "name": "CEO · Orchestrator",
+      "enabled": true,
+      "role": "operator",
+      "domain": "ceo",
+      "roleFile": "operator.md",
+      "connection": "cli_first",
+      "autonomy": "supervised",
+      "model": { "provider": "anthropic", "modelId": "claude-opus-4-8" },
+      "modelOverride": false,
+      "args": [],
+      "adapter": "claude",
+      "discovered": false
+    },
+    "frontend": {
+      "id": "frontend",
+      "name": "Frontend",
+      "enabled": true,
+      "role": "executor",
+      "domain": "frontend",
+      "roleFile": "executor.md",
+      "connection": "cli_first",
+      "autonomy": "supervised",
+      "model": { "provider": "openai", "modelId": "gpt-5.5" },
+      "modelOverride": false,
+      "args": [],
+      "adapter": "codex",
+      "discovered": false
+    },
+    "backend": {
+      "id": "backend",
+      "name": "Backend",
+      "enabled": true,
+      "role": "executor",
+      "domain": "backend",
+      "roleFile": "executor.md",
+      "connection": "cli_first",
+      "autonomy": "supervised",
+      "model": { "provider": "anthropic", "modelId": "claude-opus-4-8" },
+      "modelOverride": false,
+      "args": [],
+      "adapter": "claude",
+      "discovered": false
+    },
+    "security": {
+      "_comment": "Trigger-driven, never continuous — an API key is enough. Reports only; it must not write files.",
+      "id": "security",
+      "name": "Security",
+      "enabled": true,
+      "role": "reviewer",
+      "domain": "security",
+      "roleFile": "reviewer.md",
+      "connection": "api_only",
+      "autonomy": "autonomous",
+      "model": { "provider": "anthropic", "modelId": "claude-opus-4-8" },
+      "modelOverride": false,
+      "args": [],
+      "discovered": false
+    },
+    "qa": {
+      "_comment": "First (cheapest) tier of the escalation chain defined under escalation.qa.",
+      "id": "qa",
+      "name": "QA · Test",
+      "enabled": true,
+      "role": "reviewer",
+      "domain": "qa",
+      "roleFile": "reviewer.md",
+      "connection": "api_only",
+      "autonomy": "autonomous",
+      "model": { "provider": "deepseek", "modelId": "deepseek-v4-flash" },
+      "modelOverride": false,
+      "args": [],
+      "discovered": false
+    },
+    "devops": {
+      "_comment": "Never touches production autonomously — every step asks for human approval.",
+      "id": "devops",
+      "name": "DevOps",
+      "enabled": true,
+      "role": "executor",
+      "domain": "devops",
+      "roleFile": "executor.md",
+      "connection": "api_only",
+      "autonomy": "manual",
+      "model": { "provider": "google", "modelId": "gemini-3.5-flash" },
+      "modelOverride": false,
+      "args": [],
+      "discovered": false
+    }
+  },
+
+  "schedules": [],
+
+  "escalation": {
+    "_comment": "QA escalation chain, cheapest first. A simple task is solved at the first tier; the engine only climbs when the tier fails or reports low confidence.",
+    "qa": [
+      { "provider": "deepseek", "modelId": "deepseek-v4-flash" },
+      { "provider": "minimax", "modelId": "minimax-m3" },
+      { "provider": "anthropic", "modelId": "claude-sonnet-4-6" }
+    ]
+  },
+
+  "quota": {
+    "_comment": "CLI subscription quota tracking. When the rolling window is exhausted, cli_first agents fall back to the API and the switch is recorded in cost_logs with its connection_mode.",
+    "windowHours": 5,
+    "maxCallsPerWindow": 50
+  },
+
+  "_riskyPatterns_comment": "Text that marks a plan as destructive or irreversible. With approvalMode 'ask' such a plan waits for explicit human approval before it runs.",
+  "riskyPatterns": [
+    "rm -rf",
+    "rm ",
+    "Remove-Item",
+    "del ",
+    "rmdir",
+    "git push",
+    "git push --force",
+    "git reset --hard",
+    "git clean",
+    "git branch -D",
+    "deploy",
+    "DROP TABLE",
+    "DROP DATABASE",
+    "DELETE FROM",
+    "TRUNCATE",
+    "ALTER TABLE",
+    "format ",
+    "shutdown",
+    "Stop-Computer",
+    "Invoke-RestMethod",
+    "Invoke-WebRequest",
+    "curl -X POST",
+    "curl -X PUT",
+    "curl -X DELETE",
+    "npm publish",
+    "pnpm publish",
+    "docker push",
+    "kubectl delete",
+    "terraform apply",
+    "terraform destroy",
+    "mail",
+    "smtp"
+  ]
+}

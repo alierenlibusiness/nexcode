@@ -13,6 +13,8 @@ export * from "./logger";
 // Orkestrasyon çekirdeği (Faz 1) — saf (native-bağımsız) modüller
 // NOT: CLI runner/adapter + factory node:child_process'e bağlı olduğundan
 // burada DEĞİL, `@nexcode/core/providers` alt yolundadır (yalnızca main process).
+export * from "./config/schema";
+export * from "./config/defaults";
 export * from "./approval/gate";
 export * from "./agents/definitions";
 export * from "./agents/escalation";
