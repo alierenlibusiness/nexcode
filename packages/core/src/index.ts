@@ -15,6 +15,15 @@ export * from "./logger";
 // burada DEĞİL, `@nexcode/core/providers` alt yolundadır (yalnızca main process).
 export * from "./config/schema";
 export * from "./config/defaults";
+// Orkestrasyon motoru — saf çekirdek (süreç/dosya/DB erişimi EngineDeps ile enjekte edilir).
+export * from "./engine/events";
+export * from "./engine/protocol";
+export * from "./engine/rounds";
+export * from "./engine/routing";
+export * from "./engine/verdict";
+export * from "./engine/recovery";
+export * from "./engine/prompt";
+export * from "./engine/engine";
 export * from "./approval/gate";
 export * from "./agents/definitions";
 export * from "./agents/escalation";
