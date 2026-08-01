@@ -1,155 +1,110 @@
 <div align="center">
 
-# NEXCODE
+# Orchestration Engine
 
-**Run every coding CLI you already have as one AI engineering team.**
-
-Claude Code, Codex CLI, Gemini CLI, OpenCode and Antigravity, coordinated by a single
-operator that plans, delegates, reviews and ships. On your machine, with your own
-subscriptions, in a desktop app you can actually watch.
+**The part of NEXCODE that decides who does what, and when the work is actually done.**
 
 </div>
 
 ---
 
-## What it is
+## What this branch is about
 
-You probably have two or three AI coding CLIs installed. Each one is good. None of them
-talk to each other, none of them review each other's work, and none of them can run while
-you do something else.
+An operator agent that plans, delegates to specialists, reads their output, and decides
+whether to ship or run another round. No agent grades its own homework.
 
-NEXCODE turns them into a team.
+This is the core of NEXCODE. Everything else on other branches plugs into it.
 
-You write a goal. An **operator** agent reads it, writes a plan, and hands the work to
-specialist agents running as separate CLI processes. A reviewer checks the result. Your
-own test and lint commands run as a hard gate. Only then does the work ship, on its own
-git branch, without ever touching your working tree.
-
-Everything is visible while it happens: which agent is working, what it is writing, line
-by line, and why the operator decided what it decided.
-
-## How it works
+## The loop
 
 ```
-Goal
- |
- +--> Operator plans and delegates
- |         |
- |         +--> planner    (writes the approach)
- |         +--> executor   (writes the code)
- |         +--> reviewer   (finds the problems)
- |
- +--> Verification gate    (your real test / typecheck / lint commands)
- |
- +--> Delivery on an isolated git branch
+round 1  operator plans        ->  planner -> executor -> reviewer
+                                        |
+                                   verdict: PASS -> ship
+                                   verdict: FAIL -> round 2 with targeted fixes
+round 2  operator evaluates    ->  ...
+...
+round N  budget exhausted      ->  ship what exists, with warnings attached
 ```
 
-The operator never writes code. Specialists never decide when the task is done. The
-verification gate outranks both: a model saying "tests pass" is not evidence, a green
-command is.
+The operator is a CLI process and writes no code. Specialists are separate CLI processes.
+A round ends when every delegation settles, not when one agent claims success.
 
-## What makes it different
+## Rules the engine enforces
 
-**Real evidence, not model claims.** After every round, NEXCODE runs the commands you
-define. A red gate closes every delivery shortcut and sends the decision back to the
-operator. If the operator insists anyway, the first attempt is rejected outright. Work is
-never silently shipped on a broken build, and never thrown away either.
+**Roles bind task types.** An executor gets `implement`, a reviewer gets `review`, a planner
+gets `plan`. If the operator produces a mismatched assignment, the engine routes it to the
+right role instead of running it wrong. The agent catalog publishes `allowedKinds` so the
+operator sees the constraint before it plans.
 
-**Your working tree stays clean.** Each task runs in its own git worktree on its own
-branch. Nothing is pushed anywhere. If a task fails, its tree is kept so you can inspect it.
+**Reviews are independent.** The last `VERDICT: PASS | FAIL` line of a review is the verdict.
+A PASS on a fully settled round delivers immediately and skips a second operator call, which
+is the single biggest cost saving in a normal task.
 
-**Parallel by default, safely.** Multiple tasks can run at once, each in its own isolated
-slot. Concurrency requires isolation: NEXCODE refuses to run tasks in parallel without it,
-because that corrupts working trees.
+**Failures are classified, not retried blindly.** Rate limits and network errors are transient
+and get an exponential retry on the same agent. Auth failures, quota exhaustion and missing
+binaries are permanent: the agent is quarantined for the session and the work fails over to
+another healthy agent with the same capability. Going back to the operator for a fresh plan
+is the last resort, because it costs a whole round.
 
-**One click back.** Every task snapshots the working directory before it starts. "Return to
-this version" restores changed and deleted files, removes what was added, and takes a redo
-snapshot first, so undo is itself undoable.
+**Nothing is thrown away.** When the round budget runs out, the engine delivers whatever
+exists with an explicit note about what is incomplete. Hours of agent work never vanish
+because a budget hit zero.
 
-**Nothing sensitive leaks into the UI.** `.env` files, credentials and private keys are
-never rendered into the live diff or stored in snapshots.
+**Dependencies are respected.** Assignments declare `dependsOn`. Independent work runs in
+parallel batches; anything whose upstream failed is never started and reports why.
 
-**Bring your own everything.** CLI agents use the subscriptions you already pay for. API
-providers are available as a second execution path, with keys in your OS keychain and
-per-call cost tracking.
+## Prompt protocol
 
-## The four surfaces
+The operator answers in strict JSON. Parsing failures get a bounded number of repair attempts
+with a targeted correction instruction rather than a generic retry, because a model that
+produced invalid JSON once will usually produce it again unless told exactly what broke.
 
-| Surface | What it shows |
-|---|---|
-| **Command Center** | Write a goal, watch the queue, the live event stream, approvals and engine controls |
-| **Board** | Task lifecycle across Pending, Running, Completed and Failed |
-| **Live Code** | Git-style file and hunk diffs, streaming as agents write |
-| **Team Flow** | The orchestration scene: operator core, agent nodes, data packets and a full timeline |
+Long task descriptions do not silently truncate. Anything past the budget is written to
+`.nexcode/TASK-<id>.md` in the working directory and the prompt carries a head and tail
+summary plus a pointer to the full text.
 
-## Getting started
+## Testability
 
-Requires Node.js 22+, pnpm, and at least one supported coding CLI already installed and
-signed in.
+The engine is pure. Processes, the filesystem and the database all arrive through an
+`EngineDeps` interface, so the entire lifecycle runs against fake agents in milliseconds.
+
+```ts
+const engine = new Engine({
+  config: () => config,
+  events: bus,
+  invoke: async (input) => fakeAgentResponse(input),
+  loadRole: (file) => readRole(file),
+  matchSkills: (goal, kind) => skills.match(goal, kind),
+  // ...
+});
+
+const outcome = await engine.runTask(task);
+```
+
+That is why the role chain, the fast path, protocol repair, recovery, failover, quarantine,
+approval gating and partial delivery all have real regression tests rather than mocks of
+themselves.
+
+## Files
+
+```
+packages/core/src/engine/
+  engine.ts       task lifecycle, round loop, delivery decisions
+  supervisor.ts   queue loop and concurrent worker slots
+  rounds.ts       execution policy per mode (auto, fast, balanced, deep)
+  routing.ts      agent catalog, assignment normalization, role chain
+  verdict.ts      review parsing and fast-path rules
+  recovery.ts     failure classification, retry, failover, quarantine
+  protocol.ts     operator JSON contract and repair instructions
+  prompt.ts       operator and specialist prompt construction
+  events.ts       the event contract every UI surface consumes
+  live-diff.ts    line and hunk diffing with safety limits
+```
+
+## Verify
 
 ```bash
-git clone https://github.com/alierenlibusiness/nexcode.git
-cd nexcode
-pnpm install
-pnpm dev
-```
-
-NEXCODE discovers the CLIs on your machine, checks whether they are ready, and builds the
-agent catalog for you. Open the Command Center, start the engine, and give it a goal.
-
-### Turning on the good parts
-
-Both are off by default so behavior is identical to a plain run until you opt in.
-
-```jsonc
-{
-  // Run your real commands as a delivery gate.
-  "verify": {
-    "commands": ["pnpm typecheck", "pnpm test"],
-    "blockOnFailure": true
-  },
-
-  // Give every task its own git worktree and branch.
-  "worktree": {
-    "mode": "task",
-    "branchPrefix": "nexcode/",
-    "linkPaths": ["node_modules"]
-  },
-
-  // Only allowed once isolation is on.
-  "maxConcurrentTasks": 3
-}
-```
-
-## Scheduled work
-
-Recurring tasks use plain presets rather than cron syntax: every N minutes, daily at a
-time, or weekly on chosen days. A scheduled task is queued when it comes due. It never
-starts a stopped engine on its own.
-
-## Use NEXCODE from another agent
-
-NEXCODE also exposes itself over MCP, so Claude Code or any other MCP client can queue work
-into it, check status and resolve approvals from inside its own flow. Engine start and stop
-is gated behind an explicit setting and stays hidden until you enable it.
-
-## Verify a build
-
-```bash
-pnpm -r build
+pnpm test --filter engine
 pnpm typecheck
-pnpm lint
-pnpm test
 ```
-
-## Documentation
-
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) walks through the module boundaries and
-  the invariants the system guarantees.
-- Each feature branch carries a README focused on that subsystem.
-
-## Credits
-
-The product model is adapted from [CrewCtl](https://github.com/omergocmen/CrewCtl) by Ömer
-Göçmen, released under the MIT license. NEXCODE reimplements that model on a different
-foundation: TypeScript, SQLite persistence and an Electron desktop application.
