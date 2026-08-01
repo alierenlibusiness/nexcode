@@ -25,6 +25,7 @@ export * from "./engine/recovery";
 export * from "./engine/prompt";
 export * from "./engine/live-diff";
 export * from "./engine/engine";
+export * from "./engine/supervisor";
 
 // Runtime servisleri: saf çekirdek, dosya sistemi erişimi port'lar üzerinden.
 export * from "./worktree/worktree";

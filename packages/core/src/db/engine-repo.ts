@@ -199,13 +199,21 @@ export class EngineRepository {
     return (this.db.prepare("SELECT * FROM tasks ORDER BY created_at ASC").all() as TaskRow[]).map(toTask);
   }
 
-  /** Kuyruktan çalıştırılacak sıradaki görev (öncelik, sonra yaş). */
-  claimNext(): Task | null {
+  /**
+   * Kuyruktan çalıştırılacak sıradaki görev (öncelik, sonra yaş).
+   *
+   * `skipIds` halihazırda bir slotta koşan görevlerdir; eşzamanlı yürütmede aynı görevin
+   * iki slota düşmesini bu parametre engeller.
+   */
+  claimNext(skipIds: readonly string[] = []): Task | null {
+    const placeholders = skipIds.map(() => "?").join(", ");
+    const exclusion = skipIds.length === 0 ? "" : ` AND id NOT IN (${placeholders})`;
     const row = this.db
       .prepare(
-        "SELECT * FROM tasks WHERE status = 'pending' AND kind = 'task' ORDER BY priority DESC, created_at ASC LIMIT 1",
+        `SELECT * FROM tasks WHERE status = 'pending' AND kind = 'task'${exclusion}
+         ORDER BY priority DESC, created_at ASC LIMIT 1`,
       )
-      .get() as TaskRow | undefined;
+      .get(...skipIds) as TaskRow | undefined;
     return row === undefined ? null : toTask(row);
   }
 

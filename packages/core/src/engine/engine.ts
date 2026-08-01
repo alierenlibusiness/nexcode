@@ -761,6 +761,8 @@ export class Engine {
         callsToday: this.callsToday,
         dailyCallBudget: config.dailyCallBudget,
         approvalMode: config.approvalMode,
+        activeTaskIds: [taskId],
+        concurrency: config.maxConcurrentTasks,
       },
       this.deps.now,
     );

@@ -22,6 +22,16 @@ describe("EngineRepository: görev kuyruğu", () => {
     expect(r.claimNext()?.id).toBe(urgent.id);
   });
 
+  it("claimNext koşan görevleri atlar (eşzamanlı slot sahiplenmesi)", () => {
+    const r = repo();
+    const first = r.create({ prompt: "A", workingDir: "/w" });
+    const second = r.create({ prompt: "B", workingDir: "/w" });
+
+    expect(r.claimNext()?.id).toBe(first.id);
+    expect(r.claimNext([first.id])?.id).toBe(second.id);
+    expect(r.claimNext([first.id, second.id])).toBeNull();
+  });
+
   it("operator-chat görevleri kuyruğa alınmaz", () => {
     const r = repo();
     const parent = r.create({ prompt: "ana", workingDir: "/w" });

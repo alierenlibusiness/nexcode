@@ -23,7 +23,10 @@ export type EngineEventType =
 /** Motorun genel durumu. */
 export interface EngineStatus {
   running: boolean;
-  /** Çalışan görevin id'si; boştaysa null. */
+  /**
+   * Çalışan görevin id'si; boştaysa null. Eşzamanlı yürütmede bu, `activeTaskIds`
+   * listesinin ilkidir ve tek görevli arayüzler için tekil kalır.
+   */
   currentTaskId: string | null;
   currentAgentId: string | null;
   round: number;
@@ -32,6 +35,10 @@ export interface EngineStatus {
   callsToday: number;
   dailyCallBudget: number;
   approvalMode: "auto" | "ask";
+  /** Aynı anda koşan tüm görevler (tek görevli kurulumda tek elemanlı ya da boş). */
+  activeTaskIds: string[];
+  /** Yapılandırmadan gelen etkin slot sayısı. */
+  concurrency: number;
 }
 
 export interface QueueSnapshot {
