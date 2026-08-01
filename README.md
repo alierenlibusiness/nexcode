@@ -1,155 +1,113 @@
 <div align="center">
 
-# NEXCODE
+# MCP Server
 
-**Run every coding CLI you already have as one AI engineering team.**
-
-Claude Code, Codex CLI, Gemini CLI, OpenCode and Antigravity, coordinated by a single
-operator that plans, delegates, reviews and ships. On your machine, with your own
-subscriptions, in a desktop app you can actually watch.
+**Delegate to your whole team from inside another agent's session.**
 
 </div>
 
 ---
 
-## What it is
+## What this branch adds
 
-You probably have two or three AI coding CLIs installed. Each one is good. None of them
-talk to each other, none of them review each other's work, and none of them can run while
-you do something else.
+NEXCODE orchestrates coding CLIs. This branch makes NEXCODE itself a tool that other coding
+agents can call.
 
-NEXCODE turns them into a team.
-
-You write a goal. An **operator** agent reads it, writes a plan, and hands the work to
-specialist agents running as separate CLI processes. A reviewer checks the result. Your
-own test and lint commands run as a hard gate. Only then does the work ship, on its own
-git branch, without ever touching your working tree.
-
-Everything is visible while it happens: which agent is working, what it is writing, line
-by line, and why the operator decided what it decided.
-
-## How it works
+You are deep in a Claude Code session. You hit something large and parallel: rewrite the test
+suite, audit every endpoint, migrate a hundred call sites. Instead of dropping out to another
+window, you hand it to NEXCODE and keep going.
 
 ```
-Goal
- |
- +--> Operator plans and delegates
- |         |
- |         +--> planner    (writes the approach)
- |         +--> executor   (writes the code)
- |         +--> reviewer   (finds the problems)
- |
- +--> Verification gate    (your real test / typecheck / lint commands)
- |
- +--> Delivery on an isolated git branch
+You <-> Claude Code
+              |
+              +-- nexcode_create_task("migrate all v1 endpoints to v2")
+              +-- nexcode_task_status(id)
+              |
+              v
+        NEXCODE operator -> planner, executor, reviewer -> verification -> branch
 ```
 
-The operator never writes code. Specialists never decide when the task is done. The
-verification gate outranks both: a model saying "tests pass" is not evidence, a green
-command is.
+## Tools
 
-## What makes it different
-
-**Real evidence, not model claims.** After every round, NEXCODE runs the commands you
-define. A red gate closes every delivery shortcut and sends the decision back to the
-operator. If the operator insists anyway, the first attempt is rejected outright. Work is
-never silently shipped on a broken build, and never thrown away either.
-
-**Your working tree stays clean.** Each task runs in its own git worktree on its own
-branch. Nothing is pushed anywhere. If a task fails, its tree is kept so you can inspect it.
-
-**Parallel by default, safely.** Multiple tasks can run at once, each in its own isolated
-slot. Concurrency requires isolation: NEXCODE refuses to run tasks in parallel without it,
-because that corrupts working trees.
-
-**One click back.** Every task snapshots the working directory before it starts. "Return to
-this version" restores changed and deleted files, removes what was added, and takes a redo
-snapshot first, so undo is itself undoable.
-
-**Nothing sensitive leaks into the UI.** `.env` files, credentials and private keys are
-never rendered into the live diff or stored in snapshots.
-
-**Bring your own everything.** CLI agents use the subscriptions you already pay for. API
-providers are available as a second execution path, with keys in your OS keychain and
-per-call cost tracking.
-
-## The four surfaces
-
-| Surface | What it shows |
+| Tool | Purpose |
 |---|---|
-| **Command Center** | Write a goal, watch the queue, the live event stream, approvals and engine controls |
-| **Board** | Task lifecycle across Pending, Running, Completed and Failed |
-| **Live Code** | Git-style file and hunk diffs, streaming as agents write |
-| **Team Flow** | The orchestration scene: operator core, agent nodes, data packets and a full timeline |
+| `nexcode_create_task` | Queue a goal with an optional working directory and execution mode |
+| `nexcode_task_status` | Status, delivery summary and remaining risk for one task |
+| `nexcode_list_tasks` | Everything queued and finished |
+| `nexcode_list_approvals` | Risky plans waiting on a human |
+| `nexcode_resolve_approval` | Approve or reject one |
+| `nexcode_engine_control` | Start or stop the engine (**off by default**) |
 
-## Getting started
+## The engine control gate
 
-Requires Node.js 22+, pnpm, and at least one supported coding CLI already installed and
-signed in.
+Starting an autonomous engine is not something an external client should be able to do
+because a prompt said so.
 
-```bash
-git clone https://github.com/alierenlibusiness/nexcode.git
-cd nexcode
-pnpm install
-pnpm dev
+```jsonc
+{ "mcpServer": { "allowEngineControl": false } }
 ```
 
-NEXCODE discovers the CLIs on your machine, checks whether they are ready, and builds the
-agent catalog for you. Open the Command Center, start the engine, and give it a goal.
+While this is false, the tool is not in the catalog **and** a direct call to it is rejected
+with a method-not-found error. Hiding a capability from a listing is not access control; both
+halves are enforced.
 
-### Turning on the good parts
+Everything else is safe by construction. Creating a task adds it to a queue. If the engine is
+stopped, it stays queued until you start it.
 
-Both are off by default so behavior is identical to a plain run until you opt in.
+## Wiring it up
 
 ```jsonc
 {
-  // Run your real commands as a delivery gate.
-  "verify": {
-    "commands": ["pnpm typecheck", "pnpm test"],
-    "blockOnFailure": true
-  },
-
-  // Give every task its own git worktree and branch.
-  "worktree": {
-    "mode": "task",
-    "branchPrefix": "nexcode/",
-    "linkPaths": ["node_modules"]
-  },
-
-  // Only allowed once isolation is on.
-  "maxConcurrentTasks": 3
+  "mcpServers": {
+    "nexcode": {
+      "command": "node",
+      "args": ["path/to/nexcode/mcp-server.js"]
+    }
+  }
 }
 ```
 
-## Scheduled work
+Works with any MCP client: Claude Code, Codex, Gemini, OpenCode.
 
-Recurring tasks use plain presets rather than cron syntax: every N minutes, daily at a
-time, or weekly on chosen days. A scheduled task is queued when it comes due. It never
-starts a stopped engine on its own.
+## Design
 
-## Use NEXCODE from another agent
+The server is a pure protocol layer. Transport and application behavior arrive through a
+`McpServerHost` port:
 
-NEXCODE also exposes itself over MCP, so Claude Code or any other MCP client can queue work
-into it, check status and resolve approvals from inside its own flow. Engine start and stop
-is gated behind an explicit setting and stays hidden until you enable it.
-
-## Verify a build
-
-```bash
-pnpm -r build
-pnpm typecheck
-pnpm lint
-pnpm test
+```ts
+interface McpServerHost {
+  config: () => NexcodeConfig;
+  createTask: (input) => Promise<McpTaskView>;
+  getTask: (taskId) => Promise<McpTaskView | null>;
+  listTasks: () => Promise<McpTaskView[]>;
+  listApprovals: () => Promise<McpApprovalView[]>;
+  resolveApproval: (id, approved) => Promise<boolean>;
+  setEngineRunning: (running) => Promise<boolean>;
+}
 ```
 
-## Documentation
+The entire JSON-RPC contract is tested without spawning a process: handshake, tool catalog,
+parameter validation, the engine control gate, and malformed input.
 
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) walks through the module boundaries and
-  the invariants the system guarantees.
-- Each feature branch carries a README focused on that subsystem.
+## Robustness
 
-## Credits
+Bad input does not drop the connection. A malformed line gets a JSON-RPC parse error and the
+stream continues. Notifications get no response, as the spec requires. Unknown methods and
+unknown tools return proper error codes rather than crashing.
 
-The product model is adapted from [CrewCtl](https://github.com/omergocmen/CrewCtl) by Ömer
-Göçmen, released under the MIT license. NEXCODE reimplements that model on a different
-foundation: TypeScript, SQLite persistence and an Electron desktop application.
+A missing task returns a readable explanation instead of an error, because "not found" is an
+answer, not a failure.
+
+## Files
+
+```
+packages/core/src/mcp/server.ts        protocol layer and tool catalog
+packages/core/src/mcp/server.test.ts   25 tests over the full contract
+packages/core/src/mcp/node.ts          native subpath (inbound client and manager)
+```
+
+## Verify
+
+```bash
+pnpm test --filter mcp
+```
