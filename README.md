@@ -99,3 +99,7 @@ The tests measure real overlap using controlled task completion rather than time
 ```bash
 pnpm test --filter supervisor
 ```
+
+## License
+
+MIT. See [`LICENSE`](LICENSE).

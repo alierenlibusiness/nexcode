@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, rmSync, symlinkSync } from "node:fs";
-import type { CommandResult, WorktreePort } from "@nexcode/core";
+import type { CommandResult, WorktreePort } from "../index";
 
 /**
  * Süreç ve dosya sistemi port'ları.

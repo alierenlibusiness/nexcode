@@ -16,8 +16,8 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    // Node ortamı script'leri (build/dev yardımcıları).
-    files: ["scripts/**/*.mjs"],
+    // Node ortamı script'leri (build/dev yardımcıları), kök ve paket düzeyinde.
+    files: ["scripts/**/*.mjs", "**/scripts/**/*.mjs"],
     languageOptions: {
       globals: {
         process: "readonly",

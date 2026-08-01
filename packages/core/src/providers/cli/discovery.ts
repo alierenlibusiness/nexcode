@@ -146,6 +146,8 @@ export interface SyncResult {
   agents: Record<string, AgentProfile>;
   added: string[];
   removed: string[];
+  /** Komutu keşiften doldurulan yerleşik profiller. */
+  linked: string[];
 }
 
 /**
@@ -154,15 +156,20 @@ export interface SyncResult {
  * - Kullanıcının gizlediği adapter'lar geri eklenmez.
  * - Yerleşik alan agent'ları (`discovered: false`) asla silinmez ya da üzerine yazılmaz.
  * - Artık kurulu olmayan, otomatik oluşturulmuş profiller kaldırılır.
+ * - **Yerleşik profillerin eksik `cmd` alanı doldurulur.** Paketle gelen altı agent yalnızca
+ *   hangi adapter'ı kullanacağını bildirir; komut yolu makineye göre değiştiği için config'e
+ *   yazılamaz. Doldurulmazsa bu profiller "komut tanımlı değil" diyerek her görevde düşer.
  */
 export function syncDiscoveredAgents(config: NexcodeConfig, found: readonly DiscoveredCli[]): SyncResult {
   const ignored = new Set(config.discoveryIgnoredAdapters);
   const agents: Record<string, AgentProfile> = { ...config.agents };
   const added: string[] = [];
   const removed: string[] = [];
+  const linked: string[] = [];
 
   const usable = found.filter((cli) => !ignored.has(cli.adapter));
   const liveIds = new Set(usable.map((cli) => discoveredId(cli.adapter)));
+  const commandByAdapter = new Map(usable.map((cli) => [cli.adapter, cli.command]));
 
   for (const [id, profile] of Object.entries(agents)) {
     if (profile.discovered && !liveIds.has(id)) {
@@ -199,7 +206,20 @@ export function syncDiscoveredAgents(config: NexcodeConfig, found: readonly Disc
     added.push(id);
   }
 
-  return { agents, added, removed };
+  // Yerleşik profillerin komut yolunu keşiften tamamla.
+  for (const [id, profile] of Object.entries(agents)) {
+    if (profile.discovered) continue;
+    if (profile.cmd !== undefined && profile.cmd !== "") continue;
+    if (profile.adapter === undefined || profile.adapter === "custom") continue;
+
+    const command = commandByAdapter.get(profile.adapter);
+    if (command === undefined) continue;
+
+    agents[id] = { ...profile, cmd: command };
+    linked.push(id);
+  }
+
+  return { agents, added, removed, linked };
 }
 
 function discoveredId(adapter: CliAdapter): string {
