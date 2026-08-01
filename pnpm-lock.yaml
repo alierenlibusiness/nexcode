@@ -30,6 +30,15 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@22.20.0)
 
+  apps/cli:
+    dependencies:
+      '@nexcode/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      better-sqlite3:
+        specifier: ^11.7.0
+        version: 11.10.0
+
   apps/desktop:
     dependencies:
       '@napi-rs/keyring':

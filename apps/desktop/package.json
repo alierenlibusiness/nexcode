@@ -2,6 +2,7 @@
   "name": "@nexcode/desktop",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "type": "commonjs",
   "description": "NEXCODE; çoklu-agent, paralel vibe coding masaüstü IDE",
   "author": "NEXCODE",

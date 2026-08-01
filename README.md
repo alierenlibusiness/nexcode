@@ -99,3 +99,7 @@ files while remaining independent of any particular backend.
 ```bash
 pnpm test --filter checkpoint
 ```
+
+## License
+
+MIT. See [`LICENSE`](LICENSE).
