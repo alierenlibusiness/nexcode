@@ -98,3 +98,7 @@ apps/desktop/src/scheduler.ts             the tick and its side effects
 ```bash
 pnpm test --filter schedule
 ```
+
+## License
+
+MIT. See [`LICENSE`](LICENSE).
