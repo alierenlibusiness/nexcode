@@ -98,3 +98,7 @@ pnpm test --filter db
 
 54 tests covering ownership queries, event deduplication, migration behavior, corrupted
 config recovery and end-to-end snapshot restore against a real temporary directory.
+
+## License
+
+MIT. See [`LICENSE`](LICENSE).
