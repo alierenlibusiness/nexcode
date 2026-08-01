@@ -124,8 +124,9 @@ packages/core/src/
 
 ### Yazım kuralı
 
-Projenin hiçbir yerinde em dash (`—`, U+2014) kullanılmaz. Yerine iki nokta, noktalı virgül
-veya parantez kullanılır. CI bu kuralı her push'ta doğrular.
+Projenin hiçbir yerinde em dash (U+2014) kullanılmaz. Yerine iki nokta, noktalı virgül veya
+parantez kullanılır. CI bu kuralı her push'ta doğrular; kural metni karakterin kendisini
+içeremez, aksi halde belge kendi kuralını ihlal eder.
 
 ## Kodlama standartları
 
