@@ -52,6 +52,7 @@ export * from "./providers/openai-compatible";
 export * from "./providers/google";
 export * from "./providers/connection";
 
-// MCP istemci katmanı.
+// MCP: içe dönük istemci katmanı ve dışa dönük sunucu.
 export * from "./mcp/client";
 export * from "./mcp/manager";
+export * from "./mcp/server";
