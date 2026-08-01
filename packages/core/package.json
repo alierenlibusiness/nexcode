@@ -1,9 +1,22 @@
 {
   "name": "@nexcode/core",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "license": "MIT",
   "type": "commonjs",
+  "description": "Operator-led multi-agent orchestration core for coding CLIs.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alierenlibusiness/nexcode.git",
+    "directory": "packages/core"
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -22,6 +35,10 @@
     "./mcp": {
       "types": "./dist/mcp/node.d.ts",
       "default": "./dist/mcp/node.js"
+    },
+    "./host": {
+      "types": "./dist/host/index.d.ts",
+      "default": "./dist/host/index.js"
     },
     "./keyring": {
       "types": "./dist/security/keyring-store.d.ts",

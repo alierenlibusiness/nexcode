@@ -82,10 +82,34 @@ per-call cost tracking.
 | **Live Code** | Git-style file and hunk diffs, streaming as agents write |
 | **Team Flow** | The orchestration scene: operator core, agent nodes, data packets and a full timeline |
 
-## Getting started
+## Try it in one command
 
-Requires Node.js 22+, pnpm, and at least one supported coding CLI already installed and
-signed in.
+No install, no clone. Requires Node.js 22+ and at least one supported coding CLI already
+installed and signed in.
+
+```bash
+npx nexcode doctor
+```
+
+That scans your machine for coding CLIs, checks whether they are ready, and tells you
+exactly what is missing. Then:
+
+```bash
+npx nexcode consent --accept
+npx nexcode task "add avatar upload and write its tests" --mode balanced
+npx nexcode run --once
+```
+
+NEXCODE discovers the CLIs on your machine and wires them into the agent catalog for you.
+
+### Install it properly
+
+```bash
+npm install -g nexcode
+nexcode doctor
+```
+
+### Or run the desktop app
 
 ```bash
 git clone https://github.com/alierenlibusiness/nexcode.git
@@ -94,8 +118,8 @@ pnpm install
 pnpm dev
 ```
 
-NEXCODE discovers the CLIs on your machine, checks whether they are ready, and builds the
-agent catalog for you. Open the Command Center, start the engine, and give it a goal.
+Open the Command Center, start the engine, and give it a goal. The CLI and the desktop app
+share the same engine; point `NEXCODE_HOME` at the same directory and they share a queue.
 
 ### Turning on the good parts
 
@@ -129,9 +153,34 @@ starts a stopped engine on its own.
 
 ## Use NEXCODE from another agent
 
-NEXCODE also exposes itself over MCP, so Claude Code or any other MCP client can queue work
-into it, check status and resolve approvals from inside its own flow. Engine start and stop
-is gated behind an explicit setting and stays hidden until you enable it.
+`nexcode mcp` speaks MCP over stdio, so Claude Code or any other MCP client can queue work
+into NEXCODE and check on it from inside its own session:
+
+```jsonc
+{
+  "mcpServers": {
+    "nexcode": {
+      "command": "npx",
+      "args": ["-y", "nexcode", "mcp"]
+    }
+  }
+}
+```
+
+Engine start and stop is gated behind an explicit setting and stays hidden until you enable
+it, so an external client cannot trigger autonomous execution on its own.
+
+## Command line
+
+| Command | What it does |
+|---|---|
+| `nexcode task <goal>` | Queue a task |
+| `nexcode run` | Start the engine (`--once` exits when the queue drains) |
+| `nexcode status` | Queue and engine state |
+| `nexcode approvals` | List and resolve risky plans awaiting a human |
+| `nexcode consent` | Show and grant autonomous operation consent |
+| `nexcode doctor` | Check installed CLIs, config and readiness |
+| `nexcode mcp` | Expose NEXCODE as an MCP server over stdio |
 
 ## Verify a build
 
