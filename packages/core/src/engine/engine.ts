@@ -26,12 +26,19 @@ import {
   type ReviewVerdict,
   type RoundOutcome,
 } from "./verdict";
+import {
+  IDLE_VERIFY_REPORT,
+  verifyEvidence,
+  verifySummary,
+  type VerifyGate,
+  type VerifyReport,
+} from "../verify/verify-gate";
 
 /**
  * Motorun ana döngüsü.
  *
- * Bir görev için: checkpoint → operatör planı → (onay) → paralel/zincirli delegasyon →
- * bağımsız inceleme → değerlendirme → yeni tur veya teslimat.
+ * Bir görev için: checkpoint, operatör planı, (onay), paralel/zincirli delegasyon,
+ * bağımsız inceleme, doğrulama kapısı, değerlendirme, yeni tur veya teslimat.
  *
  * Bu modül saftır (dosya sistemi, süreç ve veritabanı erişimi `EngineDeps` üzerinden
  * enjekte edilir), böylece tüm akış sahte agent'larla test edilebilir.
@@ -41,7 +48,16 @@ export interface EngineTask {
   id: string;
   prompt: string;
   executionMode: ExecutionMode;
+  /**
+   * Agent süreçlerinin, snapshot'ın, canlı diff'in ve doğrulama kapısının hedefi.
+   * Worktree izolasyonu açıkken bu, izole ağaçtır.
+   */
   workingDir: string;
+  /**
+   * Özgün depo. Proje profili (`.nexcode/CONTEXT.md`) burada okunur ve buraya yazılır;
+   * worktree'ye yazılırsa görev bitiminde ağaçla birlikte kaybolur. Verilmezse `workingDir`.
+   */
+  projectDir?: string;
   /** Proje profilini bu görev için atla. */
   fresh?: boolean;
 }
@@ -81,6 +97,11 @@ export interface EngineDeps {
   createCheckpoint?: (taskId: string, workingDir: string) => Promise<void>;
   /** Canlı diff taramasını başlatır; durdurma fonksiyonu döner. */
   startLiveDiff?: (taskId: string, workingDir: string) => Promise<() => Promise<FileChangeSummary[]>>;
+  /**
+   * Doğrulama kapısı. Verilmezse kapı hiç çalışmaz ve önceki davranış birebir korunur.
+   * Kapı, turun tüm atamaları bittikten sonra ve tamamlama kararlarından ÖNCE koşar.
+   */
+  verifyGate?: VerifyGate;
   /** Riskli plan için insan onayı ister. */
   requestApproval?: (input: { taskId: string; planSummary: string; planHash: string }) => Promise<boolean>;
   /** Görev bitiminde proje profilini revize eder. */
@@ -208,12 +229,18 @@ export class Engine {
       }
 
       const operatorRole = await this.deps.loadRole(config.operator.roleFile);
+      // Proje profili özgün depoda tutulur; izole ağaç görev bitiminde silinebilir.
       const projectContext =
-        config.projectContext && task.fresh !== true ? await this.deps.loadProjectContext(task.workingDir) : "";
+        config.projectContext && task.fresh !== true
+          ? await this.deps.loadProjectContext(projectDirOf(task))
+          : "";
 
       const history: AssignmentRecord[] = [];
       let round = 0;
       let latestVerdict: ReviewVerdict | null = null;
+      let verify: VerifyReport = IDLE_VERIFY_REPORT;
+      let completionRejected = false;
+      this.deps.verifyGate?.reset();
 
       while (round < policy.maxRounds) {
         round++;
@@ -236,6 +263,7 @@ export class Engine {
             skills,
             projectContext,
             teamState: summarizeHistory(history),
+            verifyEvidence: verifyEvidence(verify),
             ...(repair !== undefined ? { repairInstruction: repair } : {}),
           });
 
@@ -270,13 +298,29 @@ export class Engine {
         }
 
         if (decision.status === "complete") {
+          // Çalıştırılmış kanıt modelin beyanının önündedir: kırmızı kapıya rağmen verilen
+          // "tamamlandı" kararı BİR kez reddedilir ve düzeltme turu zorlanır. İkinci kez
+          // gelirse teslimat uyarıyla yapılır; saatlerce süren iş çöpe atılmaz.
+          if (!completionRejected && this.deps.verifyGate?.isBlocking(config, verify) === true) {
+            completionRejected = true;
+            const reason = verifySummary(verify);
+            warnings.push(`Kırmızı doğrulama kapısına rağmen tamamlama kararı reddedildi: ${reason}`);
+            this.deps.events.emit(
+              "log",
+              task.id,
+              { level: "warn", message: "Doğrulama kapısı teslimatı engelledi", detail: reason },
+              now,
+            );
+            continue;
+          }
+
           files = stopLiveDiff === null ? files : await stopLiveDiff();
           stopLiveDiff = null;
           return this.finish(
             task,
             "done",
             decision.final,
-            decision.verification,
+            mergeVerification(decision.verification, verify),
             decision.remainingRisk,
             round,
             delegations,
@@ -367,6 +411,23 @@ export class Engine {
         const reviews = roundRecords.filter((r) => r.assignment.kind === "review" && r.verdict !== null);
         latestVerdict = reviews.length > 0 ? (reviews[reviews.length - 1]?.verdict ?? null) : null;
 
+        // ── Doğrulama kapısı: tek çağrı noktası, tamamlama kararlarından ÖNCE ──
+        if (this.deps.verifyGate !== undefined) {
+          verify = await this.deps.verifyGate.run(config, task.workingDir);
+          if (verify.ran) {
+            this.deps.events.emit(
+              "log",
+              task.id,
+              {
+                level: verify.ok ? "info" : "warn",
+                message: "Doğrulama kapısı",
+                detail: verifySummary(verify),
+              },
+              now,
+            );
+          }
+        }
+
         const outcome: RoundOutcome = {
           allAssignmentsSettled: roundRecords.every((r) => r.status === "completed"),
           latestVerdict,
@@ -374,14 +435,16 @@ export class Engine {
         };
 
         // ── PASS hızlı yolu: ikinci operatör çağrısını atla ──
-        if (shouldFastPathDeliver(outcome, config.operator.passFastPath)) {
+        // Kırmızı kapı bu kestirmeyi kapatır; karar operatöre gider.
+        const fastPathAllowed = this.deps.verifyGate?.allowsFastPath(verify) ?? true;
+        if (fastPathAllowed && shouldFastPathDeliver(outcome, config.operator.passFastPath)) {
           files = stopLiveDiff === null ? files : await stopLiveDiff();
           stopLiveDiff = null;
           return this.finish(
             task,
             "done",
             summarizeDelivery(roundRecords),
-            summarizeVerification(roundRecords),
+            mergeVerification(summarizeVerification(roundRecords), verify),
             "",
             round,
             delegations,
@@ -398,12 +461,17 @@ export class Engine {
           const partial = outcome.hasFailure
             ? "Tur sınırına ulaşıldı; iş kısmen tamamlandı."
             : "Tur sınırına ulaşıldı; teslimat mevcut haliyle sunuluyor.";
+          // Tur bütçesi bittiğinde kırmızı kapı işi çöpe atmaz, kalan riske yazılır.
+          if (verify.ran && !verify.ok) warnings.push(verifySummary(verify));
           return this.finish(
             task,
             outcome.hasFailure ? "failed" : "done",
             `${partial}\n\n${summarizeDelivery(roundRecords)}`,
-            summarizeVerification(roundRecords),
-            latestVerdict === "FAIL" ? extractBlockingFindings(lastReviewText(roundRecords)).join("; ") : "",
+            mergeVerification(summarizeVerification(roundRecords), verify),
+            mergeRisk(
+              latestVerdict === "FAIL" ? extractBlockingFindings(lastReviewText(roundRecords)).join("; ") : "",
+              verify,
+            ),
             round,
             delegations,
             calls,
@@ -742,8 +810,9 @@ export class Engine {
         void this.deps.notify({ taskId: task.id, outcome, text: final });
       }
     }
+    // Profil özgün depoya yazılır; izole ağaç görev sonrası kaldırılabilir.
     if (outcome === "done" && config.projectContext && this.deps.reviseProjectContext !== undefined) {
-      void this.deps.reviseProjectContext(task.workingDir, final);
+      void this.deps.reviseProjectContext(projectDirOf(task), final);
     }
 
     return {
@@ -765,6 +834,25 @@ export class Engine {
 // ─────────────────────────────────────────────────────────────────────────────
 // Yardımcılar
 // ─────────────────────────────────────────────────────────────────────────────
+
+/** Proje profilinin okunup yazılacağı dizin: izolasyon varken özgün depo. */
+function projectDirOf(task: EngineTask): string {
+  return task.projectDir ?? task.workingDir;
+}
+
+/** Modelin doğrulama beyanına, gerçekten çalıştırılmış kapının sonucunu ekler. */
+function mergeVerification(modelClaim: string, verify: VerifyReport): string {
+  if (!verify.ran) return modelClaim;
+  const gate = verifySummary(verify);
+  return modelClaim.trim() === "" ? gate : `${modelClaim.trim()}\n\n${gate}`;
+}
+
+/** Kırmızı kapı, teslim edilen işin kalan riskine açıkça yazılır. */
+function mergeRisk(modelRisk: string, verify: VerifyReport): string {
+  if (!verify.ran || verify.ok) return modelRisk;
+  const gate = verifySummary(verify);
+  return modelRisk.trim() === "" ? gate : `${modelRisk.trim()}; ${gate}`;
+}
 
 function describeFailure(failure: FailureInput, agent: AgentProfile): string {
   const parts = [`${agent.name} işi tamamlayamadı: ${failure.message}`];

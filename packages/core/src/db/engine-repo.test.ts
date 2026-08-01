@@ -99,19 +99,25 @@ describe("EngineRepository: olay geçmişi", () => {
   it("olayları seq sırasıyla saklar ve son numarayı bildirir", () => {
     const r = repo();
     const task = r.create({ prompt: "T", workingDir: "/w" });
-    r.appendEvent({ seq: 1, taskId: task.id, type: "activity", payload: { text: "başladı" }, ts: "t1" });
-    r.appendEvent({ seq: 2, taskId: task.id, type: "activity", payload: { text: "bitti" }, ts: "t2" });
+    r.appendEvent({ seq: 1, taskId: task.id, type: "log", payload: { level: "info", message: "başladı" }, ts: "t1" });
+    r.appendEvent({ seq: 2, taskId: task.id, type: "log", payload: { level: "info", message: "bitti" }, ts: "t2" });
 
     const events = r.eventsFor(task.id);
     expect(events.map((e) => e.seq)).toEqual([1, 2]);
-    expect(events[0]?.payload).toEqual({ text: "başladı" });
+    expect(events[0]?.payload).toEqual({ level: "info", message: "başladı" });
     expect(r.lastEventSeq()).toBe(2);
   });
 
   it("aynı seq yeniden yazılınca çoğaltmaz (replay tekilleştirmesi)", () => {
     const r = repo();
     const task = r.create({ prompt: "T", workingDir: "/w" });
-    const event = { seq: 7, taskId: task.id, type: "log", payload: { line: "x" }, ts: "t" };
+    const event = {
+      seq: 7,
+      taskId: task.id,
+      type: "log",
+      payload: { level: "warn", message: "x" },
+      ts: "t",
+    } as const;
     r.appendEvent(event);
     r.appendEvent(event);
     expect(r.eventsFor(task.id)).toHaveLength(1);

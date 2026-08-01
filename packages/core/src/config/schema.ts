@@ -216,6 +216,61 @@ export const nexcodeConfigSchema = z
       .default({}),
 
     /**
+     * Görev başına git worktree izolasyonu.
+     *
+     * `task` modunda görev, ana çalışma ağacına hiç dokunmadan kendi worktree'sinde ve kendi
+     * branch'inde koşar; teslimatta iş branch'e commit'lenir. Uzağa hiçbir şey gönderilmez.
+     * `off` varsayılandır ve davranış birebir korunur.
+     */
+    worktree: z
+      .object({
+        mode: z.enum(["off", "task"]).default("off"),
+        branchPrefix: z.string().default("nexcode/"),
+        /** İzole ağaç açıldıktan sonra çalıştırılacak kurulum komutları (ör. bağımlılık kurma). */
+        setupCommands: z.array(z.string()).default([]),
+        /**
+         * İzole ağaca bağlanacak, depoya girmeyen yollar (ör. `node_modules`, `.env`).
+         * Mutlak yollar ve `..` kaçışları normalizasyonda atılır.
+         */
+        linkPaths: z.array(z.string()).default([]),
+        commit: z.boolean().default(true),
+        /** Başarısız görevin izole ağacı incelenebilsin diye korunur. */
+        keepOnFailure: z.boolean().default(true),
+        setupTimeoutSeconds: z.number().int().min(10).default(600),
+      })
+      .default({}),
+
+    /**
+     * Doğrulama kapısı. Her turun atamaları bittikten sonra bu komutlar çalışma klasöründe
+     * fail-fast koşulur ve sonuç operatöre kanıt olarak verilir. Kırmızı kapı teslimat
+     * kestirmelerini kapatır. `commands` boşken kapı hiç çalışmaz (opt-in).
+     */
+    verify: z
+      .object({
+        commands: z.array(z.string()).default([]),
+        timeoutSeconds: z.number().int().min(5).default(600),
+        maxOutputChars: z.number().int().min(200).default(6000),
+        blockOnFailure: z.boolean().default(true),
+        /** Kırmızı kapı teslimatı en fazla bu kadar kez engeller; sonrasında uyarılı teslim edilir. */
+        maxAttempts: z.number().int().min(1).default(2),
+      })
+      .default({}),
+
+    /**
+     * Aynı anda yürütülecek görev sayısı. 1'den büyük değer `worktree.mode: "task"` gerektirir;
+     * izolasyon olmadan paralel görevler birbirinin çalışma ağacını bozar.
+     */
+    maxConcurrentTasks: z.number().int().min(1).max(8).default(1),
+
+    /** Dışa dönük MCP sunucusu: NEXCODE'u başka kodlama agent'larına araç olarak sunar. */
+    mcpServer: z
+      .object({
+        /** Harici bir istemcinin motoru başlatıp durdurmasına izin ver. */
+        allowEngineControl: z.boolean().default(false),
+      })
+      .default({}),
+
+    /**
      * Her çalışma klasörünün `.nexcode/CONTEXT.md` proje profili görev açılışında operatöre
      * yüklenir (tüm kodu baştan taramaya gerek kalmaz); görev bitiminde operatör profili
      * REVİZE eder (changelog değil). `false` = eski global hafıza davranışı.
@@ -412,13 +467,36 @@ export function normalizeConfig(raw: unknown): NexcodeConfig {
     };
   }
 
+  const worktree = {
+    ...parsed.worktree,
+    branchPrefix: parsed.worktree.branchPrefix.trim() === "" ? "nexcode/" : parsed.worktree.branchPrefix,
+    setupCommands: parsed.worktree.setupCommands.map((c) => c.trim()).filter((c) => c !== ""),
+    // Bağlı yollar çalışma ağacının dışına taşamaz.
+    linkPaths: dedupe(parsed.worktree.linkPaths.map((p) => p.trim()).filter(isContainedRelativePath)),
+  };
+
   return {
     ...parsed,
     agents,
+    worktree,
+    verify: {
+      ...parsed.verify,
+      commands: parsed.verify.commands.map((c) => c.trim()).filter((c) => c !== ""),
+    },
+    // İzolasyon olmadan paralellik veri kaybına yol açar; güvenli tarafa düşürülür.
+    maxConcurrentTasks: worktree.mode === "task" ? parsed.maxConcurrentTasks : 1,
     riskyPatterns: dedupe(parsed.riskyPatterns),
     discoveryIgnoredAdapters: dedupe(parsed.discoveryIgnoredAdapters),
     skills: { ...parsed.skills, enabled: dedupe(parsed.skills.enabled) },
   };
+}
+
+/** Mutlak yolları ve `..` kaçışlarını eleyen saf kontrol (node:path'e bağlanmaz). */
+export function isContainedRelativePath(value: string): boolean {
+  if (value === "") return false;
+  // Unix kökü, Windows sürücüsü ve UNC payı.
+  if (value.startsWith("/") || value.startsWith("\\") || /^[A-Za-z]:[\\/]/.test(value)) return false;
+  return !value.split(/[\\/]/).includes("..");
 }
 
 function defaultRoleFile(profile: AgentProfile): string {

@@ -27,6 +27,8 @@ export * from "./engine/live-diff";
 export * from "./engine/engine";
 
 // Runtime servisleri: saf çekirdek, dosya sistemi erişimi port'lar üzerinden.
+export * from "./worktree/worktree";
+export * from "./verify/verify-gate";
 export * from "./skills/registry";
 export * from "./checkpoints/checkpoints";
 export * from "./schedule/schedule";

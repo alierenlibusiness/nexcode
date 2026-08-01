@@ -120,6 +120,11 @@ export interface OperatorPromptInput {
   projectContext: string;
   /** Önceki turların özeti; `policy.contextCharBudget` ile sınırlanır. */
   teamState: string;
+  /**
+   * Çalıştırılmış doğrulama komutlarının kanıt bloğu (`verifyEvidence`).
+   * Boş string kapının hiç çalışmadığı anlamına gelir ve bölüm basılmaz.
+   */
+  verifyEvidence?: string;
   /** Protokol hatası sonrası düzeltme talimatı. */
   repairInstruction?: string;
 }
@@ -143,12 +148,12 @@ export function buildOperatorPrompt(input: OperatorPromptInput): string {
 
   sections.push("═══ AGENT KATALOĞU (yalnızca bu agent'lara görev verebilirsin) ═══", "");
   if (input.catalog.length === 0) {
-    sections.push("(Katalog boş — uzman agent yok. Sonuç uydurma; somut engeli bildir.)");
+    sections.push("(Katalog boş: uzman agent yok. Sonuç uydurma; somut engeli bildir.)");
   } else {
     for (const agent of input.catalog) {
-      const kinds = agent.allowedKinds.join(", ") || "—";
+      const kinds = agent.allowedKinds.join(", ") || "yok";
       const domain = agent.domain !== undefined ? ` · alan: ${agent.domain}` : "";
-      sections.push(`- ${agent.id} — ${agent.name} · rol: ${agent.role}${domain} · alabileceği iş: ${kinds}`);
+      sections.push(`- ${agent.id} · ${agent.name} · rol: ${agent.role}${domain} · alabileceği iş: ${kinds}`);
     }
   }
   sections.push("");
@@ -180,6 +185,11 @@ export function buildOperatorPrompt(input: OperatorPromptInput): string {
       trimFromEnd(input.teamState.trim(), input.policy.contextCharBudget),
       "",
     );
+  }
+
+  // Çalıştırılmış kanıt, modelin kendi beyanının önüne konur.
+  if (input.verifyEvidence !== undefined && input.verifyEvidence.trim() !== "") {
+    sections.push("═══ DOĞRULAMA KAPISI ═══", "", input.verifyEvidence.trim(), "");
   }
 
   sections.push("═══ KULLANICI HEDEFİ ═══", "", input.goal, "");
