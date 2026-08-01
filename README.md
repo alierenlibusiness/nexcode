@@ -124,3 +124,7 @@ pnpm test --filter gate
 pnpm test --filter sandbox
 pnpm test --filter live-diff
 ```
+
+## License
+
+MIT. See [`LICENSE`](LICENSE).

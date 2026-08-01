@@ -1,0 +1,54 @@
+{
+  "name": "nexcode",
+  "version": "0.1.0",
+  "license": "MIT",
+  "type": "commonjs",
+  "description": "Run every coding CLI you already have as one operator-led AI engineering team.",
+  "keywords": [
+    "ai",
+    "agents",
+    "orchestrator",
+    "multi-agent",
+    "claude-code",
+    "codex",
+    "gemini",
+    "opencode",
+    "cli",
+    "mcp"
+  ],
+  "homepage": "https://github.com/alierenlibusiness/nexcode#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alierenlibusiness/nexcode.git",
+    "directory": "apps/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/alierenlibusiness/nexcode/issues"
+  },
+  "bin": {
+    "nexcode": "./dist/cli.js"
+  },
+  "files": [
+    "dist/",
+    "resources/",
+    "README.md",
+    "LICENSE"
+  ],
+  "main": "./dist/cli.js",
+  "scripts": {
+    "build": "node scripts/copy-resources.mjs && tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepack": "node scripts/copy-resources.mjs",
+    "start": "node dist/cli.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@nexcode/core": "workspace:*",
+    "better-sqlite3": "^11.7.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
