@@ -9,9 +9,7 @@
 
 NEXCODE, kullanıcının kendi makinesinde kurulu kodlama CLI'larını (Claude Code, Codex CLI,
 Gemini CLI, OpenCode, Antigravity) tek bir operatör yönetiminde uzman ekip olarak çalıştıran
-bir masaüstü orkestrasyon uygulamasıdır. Ürün modeli
-[CrewCtl](https://github.com/omergocmen/CrewCtl) (MIT) projesinden uyarlanmıştır; uygulama
-tabanı ve arayüzü NEXCODE'a özgüdür.
+bir masaüstü orkestrasyon uygulamasıdır.
 
 ## Ürün akışı
 

@@ -148,8 +148,6 @@ pnpm test
   the invariants the system guarantees.
 - Each feature branch carries a README focused on that subsystem.
 
-## Credits
+## License
 
-The product model is adapted from [CrewCtl](https://github.com/omergocmen/CrewCtl) by Ömer
-Göçmen, released under the MIT license. NEXCODE reimplements that model on a different
-foundation: TypeScript, SQLite persistence and an Electron desktop application.
+MIT. See [`LICENSE`](LICENSE).
