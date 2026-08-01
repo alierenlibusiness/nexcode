@@ -2,18 +2,15 @@ import path from "node:path";
 import { existsSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { app, BrowserWindow, protocol, net, type WebContents } from "electron";
-import {
-  logger,
-  Orchestrator,
-  MessageBus,
-  QuotaTracker,
-  poolIdForProvider,
-  McpManager,
-} from "@nexcode/core";
+import { logger, IpcChannels } from "@nexcode/core";
+import { McpManager } from "@nexcode/core/mcp";
 import {
   openDatabase,
   WorkspaceRepository,
-  TaskRepository,
+  EngineRepository,
+  ConfigRepository,
+  ScheduleRepository,
+  SqliteCheckpointStore,
   ApprovalRepository,
   AgentSettingsRepository,
   CostLogRepository,
@@ -21,8 +18,9 @@ import {
   SkillRepository,
 } from "@nexcode/core/db";
 import { KeyringSecretStore } from "@nexcode/core/keyring";
-import { AdapterFactory } from "@nexcode/core/providers";
 import { registerIpcHandlers, type IpcContext } from "./ipc";
+import { EngineHost } from "./engine-host";
+import { startScheduler } from "./scheduler";
 
 const KEYCHAIN_SERVICE = "nexcode";
 
@@ -61,23 +59,29 @@ function resolveDbPath(): string {
   return path.join(app.getPath("userData"), "nexcode.db");
 }
 
+/** Paketle gelen rol, beceri ve varsayılan yapılandırma dosyalarının kökü. */
+function resolveResourcesDir(): string {
+  const packaged = path.join(process.resourcesPath, "resources");
+  return app.isPackaged && existsSync(packaged) ? packaged : path.join(__dirname, "..", "..", "..", "resources");
+}
+
 async function buildContext(): Promise<IpcContext> {
   const db = openDatabase(resolveDbPath());
   const workspaces = new WorkspaceRepository(db);
-  const tasks = new TaskRepository(db);
+  const tasks = new EngineRepository(db);
+  const resourcesDir = resolveResourcesDir();
+  const configRepo = new ConfigRepository(db, path.join(resourcesDir, "nexcode.config.default.json"));
+  const schedules = new ScheduleRepository(db);
+  const checkpointStore = new SqliteCheckpointStore(db);
   const approvals = new ApprovalRepository(db);
   const settings = new AgentSettingsRepository(db);
   const costLogs = new CostLogRepository(db);
   const secretStore = new KeyringSecretStore();
   const apiKeyCache = new Map<string, string>();
-  const messageBus = new MessageBus();
-  const quota = new QuotaTracker();
 
-  // Faz 1 tek workspace: yoksa varsayılan oluştur.
-  const workspace =
-    workspaces.list()[0] ?? workspaces.create({ name: "Default", repoPath: process.cwd() });
+  const workspace = workspaces.list()[0] ?? workspaces.create({ name: "Default", repoPath: process.cwd() });
 
-  // Mevcut API anahtarlarını keychain'den senkron cache'e yükle (tüm sağlayıcılar).
+  // Mevcut API anahtarlarını keychain'den senkron cache'e yükle (hibrit API yolu için).
   for (const provider of ["anthropic", "openai", "google", "deepseek", "minimax", "kimi", "glm"]) {
     try {
       const existing = await secretStore.get(KEYCHAIN_SERVICE, provider);
@@ -87,67 +91,71 @@ async function buildContext(): Promise<IpcContext> {
     }
   }
 
-  const factory = new AdapterFactory({
-    getApiKey: (provider) => apiKeyCache.get(provider) ?? null,
-    // Kota dolduğunda CLI yerine API moduna geç (PRD §9.4).
-    isCliQuotaAvailable: (provider) => {
-      const pool = poolIdForProvider(provider);
-      return pool ? quota.isAvailable(pool) : true;
-    },
-  });
-
   const mcp = new McpRepository(db);
   const skills = new SkillRepository(db);
   const mcpManager = new McpManager(mcp);
   await mcpManager.startAll();
 
-  // Handle teardown of MCP servers on will-quit
-  app.on("will-quit", () => {
-    void mcpManager.stopAll();
+  const engine = new EngineHost({
+    repo: tasks,
+    configRepo,
+    checkpointStore,
+    // İzole ağaçlar kullanıcının proje klasörünün DIŞINDA tutulur.
+    worktreeRoot: path.join(app.getPath("userData"), "worktrees"),
+    resourcesDir,
+    broadcast: (event) => mainWindow?.webContents.send(IpcChannels.engineEvent, event),
+    requestApproval: ({ taskId, planSummary }) => {
+      // Riskli plan kuyruğa alınır; kullanıcı Komuta Merkezi'nden karar verene kadar beklenir.
+      const record = approvals.create(taskId, "risky_plan");
+      logger.info("approval.requested", { id: record.id, taskId, planSummary: planSummary.slice(0, 120) });
+      return waitForApproval(approvals, record.id);
+    },
   });
 
-  const orchestrator = new Orchestrator({
-    tasks,
-    resolveAdapter: (model, preference) => factory.resolve(model, preference),
-    getPreference: (role) => settings.getPreference(workspace.id, role),
-    resolveModel: (role) => settings.resolveModel(workspace.id, role),
-    messageBus,
-    mcpManager,
-    onUsage: (u) => {
-      // Maliyet kaydı (cost_logs) — CLI=abonelik havuzu (usd 0), API=taşma ücreti (§9.4).
-      const pool = u.connectionMode === "cli" ? poolIdForProvider(u.model.provider) : null;
-      costLogs.record({
-        agentId: null,
-        taskId: u.taskId,
-        provider: u.model.provider,
-        modelId: u.model.modelId,
-        connectionMode: u.connectionMode,
-        inputTokens: u.usage.inputTokens,
-        outputTokens: u.usage.outputTokens,
-        usdCost: u.usdCost,
-        subscriptionPoolId: pool ?? null,
-      });
-      // CLI çağrıları abonelik kotasını tüketir → QuotaTracker'a yaz.
-      if (pool) quota.record(pool, u.usage.inputTokens + u.usage.outputTokens);
-    },
+  const stopScheduler = startScheduler({ schedules, tasks, engine, configRepo });
+
+  app.on("will-quit", () => {
+    stopScheduler();
+    void engine.stop();
+    void mcpManager.stopAll();
   });
 
   return {
     workspaces,
     tasks,
+    configRepo,
+    schedules,
     approvals,
     settings,
     costLogs,
-    orchestrator,
+    engine,
     secretStore,
     apiKeyCache,
     workspaceId: workspace.id,
-    rootDir: workspace.repoPath || process.cwd(),
+    rootDir: workspace.repoPath === "" ? process.cwd() : workspace.repoPath,
     getWebContents: (): WebContents | null => mainWindow?.webContents ?? null,
     mcp,
     skills,
     mcpManager,
   };
+}
+
+/**
+ * Onay kaydı çözülene kadar bekler.
+ *
+ * Kullanıcı karar vermeden görev ilerlemez; uygulama kapanırsa bekleyen görev `approval`
+ * durumunda kalır ve yeniden açılışta kuyrukta görünür.
+ */
+function waitForApproval(approvals: ApprovalRepository, id: string): Promise<boolean> {
+  return new Promise<boolean>((resolve) => {
+    const timer = setInterval(() => {
+      const record = approvals.getById(id);
+      if (record === null || record.status === "pending") return;
+      clearInterval(timer);
+      resolve(record.status === "approved");
+    }, 1000);
+    timer.unref();
+  });
 }
 
 function resolveIcon(): string | undefined {

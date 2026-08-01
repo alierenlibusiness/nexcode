@@ -1,4 +1,4 @@
-import type { JsonObject, JsonValue } from "./client";
+import type { JsonObject, JsonValue } from "../json";
 import type { NexcodeConfig, ExecutionMode } from "../config/schema";
 import { EXECUTION_MODES } from "../config/schema";
 

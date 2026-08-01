@@ -30,13 +30,67 @@ export const completionImageSchema = z.object({
   data: z.string(),
 });
 
-export const requestPlanInputSchema = z.object({
-  request: z.string().min(1, "İstek boş olamaz"),
-  images: z.array(completionImageSchema).optional(),
-});
-export type RequestPlanInputDTO = z.infer<typeof requestPlanInputSchema>;
+const executionModeSchema = z.enum(["auto", "fast", "balanced", "deep"]);
 
-export const taskDispatchInputSchema = z.object({ taskId: z.string().min(1) });
+/** Yeni görev: prompt zorunlu, geri kalanı yapılandırma varsayılanlarına düşer. */
+export const taskCreateInputSchema = z.object({
+  prompt: z.string().min(1, "Görev metni boş olamaz"),
+  workingDir: z.string().optional(),
+  executionMode: executionModeSchema.optional(),
+  priority: z.number().int().optional(),
+});
+export type TaskCreateInputDTO = z.infer<typeof taskCreateInputSchema>;
+
+/** Yalnızca bekleyen görev düzenlenebilir. */
+export const taskUpdateInputSchema = z.object({
+  id: z.string().min(1),
+  prompt: z.string().min(1).optional(),
+  workingDir: z.string().optional(),
+  executionMode: executionModeSchema.optional(),
+});
+export type TaskUpdateInputDTO = z.infer<typeof taskUpdateInputSchema>;
+
+export const taskIdInputSchema = z.object({ id: z.string().min(1) });
+
+/** Olay replay'i: `sinceSeq` verilirse yalnızca sonraki olaylar döner. */
+export const taskEventsInputSchema = z.object({
+  taskId: z.string().min(1),
+  sinceSeq: z.number().int().min(0).optional(),
+});
+
+export const taskChatInputSchema = z.object({
+  taskId: z.string().min(1),
+  message: z.string().min(1, "Mesaj boş olamaz"),
+});
+export type TaskChatInputDTO = z.infer<typeof taskChatInputSchema>;
+
+// --- Zamanlanmış görevler ---
+const scheduleTriggerInputSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("interval"), everyMinutes: z.number().int().min(1) }),
+  z.object({ type: z.literal("daily"), at: z.string().regex(/^\d{2}:\d{2}$/, "Saat SS:DD biçiminde olmalı") }),
+  z.object({
+    type: z.literal("weekly"),
+    at: z.string().regex(/^\d{2}:\d{2}$/, "Saat SS:DD biçiminde olmalı"),
+    days: z.array(z.number().int().min(0).max(6)).min(1, "En az bir gün seçilmeli"),
+  }),
+]);
+
+export const scheduleSaveInputSchema = z.object({
+  id: z.string().optional(),
+  prompt: z.string().min(1, "Görev metni boş olamaz"),
+  targetDir: z.string().optional(),
+  operatorAgentId: z.string().optional(),
+  executionMode: executionModeSchema.optional(),
+  trigger: scheduleTriggerInputSchema,
+  enabled: z.boolean().optional(),
+});
+export type ScheduleSaveInputDTO = z.infer<typeof scheduleSaveInputSchema>;
+
+export const scheduleToggleInputSchema = z.object({ id: z.string().min(1), enabled: z.boolean() });
+
+// --- Görev öncesi sürümleme ---
+export const checkpointListInputSchema = z.object({ workingDir: z.string().min(1) });
+export const checkpointRestoreInputSchema = z.object({ id: z.string().min(1) });
 
 // --- Onay ---
 export const approvalResolveInputSchema = z.object({
@@ -130,10 +184,15 @@ export const mcpToggleInputSchema = z.object({
   enabled: z.boolean(),
 });
 
+/** JSON-RPC üzerinden taşınabilen değerler; MCP sözleşmesinde `any` kullanılmaz. */
+const jsonValueSchema: z.ZodType<import("../mcp/client").JsonValue> = z.lazy(() =>
+  z.union([z.string(), z.number(), z.boolean(), z.null(), z.array(jsonValueSchema), z.record(jsonValueSchema)]),
+);
+
 export const mcpCallToolInputSchema = z.object({
   serverName: z.string().min(1),
   toolName: z.string().min(1),
-  args: z.any(),
+  args: z.record(jsonValueSchema),
 });
 
 // --- Skills ---

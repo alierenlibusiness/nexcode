@@ -52,7 +52,7 @@ export * from "./providers/openai-compatible";
 export * from "./providers/google";
 export * from "./providers/connection";
 
-// MCP: içe dönük istemci katmanı ve dışa dönük sunucu.
-export * from "./mcp/client";
-export * from "./mcp/manager";
+// MCP: saf protokol katmanı. İstemci ve yönetici `node:child_process`'e bağlı olduğundan
+// burada DEĞİL, `@nexcode/core/mcp` alt yolundadır (yalnızca main process).
+export * from "./json";
 export * from "./mcp/server";

@@ -18,6 +18,10 @@
       "types": "./dist/providers/node.d.ts",
       "default": "./dist/providers/node.js"
     },
+    "./mcp": {
+      "types": "./dist/mcp/node.d.ts",
+      "default": "./dist/mcp/node.js"
+    },
     "./keyring": {
       "types": "./dist/security/keyring-store.d.ts",
       "default": "./dist/security/keyring-store.js"

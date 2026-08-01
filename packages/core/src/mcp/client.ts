@@ -1,9 +1,9 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { logger } from "../logger";
+import type { JsonObject, JsonValue } from "../json";
 
-/** JSON-RPC üzerinden taşınabilen değerler — MCP sözleşmesinde `any` yerine kullanılır. */
-export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
-export type JsonObject = { [key: string]: JsonValue };
+// JSON tipleri saf `../json` modülündedir; bu dosya native olduğundan renderer'a sızmamalıdır.
+export type { JsonValue, JsonObject } from "../json";
 
 export interface McpServerConfig {
   id: string;

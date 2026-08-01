@@ -5,9 +5,29 @@ import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
 const C = {
   workspaceCreate: "workspace:create",
   workspaceList: "workspace:list",
-  requestPlan: "request:plan",
+  engineStart: "engine:start",
+  engineStop: "engine:stop",
+  engineStatus: "engine:status",
+  engineEvent: "engine:event",
+  taskCreate: "task:create",
   taskList: "task:list",
-  taskDispatch: "task:dispatch",
+  taskGet: "task:get",
+  taskUpdate: "task:update",
+  taskRemove: "task:remove",
+  taskEvents: "task:events",
+  taskChat: "task:chat",
+  taskChatHistory: "task:chat-history",
+  configLoad: "config:load",
+  configSave: "config:save",
+  configReset: "config:reset",
+  scheduleList: "schedule:list",
+  scheduleSave: "schedule:save",
+  scheduleRemove: "schedule:remove",
+  scheduleToggle: "schedule:toggle",
+  checkpointList: "checkpoint:list",
+  checkpointRestore: "checkpoint:restore",
+  cliDiscover: "cli:discover",
+  cliHealth: "cli:health",
   approvalListPending: "approval:list-pending",
   approvalResolve: "approval:resolve",
   connectionGetAll: "connection:get-all",
@@ -47,11 +67,54 @@ const api = {
     ipcRenderer.invoke(C.workspaceCreate, input),
   listWorkspaces: (): Promise<unknown> => ipcRenderer.invoke(C.workspaceList),
 
-  planRequest: (request: string, images?: Array<{ mimeType: string; data: string }>): Promise<unknown> =>
-    ipcRenderer.invoke(C.requestPlan, { request, images }),
+  // Motor: kuyruk döngüsü
+  engineStart: (): Promise<unknown> => ipcRenderer.invoke(C.engineStart),
+  engineStop: (): Promise<unknown> => ipcRenderer.invoke(C.engineStop),
+  engineStatus: (): Promise<unknown> => ipcRenderer.invoke(C.engineStatus),
+  /** Motorun canlı olay akışı; abonelikten çıkmak için dönen fonksiyon çağrılır. */
+  onEngineEvent: (cb: (event: unknown) => void): (() => void) => {
+    const listener = (_e: IpcRendererEvent, payload: unknown): void => cb(payload);
+    ipcRenderer.on(C.engineEvent, listener);
+    return () => ipcRenderer.removeListener(C.engineEvent, listener);
+  },
+
+  // Görev kuyruğu
+  createTask: (input: {
+    prompt: string;
+    workingDir?: string;
+    executionMode?: string;
+    priority?: number;
+  }): Promise<unknown> => ipcRenderer.invoke(C.taskCreate, input),
   listTasks: (): Promise<unknown> => ipcRenderer.invoke(C.taskList),
-  dispatchTask: (taskId: string): Promise<unknown> =>
-    ipcRenderer.invoke(C.taskDispatch, { taskId }),
+  getTask: (id: string): Promise<unknown> => ipcRenderer.invoke(C.taskGet, { id }),
+  updateTask: (input: { id: string; prompt?: string; workingDir?: string; executionMode?: string }): Promise<unknown> =>
+    ipcRenderer.invoke(C.taskUpdate, input),
+  removeTask: (id: string): Promise<unknown> => ipcRenderer.invoke(C.taskRemove, { id }),
+  taskEvents: (taskId: string, sinceSeq?: number): Promise<unknown> =>
+    ipcRenderer.invoke(C.taskEvents, { taskId, sinceSeq }),
+  taskChat: (taskId: string, message: string): Promise<unknown> =>
+    ipcRenderer.invoke(C.taskChat, { taskId, message }),
+  taskChatHistory: (id: string): Promise<unknown> => ipcRenderer.invoke(C.taskChatHistory, { id }),
+
+  // Yapılandırma
+  loadConfig: (): Promise<unknown> => ipcRenderer.invoke(C.configLoad),
+  saveConfig: (config: unknown): Promise<unknown> => ipcRenderer.invoke(C.configSave, config),
+  resetConfig: (): Promise<unknown> => ipcRenderer.invoke(C.configReset),
+
+  // Zamanlanmış görevler
+  listSchedules: (): Promise<unknown> => ipcRenderer.invoke(C.scheduleList),
+  saveSchedule: (input: unknown): Promise<unknown> => ipcRenderer.invoke(C.scheduleSave, input),
+  removeSchedule: (id: string): Promise<unknown> => ipcRenderer.invoke(C.scheduleRemove, { id }),
+  toggleSchedule: (id: string, enabled: boolean): Promise<unknown> =>
+    ipcRenderer.invoke(C.scheduleToggle, { id, enabled }),
+
+  // Görev öncesi sürümleme
+  listCheckpoints: (workingDir: string): Promise<unknown> => ipcRenderer.invoke(C.checkpointList, { workingDir }),
+  restoreCheckpoint: (id: string): Promise<unknown> => ipcRenderer.invoke(C.checkpointRestore, { id }),
+
+  // CLI keşfi
+  discoverClis: (): Promise<unknown> => ipcRenderer.invoke(C.cliDiscover),
+  cliHealth: (): Promise<unknown> => ipcRenderer.invoke(C.cliHealth),
 
   listPendingApprovals: (): Promise<unknown> => ipcRenderer.invoke(C.approvalListPending),
   resolveApproval: (id: string, status: "approved" | "rejected"): Promise<unknown> =>

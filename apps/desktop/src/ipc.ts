@@ -1,9 +1,17 @@
 import { ipcMain, dialog, type WebContents } from "electron";
+import { randomUUID } from "node:crypto";
 import {
   IpcChannels,
   createWorkspaceInputSchema,
-  requestPlanInputSchema,
-  taskDispatchInputSchema,
+  taskCreateInputSchema,
+  taskUpdateInputSchema,
+  taskIdInputSchema,
+  taskEventsInputSchema,
+  taskChatInputSchema,
+  scheduleSaveInputSchema,
+  scheduleToggleInputSchema,
+  checkpointListInputSchema,
+  checkpointRestoreInputSchema,
   approvalResolveInputSchema,
   connectionSetInputSchema,
   secretSetApiKeyInputSchema,
@@ -15,6 +23,14 @@ import {
   terminalStartInputSchema,
   terminalInputSchema,
   terminalKillInputSchema,
+  mcpSaveInputSchema,
+  mcpRemoveInputSchema,
+  mcpToggleInputSchema,
+  mcpCallToolInputSchema,
+  skillsSaveInputSchema,
+  skillsRemoveInputSchema,
+  normalizeConfig,
+  computeNextRun,
   ALL_AGENTS,
   listProviders,
   providerCliKind,
@@ -22,37 +38,37 @@ import {
   type ConnectionPreference,
   type AgentRole,
   type SecretStore,
-  mcpSaveInputSchema,
-  mcpRemoveInputSchema,
-  mcpToggleInputSchema,
-  mcpCallToolInputSchema,
-  skillsSaveInputSchema,
-  skillsRemoveInputSchema,
-  McpManager,
+  type Schedule,
+  type NexcodeConfig,
 } from "@nexcode/core";
 import {
   WorkspaceRepository,
-  TaskRepository,
+  EngineRepository,
+  ConfigRepository,
+  ScheduleRepository,
   ApprovalRepository,
   AgentSettingsRepository,
   CostLogRepository,
   McpRepository,
   SkillRepository,
 } from "@nexcode/core/db";
-import type { Orchestrator } from "@nexcode/core";
+import { McpManager } from "@nexcode/core/mcp";
 import { readDir, readFileText, writeFileText } from "./fsbridge";
 import { TerminalManager } from "./terminal";
 import { isCliInstalled } from "./cli-detect";
+import type { EngineHost } from "./engine-host";
 
 const KEYCHAIN_SERVICE = "nexcode";
 
 export interface IpcContext {
   workspaces: WorkspaceRepository;
-  tasks: TaskRepository;
+  tasks: EngineRepository;
+  configRepo: ConfigRepository;
+  schedules: ScheduleRepository;
   approvals: ApprovalRepository;
   settings: AgentSettingsRepository;
   costLogs: CostLogRepository;
-  orchestrator: Orchestrator;
+  engine: EngineHost;
   secretStore: SecretStore;
   apiKeyCache: Map<string, string>;
   workspaceId: string;
@@ -64,7 +80,7 @@ export interface IpcContext {
 }
 
 /**
- * Tüm IPC handler'larını kaydeder. Gelen payload'lar Zod ile doğrulanır (PRD §15).
+ * Tüm IPC handler'larını kaydeder. Gelen payload'lar Zod ile doğrulanır.
  * Hatalar handler içinde fırlatılır; Electron bunları renderer'a reject olarak iletir.
  */
 export function registerIpcHandlers(ctx: IpcContext): void {
@@ -77,20 +93,179 @@ export function registerIpcHandlers(ctx: IpcContext): void {
 
   ipcMain.handle(IpcChannels.workspaceList, () => ctx.workspaces.list());
 
-  // İstek → CEO planı → görevler (PRD §8.1)
-  ipcMain.handle(IpcChannels.requestPlan, async (_e, raw: unknown) => {
-    const { request, images } = requestPlanInputSchema.parse(raw);
-    return ctx.orchestrator.planRequest(request, images);
+  registerEngineHandlers(ctx);
+  registerTaskHandlers(ctx);
+  registerConfigHandlers(ctx);
+  registerScheduleHandlers(ctx);
+  registerCheckpointHandlers(ctx);
+  registerApprovalHandlers(ctx);
+  registerConnectionHandlers(ctx);
+  registerMcpHandlers(ctx);
+  registerSkillHandlers(ctx);
+  registerFsHandlers(ctx);
+  registerTerminalHandlers(ctx);
+}
+
+/** Motor: kuyruk döngüsünü başlatır ve durdurur. */
+function registerEngineHandlers(ctx: IpcContext): void {
+  ipcMain.handle(IpcChannels.engineStart, () => {
+    const cfg = ctx.configRepo.load();
+    // Otonom onay olmadan motor başlatılamaz; sessizce başlatmak yerine açık hata verilir.
+    if (cfg.autonomousConsentAcceptedAt === null) {
+      throw new Error("Otonom çalışma onayı alınmadan motor başlatılamaz.");
+    }
+    ctx.engine.start();
+    return ctx.engine.status();
   });
 
-  ipcMain.handle(IpcChannels.taskList, () => ctx.tasks.listAll());
-
-  ipcMain.handle(IpcChannels.taskDispatch, async (_e, raw: unknown) => {
-    const { taskId } = taskDispatchInputSchema.parse(raw);
-    const output = await ctx.orchestrator.dispatchTask(taskId);
-    return { output };
+  ipcMain.handle(IpcChannels.engineStop, async () => {
+    await ctx.engine.stop();
+    return ctx.engine.status();
   });
 
+  ipcMain.handle(IpcChannels.engineStatus, () => ctx.engine.status());
+}
+
+/** Görev kuyruğu ve olay replay'i. */
+function registerTaskHandlers(ctx: IpcContext): void {
+  ipcMain.handle(IpcChannels.taskCreate, (_e, raw: unknown) => {
+    const input = taskCreateInputSchema.parse(raw);
+    const cfg = ctx.configRepo.load();
+    const task = ctx.tasks.create({
+      prompt: input.prompt,
+      workingDir: input.workingDir ?? resolveWorkingDir(cfg, ctx.rootDir),
+      ...(input.executionMode !== undefined ? { executionMode: input.executionMode } : {}),
+      ...(input.priority !== undefined ? { priority: input.priority } : {}),
+    });
+
+    // Motor çalışıyorsa bekleme aralığını kesip görevi hemen alsın.
+    ctx.engine.wake();
+    logger.info("task.created", { id: task.id });
+    return task;
+  });
+
+  ipcMain.handle(IpcChannels.taskList, () => ctx.tasks.queueSnapshot());
+  ipcMain.handle(IpcChannels.taskGet, (_e, raw: unknown) => ctx.tasks.getById(taskIdInputSchema.parse(raw).id));
+
+  ipcMain.handle(IpcChannels.taskUpdate, (_e, raw: unknown) => {
+    const { id, ...changes } = taskUpdateInputSchema.parse(raw);
+    const updated = ctx.tasks.updatePending(id, changes);
+    if (!updated) throw new Error("Yalnızca bekleyen görevler düzenlenebilir.");
+    return ctx.tasks.getById(id);
+  });
+
+  ipcMain.handle(IpcChannels.taskRemove, (_e, raw: unknown) => {
+    const { id } = taskIdInputSchema.parse(raw);
+    if (!ctx.tasks.remove(id)) throw new Error("Çalışan görev silinemez.");
+    return ctx.tasks.queueSnapshot();
+  });
+
+  // Sayfa açılışında geçmişi replay eder; canlı akışla ortak `seq` sayesinde tekilleştirilir.
+  ipcMain.handle(IpcChannels.taskEvents, (_e, raw: unknown) => {
+    const { taskId, sinceSeq } = taskEventsInputSchema.parse(raw);
+    const events = ctx.tasks.eventsFor(taskId);
+    return sinceSeq === undefined ? events : events.filter((event) => event.seq > sinceSeq);
+  });
+
+  ipcMain.handle(IpcChannels.taskChatHistory, (_e, raw: unknown) =>
+    ctx.tasks.conversationFor(taskIdInputSchema.parse(raw).id),
+  );
+
+  // Tamamlanmış görev hakkındaki salt-okunur sohbet: ayrı bir görev kaydı olarak kuyruğa girer.
+  ipcMain.handle(IpcChannels.taskChat, (_e, raw: unknown) => {
+    const { taskId, message } = taskChatInputSchema.parse(raw);
+    const parent = ctx.tasks.getById(taskId);
+    if (parent === null) throw new Error(`Görev bulunamadı: ${taskId}`);
+
+    const entry = ctx.tasks.appendConversation(taskId, "user", message);
+    ctx.tasks.create({
+      prompt: message,
+      workingDir: parent.workingDir,
+      kind: "operator-chat",
+      parentTaskId: taskId,
+    });
+    ctx.engine.wake();
+    return entry;
+  });
+}
+
+/** Yapılandırma: her yazma normalizasyondan geçer. */
+function registerConfigHandlers(ctx: IpcContext): void {
+  ipcMain.handle(IpcChannels.configLoad, () => ctx.configRepo.load());
+
+  ipcMain.handle(IpcChannels.configSave, (_e, raw: unknown) => {
+    // Şema doğrulaması normalizasyonun içindedir; geçersiz gövde burada fırlatır.
+    const next = normalizeConfig(raw);
+
+    // İzolasyon olmadan paralellik veri kaybına yol açar: sessizce düşürmek yerine bildir.
+    if (isConcurrencyRequested(raw) && next.worktree.mode !== "task") {
+      throw new Error("Eşzamanlı görev yürütme için worktree izolasyonu (worktree.mode: task) açık olmalıdır.");
+    }
+    return ctx.configRepo.save(next);
+  });
+
+  ipcMain.handle(IpcChannels.configReset, () => ctx.configRepo.resetToTemplate());
+
+  ipcMain.handle(IpcChannels.cliDiscover, () => ctx.configRepo.load().agents);
+  ipcMain.handle(IpcChannels.cliHealth, () => {
+    const cfg = ctx.configRepo.load();
+    return Object.values(cfg.agents).map((agent) => ({
+      id: agent.id,
+      name: agent.name,
+      adapter: agent.adapter ?? null,
+      installed: agent.cmd === undefined ? false : isCliInstalled(agent.cmd),
+    }));
+  });
+}
+
+/** Zamanlanmış görevler: CRUD kendi uçlarıyla anında kalıcılaşır. */
+function registerScheduleHandlers(ctx: IpcContext): void {
+  ipcMain.handle(IpcChannels.scheduleList, () => withNextRun(ctx.schedules.list()));
+
+  ipcMain.handle(IpcChannels.scheduleSave, (_e, raw: unknown) => {
+    const input = scheduleSaveInputSchema.parse(raw);
+    const existing = input.id === undefined ? null : ctx.schedules.getById(input.id);
+
+    const schedule: Schedule = {
+      id: input.id ?? randomUUID(),
+      prompt: input.prompt,
+      executionMode: input.executionMode ?? "auto",
+      trigger: input.trigger,
+      enabled: input.enabled ?? existing?.enabled ?? true,
+      createdAt: existing?.createdAt ?? new Date().toISOString(),
+      lastRunAt: existing?.lastRunAt ?? null,
+      nextRunAt: null,
+      lastTaskId: existing?.lastTaskId ?? null,
+      ...(input.targetDir !== undefined ? { targetDir: input.targetDir } : {}),
+      ...(input.operatorAgentId !== undefined ? { operatorAgentId: input.operatorAgentId } : {}),
+    };
+
+    return ctx.schedules.save({ ...schedule, nextRunAt: computeNextRun(schedule, new Date()).toISOString() });
+  });
+
+  ipcMain.handle(IpcChannels.scheduleRemove, (_e, raw: unknown) => ctx.schedules.remove(taskIdInputSchema.parse(raw).id));
+
+  ipcMain.handle(IpcChannels.scheduleToggle, (_e, raw: unknown) => {
+    const { id, enabled } = scheduleToggleInputSchema.parse(raw);
+    return ctx.schedules.setEnabled(id, enabled);
+  });
+}
+
+/** Görev öncesi sürümleme: geri yükleme yalnızca motor boştayken. */
+function registerCheckpointHandlers(ctx: IpcContext): void {
+  ipcMain.handle(IpcChannels.checkpointList, (_e, raw: unknown) =>
+    ctx.engine.listCheckpoints(checkpointListInputSchema.parse(raw).workingDir),
+  );
+
+  ipcMain.handle(IpcChannels.checkpointRestore, async (_e, raw: unknown) => {
+    const { id } = checkpointRestoreInputSchema.parse(raw);
+    const result = await ctx.engine.restoreCheckpoint(id);
+    if (!result.ok) throw new Error(result.error);
+    return result.report;
+  });
+}
+
+function registerApprovalHandlers(ctx: IpcContext): void {
   ipcMain.handle(IpcChannels.approvalListPending, () => ctx.approvals.listPending());
 
   ipcMain.handle(IpcChannels.approvalResolve, (_e, raw: unknown) => {
@@ -98,8 +273,10 @@ export function registerIpcHandlers(ctx: IpcContext): void {
     ctx.approvals.resolve(id, status, "user");
     logger.info("approval.resolved", { id, status });
   });
+}
 
-  // Bağlantı modu (API/CLI) — kullanıcının per-agent seçimi (PRD §9.5)
+/** Bağlantı modu, sağlayıcı kataloğu, anahtar yönetimi ve maliyet özeti. */
+function registerConnectionHandlers(ctx: IpcContext): void {
   ipcMain.handle(IpcChannels.connectionGetAll, () => {
     const result: Partial<Record<AgentRole, ConnectionPreference>> = {};
     for (const agent of ALL_AGENTS) {
@@ -114,7 +291,6 @@ export function registerIpcHandlers(ctx: IpcContext): void {
     logger.info("connection.set", { role, preference });
   });
 
-  // Faz 2: sağlayıcı/model registry (UI model seçimi için)
   ipcMain.handle(IpcChannels.providerList, () =>
     listProviders().map((p) => ({
       id: p.id,
@@ -125,16 +301,14 @@ export function registerIpcHandlers(ctx: IpcContext): void {
     })),
   );
 
-  // Faz 2: agent başına model seçimi (kullanıcı hangi AI'yı seçer)
   ipcMain.handle(IpcChannels.agentModelGetAll, () => {
     const result: Record<string, { provider: string; modelId: string; isDefault: boolean }> = {};
     for (const agent of ALL_AGENTS) {
       const model = ctx.settings.resolveModel(ctx.workspaceId, agent.role);
-      const choice = ctx.settings.getModelChoice(ctx.workspaceId, agent.role);
       result[agent.role] = {
         provider: model.provider,
         modelId: model.modelId,
-        isDefault: choice === null,
+        isDefault: ctx.settings.getModelChoice(ctx.workspaceId, agent.role) === null,
       };
     }
     return result;
@@ -146,13 +320,11 @@ export function registerIpcHandlers(ctx: IpcContext): void {
     logger.info("agent_model.set", { role, provider, modelId });
   });
 
-  // Faz 2: maliyet özeti (cost dashboard)
   ipcMain.handle(IpcChannels.costSummary, () => ({
     byConnectionMode: ctx.costLogs.summaryByConnectionMode(),
     totalApiCost: ctx.costLogs.totalApiCost(),
   }));
 
-  // Faz 2: sır/anahtar — OS keychain (PRD §5.7, §12)
   ipcMain.handle(IpcChannels.secretSetApiKey, async (_e, raw: unknown) => {
     const { provider, apiKey } = secretSetApiKeyInputSchema.parse(raw);
     await ctx.secretStore.set(KEYCHAIN_SERVICE, provider, apiKey);
@@ -163,12 +335,9 @@ export function registerIpcHandlers(ctx: IpcContext): void {
   ipcMain.handle(IpcChannels.secretHasApiKey, async (_e, raw: unknown) => {
     const { provider } = secretHasApiKeyInputSchema.parse(raw);
     if (ctx.apiKeyCache.has(provider)) return true;
-    const stored = await ctx.secretStore.get(KEYCHAIN_SERVICE, provider);
-    return stored !== null;
+    return (await ctx.secretStore.get(KEYCHAIN_SERVICE, provider)) !== null;
   });
 
-  // Faz 2: bağlantı durumu — her sağlayıcı için API anahtarı var mı + CLI kurulu mu.
-  // UI bunu "API nereye girilir / CLI nasıl bağlanır" netliği için kullanır.
   ipcMain.handle(IpcChannels.connectionStatus, async () => {
     const result: Record<string, { hasApiKey: boolean; cliKind: string | null; cliInstalled: boolean }> = {};
     for (const p of listProviders()) {
@@ -176,33 +345,27 @@ export function registerIpcHandlers(ctx: IpcContext): void {
       result[p.id] = {
         hasApiKey: ctx.apiKeyCache.has(p.id) || (await ctx.secretStore.get(KEYCHAIN_SERVICE, p.id)) !== null,
         cliKind,
-        cliInstalled: cliKind ? isCliInstalled(cliKind) : false,
+        cliInstalled: cliKind !== null && isCliInstalled(cliKind),
       };
     }
     return result;
   });
+}
 
-  // MCP
-  ipcMain.handle(IpcChannels.mcpList, () => {
-    return ctx.mcp.list().map((s) => {
-      const active = ctx.mcpManager.listActiveServers().find((item) => item.id === s.id);
-      return {
-        ...s,
-        running: active?.running ?? false,
-      };
-    });
-  });
+function registerMcpHandlers(ctx: IpcContext): void {
+  ipcMain.handle(IpcChannels.mcpList, () =>
+    ctx.mcp.list().map((server) => ({
+      ...server,
+      running: ctx.mcpManager.listActiveServers().find((item) => item.id === server.id)?.running ?? false,
+    })),
+  );
 
   ipcMain.handle(IpcChannels.mcpSave, async (_e, raw: unknown) => {
     const input = mcpSaveInputSchema.parse(raw);
-    const existing = ctx.mcp.getByName(input.name);
-    if (existing) {
-      throw new Error(`MCP sunucusu '${input.name}' zaten mevcut`);
-    }
+    if (ctx.mcp.getByName(input.name) !== null) throw new Error(`MCP sunucusu '${input.name}' zaten mevcut`);
+
     const created = ctx.mcp.create(input);
-    if (created.enabled) {
-      await ctx.mcpManager.startServer(created);
-    }
+    if (created.enabled) await ctx.mcpManager.startServer(created);
     return created;
   });
 
@@ -215,67 +378,50 @@ export function registerIpcHandlers(ctx: IpcContext): void {
   ipcMain.handle(IpcChannels.mcpToggle, async (_e, raw: unknown) => {
     const { id, enabled } = mcpToggleInputSchema.parse(raw);
     ctx.mcp.toggle(id, enabled);
-    if (enabled) {
-      const servers = ctx.mcp.list();
-      const s = servers.find((item) => item.id === id);
-      if (s) await ctx.mcpManager.startServer(s);
-    } else {
+
+    if (!enabled) {
       await ctx.mcpManager.stopServer(id);
+      return;
     }
+    const server = ctx.mcp.list().find((item) => item.id === id);
+    if (server !== undefined) await ctx.mcpManager.startServer(server);
   });
 
   ipcMain.handle(IpcChannels.mcpCallTool, async (_e, raw: unknown) => {
     const { serverName, toolName, args } = mcpCallToolInputSchema.parse(raw);
     return await ctx.mcpManager.callTool(serverName, toolName, args);
   });
+}
 
-  // Skills
-  ipcMain.handle(IpcChannels.skillsList, () => {
-    return ctx.skills.list();
-  });
+function registerSkillHandlers(ctx: IpcContext): void {
+  ipcMain.handle(IpcChannels.skillsList, () => ctx.skills.list());
 
   ipcMain.handle(IpcChannels.skillsSave, (_e, raw: unknown) => {
     const input = skillsSaveInputSchema.parse(raw);
-    const existing = ctx.skills.getByName(input.name);
-    if (existing) {
-      throw new Error(`Skill '${input.name}' zaten mevcut`);
-    }
+    if (ctx.skills.getByName(input.name) !== null) throw new Error(`Skill '${input.name}' zaten mevcut`);
     return ctx.skills.create(input);
   });
 
   ipcMain.handle(IpcChannels.skillsRemove, (_e, raw: unknown) => {
-    const { id } = skillsRemoveInputSchema.parse(raw);
-    ctx.skills.delete(id);
+    ctx.skills.delete(skillsRemoveInputSchema.parse(raw).id);
   });
-
-  registerFsHandlers(ctx);
-  registerTerminalHandlers(ctx);
 }
 
-/** IDE kabuğu: Open Folder + dosya ağacı + dosya okuma (PRD §6.1 dosya sistemi erişimi). */
+/** IDE kabuğu: Open Folder, dosya ağacı, dosya okuma ve yazma. */
 function registerFsHandlers(ctx: IpcContext): void {
   ipcMain.handle(IpcChannels.fsOpenFolder, async () => {
     const result = await dialog.showOpenDialog({ properties: ["openDirectory"] });
-    if (result.canceled || !result.filePaths[0]) return { root: ctx.rootDir, entries: readDir(ctx.rootDir) };
-    ctx.rootDir = result.filePaths[0];
+    const picked = result.filePaths[0];
+    if (result.canceled || picked === undefined) return { root: ctx.rootDir, entries: readDir(ctx.rootDir) };
+
+    ctx.rootDir = picked;
     logger.info("fs.open_folder", { root: ctx.rootDir });
     return { root: ctx.rootDir, entries: readDir(ctx.rootDir) };
   });
 
-  ipcMain.handle(IpcChannels.fsCurrentRoot, () => ({
-    root: ctx.rootDir,
-    entries: readDir(ctx.rootDir),
-  }));
-
-  ipcMain.handle(IpcChannels.fsReadDir, (_e, raw: unknown) => {
-    const { path: dir } = fsReadDirInputSchema.parse(raw);
-    return readDir(dir);
-  });
-
-  ipcMain.handle(IpcChannels.fsReadFile, (_e, raw: unknown) => {
-    const { path: file } = fsReadFileInputSchema.parse(raw);
-    return readFileText(file);
-  });
+  ipcMain.handle(IpcChannels.fsCurrentRoot, () => ({ root: ctx.rootDir, entries: readDir(ctx.rootDir) }));
+  ipcMain.handle(IpcChannels.fsReadDir, (_e, raw: unknown) => readDir(fsReadDirInputSchema.parse(raw).path));
+  ipcMain.handle(IpcChannels.fsReadFile, (_e, raw: unknown) => readFileText(fsReadFileInputSchema.parse(raw).path));
 
   ipcMain.handle(IpcChannels.fsWriteFile, (_e, raw: unknown) => {
     const { path: file, content } = fsWriteFileInputSchema.parse(raw);
@@ -284,7 +430,7 @@ function registerFsHandlers(ctx: IpcContext): void {
   });
 }
 
-/** Terminal/komut konsolu (PRD §5.2). main → renderer push: terminalData / terminalExit. */
+/** Terminal oturumu. main -> renderer push: terminalData / terminalExit. */
 function registerTerminalHandlers(ctx: IpcContext): void {
   const term = new TerminalManager({
     onData: (id, data) => ctx.getWebContents()?.send(IpcChannels.terminalData, { id, data }),
@@ -302,7 +448,27 @@ function registerTerminalHandlers(ctx: IpcContext): void {
   });
 
   ipcMain.handle(IpcChannels.terminalKill, (_e, raw: unknown) => {
-    const { id } = terminalKillInputSchema.parse(raw);
-    term.kill(id);
+    term.kill(terminalKillInputSchema.parse(raw).id);
   });
+}
+
+/** `.` yapılandırması uygulamanın açtığı klasörü işaret eder. */
+function resolveWorkingDir(cfg: NexcodeConfig, rootDir: string): string {
+  return cfg.workingDir === "." || cfg.workingDir === "" ? rootDir : cfg.workingDir;
+}
+
+/** Kaydedilmek istenen gövdede 1'den büyük eşzamanlılık var mı (normalizasyon öncesi). */
+function isConcurrencyRequested(raw: unknown): boolean {
+  if (typeof raw !== "object" || raw === null) return false;
+  const value = (raw as { maxConcurrentTasks?: unknown }).maxConcurrentTasks;
+  return typeof value === "number" && value > 1;
+}
+
+/** Listeleme sırasında sonraki çalışma zamanı taze hesaplanır (kayıt bayatlamış olabilir). */
+function withNextRun(schedules: Schedule[]): Schedule[] {
+  const now = new Date();
+  return schedules.map((schedule) => ({
+    ...schedule,
+    nextRunAt: schedule.enabled ? computeNextRun(schedule, now).toISOString() : null,
+  }));
 }
