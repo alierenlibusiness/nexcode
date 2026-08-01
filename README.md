@@ -111,3 +111,7 @@ Built on Next.js static export, React 19 and Tailwind, loaded by Electron over a
 pnpm --filter @nexcode/renderer build
 pnpm dev
 ```
+
+## License
+
+MIT. See [`LICENSE`](LICENSE).

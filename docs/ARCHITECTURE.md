@@ -3,15 +3,13 @@
 > Bu belge sistemin sözleşmelerini ve değişmezlerini tanımlar. Kod ile çeliştiği anda kod
 > doğrudur ve belge güncellenmelidir.
 
-**Son doğrulama:** 2026-08-02 (`pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm -r build`)
+**Son doğrulama:** 2026-08-02 (`pnpm -r build`, `typecheck`, `lint`, `test`, canlı uçtan uca görev koşumu)
 
 ## Amaç
 
 NEXCODE, kullanıcının kendi makinesinde kurulu kodlama CLI'larını (Claude Code, Codex CLI,
 Gemini CLI, OpenCode, Antigravity) tek bir operatör yönetiminde uzman ekip olarak çalıştıran
-bir masaüstü orkestrasyon uygulamasıdır. Ürün modeli
-[CrewCtl](https://github.com/omergocmen/CrewCtl) (MIT) projesinden uyarlanmıştır; uygulama
-tabanı ve arayüzü NEXCODE'a özgüdür.
+bir masaüstü orkestrasyon uygulamasıdır.
 
 ## Ürün akışı
 
@@ -43,9 +41,14 @@ paketidir ve `node:*` modüllerini bundle edemez.
 | Alt yol | İçerik | Kim kullanabilir |
 |---|---|---|
 | `@nexcode/core` | Saf çekirdek: motor, worktree, doğrulama kapısı, config, tipler | main + renderer |
-| `@nexcode/core/db` | `better-sqlite3` bağımlı depolar | yalnızca main |
-| `@nexcode/core/providers` | `node:child_process` bağımlı CLI runner ve adapter'lar | yalnızca main |
-| `@nexcode/core/mcp` | MCP istemcisi ve yöneticisi (süreç açar) | yalnızca main |
+| `@nexcode/core/db` | `better-sqlite3` bağımlı depolar | yalnızca sunucu tarafı |
+| `@nexcode/core/providers` | `node:child_process` bağımlı CLI runner ve adapter'lar | yalnızca sunucu tarafı |
+| `@nexcode/core/mcp` | MCP istemcisi ve yöneticisi (süreç açar) | yalnızca sunucu tarafı |
+| `@nexcode/core/host` | Motor konağı: süreç port'ları, görev yaşam döngüsü, zamanlayıcı | yalnızca sunucu tarafı |
+
+"Sunucu tarafı" iki tüketici demektir: Electron main process ve `nexcode` CLI. Host katmanı
+Electron'a bağlı değildir; bu sayede masaüstü uygulaması ve `npx nexcode` **aynı** motoru,
+aynı veritabanını ve aynı davranışı paylaşır.
 
 **Değişmez:** saf çekirdeğe `node:*` import'u eklenirse renderer derlemesi kırılır. Native bir
 modül eklerken uygun alt yola koy.
@@ -66,6 +69,12 @@ packages/core/src/
   providers/    CLI adapter'ları ve API sağlayıcıları (hibrit yürütme)
   db/           SQLite şeması, migration'lar ve depolar
   config/       Zod şeması, normalizasyon, paylaşılabilir varsayılanlar
+  host/         süreç port'ları, görev yaşam döngüsü konağı, zamanlayıcı tik'i
+
+apps/
+  cli/          `npx nexcode` komut satırı (task, run, status, approvals, doctor, mcp)
+  desktop/      Electron main process, IPC ve preload köprüsü
+  renderer/     dört arayüz yüzeyi
 ```
 
 ## Değişmezler
@@ -111,6 +120,27 @@ packages/core/src/
 - Arayüz önce canlı akışa abone olur, sonra geçmişi çeker ve `seq` ile tekilleştirir. Bu sıra
   ters çevrilirse replay sırasında gelen olaylar kaybolur.
 
+### CLI çağrıları
+
+- Agent süreçleri etkileşimsiz koşar. İzin istemi geldiği anda süreç sessizce bekler ve
+  sessizlik zaman aşımıyla düşer; bu yüzden otonom bayraklar adapter spec'inde zorunludur.
+- Verilen yetki **çalışma klasörüyle sınırlıdır**: Claude Code `--permission-mode acceptEdits`,
+  Codex `--sandbox workspace-write`. `bypassPermissions` ve `danger-full-access` bilerek
+  kullanılmaz; izolasyon, onay kapısı ve checkpoint bizim katmanımızın işidir, CLI'ın tüm
+  korumalarını kapatmanın değil. Bir test bu sözleşmeyi kilitler.
+- CLI çıktısı adapter'a göre normalize edilir. Claude Code `--output-format json` ile asıl
+  yanıtı `result` alanına sarar; zarf ayıklanmazsa motor onu operatör kararı sanır ve her
+  görev şema uyuşmazlığıyla düşer. Zarf ayrıca gerçek maliyeti taşır.
+- Komutu olmayan profil çalıştırılamaz ve katalogdan düşürülür. Hangi profilin
+  çalıştırılabildiğini yalnızca konak bilir (`EngineDeps.agentHealth`); saf çekirdek CLI
+  varsayımı yapmaz.
+
+### Loglama
+
+Loglar **standart hataya** yazılır. Standart çıktı programın kendi çıktısına ayrılmıştır:
+MCP stdio sunucusu stdout'u JSON-RPC için kullanır ve oraya düşen tek bir log satırı
+istemcinin ayrıştırmasını bozar.
+
 ### Güvenlik
 
 - API anahtarları OS keychain'de saklanır; düz metin dosyaya asla yazılmaz.
@@ -119,6 +149,9 @@ packages/core/src/
   dokunulmaz.
 - Checkpoint geri yükleme yalnızca motor boştayken yapılır.
 - Geri almadan önce mevcut durum için `redo` checkpoint'i oluşturulur.
+- Dosya köprüsü (IPC `fs:*`) kullanıcının açtığı kökün dışına çıkamaz. Karşılaştırma
+  `path.relative` üzerinden yapılır; salt string önek kontrolü `/repo-secrets` yolunu
+  `/repo` içinde sayardı.
 - Dışa dönük MCP sunucusunda motor kontrolü varsayılan kapalıdır; kapalıyken araç katalogda
   görünmez ve doğrudan çağrı da reddedilir.
 
@@ -152,7 +185,7 @@ pnpm install
 pnpm -r build      # core önce, sonra uygulamalar
 pnpm typecheck     # sıfır hata
 pnpm lint
-pnpm test          # 536 test
+pnpm test          # 575 test
 pnpm dev           # Electron uygulamasını aç
 ```
 
