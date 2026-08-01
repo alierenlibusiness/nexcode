@@ -1,155 +1,110 @@
 <div align="center">
 
-# NEXCODE
+# Git Worktree Isolation
 
-**Run every coding CLI you already have as one AI engineering team.**
-
-Claude Code, Codex CLI, Gemini CLI, OpenCode and Antigravity, coordinated by a single
-operator that plans, delegates, reviews and ships. On your machine, with your own
-subscriptions, in a desktop app you can actually watch.
+**Agents get their own copy of the repository. Your working tree is never touched.**
 
 </div>
 
 ---
 
-## What it is
+## The problem
 
-You probably have two or three AI coding CLIs installed. Each one is good. None of them
-talk to each other, none of them review each other's work, and none of them can run while
-you do something else.
+Letting an autonomous agent edit the directory you have open in your editor is how you end
+up with half-written files during a rebase, a `git status` you cannot read, and no clean way
+to tell what the agent changed from what you changed.
 
-NEXCODE turns them into a team.
+## What this branch adds
 
-You write a goal. An **operator** agent reads it, writes a plan, and hands the work to
-specialist agents running as separate CLI processes. A reviewer checks the result. Your
-own test and lint commands run as a hard gate. Only then does the work ship, on its own
-git branch, without ever touching your working tree.
-
-Everything is visible while it happens: which agent is working, what it is writing, line
-by line, and why the operator decided what it decided.
-
-## How it works
+Every task gets its own git worktree and its own branch.
 
 ```
-Goal
- |
- +--> Operator plans and delegates
- |         |
- |         +--> planner    (writes the approach)
- |         +--> executor   (writes the code)
- |         +--> reviewer   (finds the problems)
- |
- +--> Verification gate    (your real test / typecheck / lint commands)
- |
- +--> Delivery on an isolated git branch
+your-repo/                        <- untouched, yours
+  .git/
+  src/
+
+userData/worktrees/<task-id>/     <- the agent's world
+  src/                            <- full checkout of HEAD
+  node_modules -> linked
 ```
-
-The operator never writes code. Specialists never decide when the task is done. The
-verification gate outranks both: a model saying "tests pass" is not evidence, a green
-command is.
-
-## What makes it different
-
-**Real evidence, not model claims.** After every round, NEXCODE runs the commands you
-define. A red gate closes every delivery shortcut and sends the decision back to the
-operator. If the operator insists anyway, the first attempt is rejected outright. Work is
-never silently shipped on a broken build, and never thrown away either.
-
-**Your working tree stays clean.** Each task runs in its own git worktree on its own
-branch. Nothing is pushed anywhere. If a task fails, its tree is kept so you can inspect it.
-
-**Parallel by default, safely.** Multiple tasks can run at once, each in its own isolated
-slot. Concurrency requires isolation: NEXCODE refuses to run tasks in parallel without it,
-because that corrupts working trees.
-
-**One click back.** Every task snapshots the working directory before it starts. "Return to
-this version" restores changed and deleted files, removes what was added, and takes a redo
-snapshot first, so undo is itself undoable.
-
-**Nothing sensitive leaks into the UI.** `.env` files, credentials and private keys are
-never rendered into the live diff or stored in snapshots.
-
-**Bring your own everything.** CLI agents use the subscriptions you already pay for. API
-providers are available as a second execution path, with keys in your OS keychain and
-per-call cost tracking.
-
-## The four surfaces
-
-| Surface | What it shows |
-|---|---|
-| **Command Center** | Write a goal, watch the queue, the live event stream, approvals and engine controls |
-| **Board** | Task lifecycle across Pending, Running, Completed and Failed |
-| **Live Code** | Git-style file and hunk diffs, streaming as agents write |
-| **Team Flow** | The orchestration scene: operator core, agent nodes, data packets and a full timeline |
-
-## Getting started
-
-Requires Node.js 22+, pnpm, and at least one supported coding CLI already installed and
-signed in.
-
-```bash
-git clone https://github.com/alierenlibusiness/nexcode.git
-cd nexcode
-pnpm install
-pnpm dev
-```
-
-NEXCODE discovers the CLIs on your machine, checks whether they are ready, and builds the
-agent catalog for you. Open the Command Center, start the engine, and give it a goal.
-
-### Turning on the good parts
-
-Both are off by default so behavior is identical to a plain run until you opt in.
 
 ```jsonc
 {
-  // Run your real commands as a delivery gate.
-  "verify": {
-    "commands": ["pnpm typecheck", "pnpm test"],
-    "blockOnFailure": true
-  },
-
-  // Give every task its own git worktree and branch.
   "worktree": {
     "mode": "task",
     "branchPrefix": "nexcode/",
-    "linkPaths": ["node_modules"]
-  },
-
-  // Only allowed once isolation is on.
-  "maxConcurrentTasks": 3
+    "setupCommands": ["pnpm install --frozen-lockfile"],
+    "linkPaths": ["node_modules", ".env"],
+    "commit": true,
+    "keepOnFailure": true,
+    "setupTimeoutSeconds": 600
+  }
 }
 ```
 
-## Scheduled work
+Turn it on and the delivery stops being a pile of edits in your checkout and becomes a branch
+you can review, diff and merge like any other.
 
-Recurring tasks use plain presets rather than cron syntax: every N minutes, daily at a
-time, or weekly on chosen days. A scheduled task is queued when it comes due. It never
-starts a stopped engine on its own.
+## What happens during a task
 
-## Use NEXCODE from another agent
+1. `git worktree add -b nexcode/task-<id> <path> HEAD`
+2. `linkPaths` are symlinked in, so a fresh tree does not need a fresh `node_modules`
+3. `setupCommands` run inside the isolated tree
+4. The agent, the live diff, checkpoints and the verification gate all target that tree
+5. On delivery, changes are staged and committed to the branch
+6. The tree is removed; the branch and its commits stay
 
-NEXCODE also exposes itself over MCP, so Claude Code or any other MCP client can queue work
-into it, check status and resolve approvals from inside its own flow. Engine start and stop
-is gated behind an explicit setting and stays hidden until you enable it.
+**Nothing is pushed.** No remote is contacted, no PR is opened. What happens to the branch
+afterwards is your decision.
 
-## Verify a build
+## The subtle part
 
-```bash
-pnpm -r build
-pnpm typecheck
-pnpm lint
-pnpm test
+The working directory and the project directory are not the same thing.
+
+Agents work in the isolated tree. But the project profile (`.nexcode/CONTEXT.md`), which is
+how NEXCODE remembers what a codebase is about across tasks, is read from and written to the
+**original repository**. Write it into the worktree and it disappears when the worktree is
+removed, silently, and the system quietly gets dumber over time.
+
+The engine models this explicitly:
+
+```ts
+interface EngineTask {
+  workingDir: string;   // isolated tree: agents, diffs, checkpoints, verification
+  projectDir?: string;  // original repo: project profile lives here
+}
 ```
 
-## Documentation
+## Failure behavior
 
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) walks through the module boundaries and
-  the invariants the system guarantees.
-- Each feature branch carries a README focused on that subsystem.
+Isolation never costs you a task. If git is missing, the directory is not a repository, or
+HEAD has no commits, the setup emits a warning and the task runs in the main tree exactly as
+it would have before.
 
-## Credits
+If a task fails, `keepOnFailure` leaves the tree in place with its path reported, so you can
+open it and see what the agent actually did.
 
-The product model is adapted from [CrewCtl](https://github.com/omergocmen/CrewCtl) by Ömer
-Göçmen, released under the MIT license. NEXCODE reimplements that model on a different
-foundation: TypeScript, SQLite persistence and an Electron desktop application.
+Empty commits are never created. If a task changed nothing, that is reported instead.
+
+## Safety
+
+`linkPaths` entries are relative and contained. Absolute paths and `..` escapes are stripped
+during config normalization, so a link target can never point outside the working tree.
+
+## Files
+
+```
+packages/core/src/worktree/worktree.ts        setup, finalize, cleanup
+packages/core/src/worktree/worktree.test.ts   26 tests, all against a fake git port
+apps/desktop/src/process-ports.ts             real git execution
+apps/desktop/src/engine-host.ts               task lifecycle wiring
+```
+
+The manager is pure: git runs through an injected port, so branch naming, fallback paths,
+link handling, commit rules and cleanup are all tested without touching a real repository.
+
+## Verify
+
+```bash
+pnpm test --filter worktree
+```
