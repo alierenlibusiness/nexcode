@@ -1,155 +1,114 @@
 <div align="center">
 
-# NEXCODE
+# CLI Discovery and Hybrid Execution
 
-**Run every coding CLI you already have as one AI engineering team.**
-
-Claude Code, Codex CLI, Gemini CLI, OpenCode and Antigravity, coordinated by a single
-operator that plans, delegates, reviews and ships. On your machine, with your own
-subscriptions, in a desktop app you can actually watch.
+**Find the coding CLIs already on the machine, then run them, or fall back to an API.**
 
 </div>
 
 ---
 
-## What it is
+## What this branch is about
 
-You probably have two or three AI coding CLIs installed. Each one is good. None of them
-talk to each other, none of them review each other's work, and none of them can run while
-you do something else.
+NEXCODE has no agents of its own. It uses the ones you already installed and already pay
+for. That only works if it can find them reliably on three operating systems and a dozen
+package managers.
 
-NEXCODE turns them into a team.
+## Discovery
 
-You write a goal. An **operator** agent reads it, writes a plan, and hands the work to
-specialist agents running as separate CLI processes. A reviewer checks the result. Your
-own test and lint commands run as a hard gate. Only then does the work ship, on its own
-git branch, without ever touching your working tree.
+`PATH` is not enough. Coding CLIs get installed through npm, pnpm, Yarn, Bun, Volta, Scoop,
+WinGet, Chocolatey, Homebrew and plain Unix prefixes, and several of those do not touch a
+shell `PATH` an Electron process inherits.
 
-Everything is visible while it happens: which agent is working, what it is writing, line
-by line, and why the operator decided what it decided.
+Discovery scans all of them, then builds an agent profile per CLI it finds: command, default
+autonomous arguments, capabilities, orchestration role and timeout metadata.
 
-## How it works
+Known adapters: `claude`, `codex`, `gemini`, `opencode`, `antigravity`. Anything else becomes
+`custom` and still works, just without catalog-backed model handling.
+
+## Profile repair
+
+Configuration files get hand-edited, copied between machines and carried across upgrades.
+A profile saying `adapter: claude` with `cmd: codex` will send Claude flags to Codex and fail
+in a way that is genuinely hard to diagnose.
+
+So a recognized command name **outrules** a conflicting adapter field. On conflict the target
+CLI's defaults are installed and the stale model override is dropped. This runs at startup,
+at config save and before every invocation, so a broken profile repairs itself rather than
+failing repeatedly.
+
+Custom wrapper commands that carry no recognizable CLI name keep whatever adapter was set
+explicitly, since guessing there would break legitimate setups.
+
+## Model priority
 
 ```
-Goal
- |
- +--> Operator plans and delegates
- |         |
- |         +--> planner    (writes the approach)
- |         +--> executor   (writes the code)
- |         +--> reviewer   (finds the problems)
- |
- +--> Verification gate    (your real test / typecheck / lint commands)
- |
- +--> Delivery on an isolated git branch
+explicit agent override  >  cliSettings[adapter].model  >  CLI account default
 ```
 
-The operator never writes code. Specialists never decide when the task is done. The
-verification gate outranks both: a model saying "tests pass" is not evidence, a green
-command is.
+An auto-discovered profile's model suggestion does **not** count as an override. Only a
+deliberate user choice (`modelOverride: true`) beats the global setting. Without that rule,
+a background rediscovery silently overwrites the model you picked.
 
-## What makes it different
+If a profile already contains an explicit `--model` argument, nothing is added, so no
+duplicate flags.
 
-**Real evidence, not model claims.** After every round, NEXCODE runs the commands you
-define. A red gate closes every delivery shortcut and sends the decision back to the
-operator. If the operator insists anyway, the first attempt is rejected outright. Work is
-never silently shipped on a broken build, and never thrown away either.
+## Health checks
 
-**Your working tree stays clean.** Each task runs in its own git worktree on its own
-branch. Nothing is pushed anywhere. If a task fails, its tree is kept so you can inspect it.
+Readiness is measured by running the CLI, not by checking whether a file exists.
 
-**Parallel by default, safely.** Multiple tasks can run at once, each in its own isolated
-slot. Concurrency requires isolation: NEXCODE refuses to run tasks in parallel without it,
-because that corrupts working trees.
+Health checks use the same prompt materialization as a real run, including temporary prompt
+files for adapters that read from disk, and clean those files up on every exit path. A check
+that behaves differently from a real invocation tells you nothing.
 
-**One click back.** Every task snapshots the working directory before it starts. "Return to
-this version" restores changed and deleted files, removes what was added, and takes a redo
-snapshot first, so undo is itself undoable.
+Failures are classified rather than lumped together: auth required, auth invalid, rate limit,
+quota exhausted, model overloaded, network error, region blocked, provider unavailable, CLI
+not found, timeout, stalled, version incompatible.
 
-**Nothing sensitive leaks into the UI.** `.env` files, credentials and private keys are
-never rendered into the live diff or stored in snapshots.
+That classification drives recovery. Transient failures retry on the same agent. Permanent
+ones quarantine it for the session and fail the work over to another healthy agent.
 
-**Bring your own everything.** CLI agents use the subscriptions you already pay for. API
-providers are available as a second execution path, with keys in your OS keychain and
-per-call cost tracking.
+## Silence timeouts
 
-## The four surfaces
+Different CLIs go quiet for different lengths of time while still working. Killing on a
+single global timeout either wastes minutes or murders healthy long runs.
 
-| Surface | What it shows |
+| Adapter | Silence limit |
 |---|---|
-| **Command Center** | Write a goal, watch the queue, the live event stream, approvals and engine controls |
-| **Board** | Task lifecycle across Pending, Running, Completed and Failed |
-| **Live Code** | Git-style file and hunk diffs, streaming as agents write |
-| **Team Flow** | The orchestration scene: operator core, agent nodes, data packets and a full timeline |
+| codex, gemini | 180s |
+| claude | 240s |
+| opencode | 300s |
 
-## Getting started
+A stall is reported honestly: "no new output for a long time", not "the CLI never ran". The
+distinction matters when an agent produced real work before going quiet.
 
-Requires Node.js 22+, pnpm, and at least one supported coding CLI already installed and
-signed in.
+## Hybrid execution
+
+CLI orchestration is the core, but API providers remain a second execution path:
+
+- Anthropic, OpenAI-compatible and Google adapters
+- API keys in the OS keychain, never in a file
+- Per-call cost logging split by connection mode
+- Quota tracking so `cli_first` agents fall back to API when a subscription window fills
+
+You get subscription economics by default and API reliability when the subscription runs out.
+
+## Files
+
+```
+packages/core/src/providers/cli/
+  adapters.ts     per-CLI specs, argument construction, prompt materialization
+  discovery.ts    filesystem and package manager scanning
+  health.ts       readiness probes and failure classification
+  runner.ts       process execution
+packages/core/src/providers/
+  registry.ts pricing.ts cost.ts quota.ts factory.ts
+  anthropic.ts openai-compatible.ts google.ts
+```
+
+## Verify
 
 ```bash
-git clone https://github.com/alierenlibusiness/nexcode.git
-cd nexcode
-pnpm install
-pnpm dev
+pnpm test --filter providers
+pnpm test --filter cli
 ```
-
-NEXCODE discovers the CLIs on your machine, checks whether they are ready, and builds the
-agent catalog for you. Open the Command Center, start the engine, and give it a goal.
-
-### Turning on the good parts
-
-Both are off by default so behavior is identical to a plain run until you opt in.
-
-```jsonc
-{
-  // Run your real commands as a delivery gate.
-  "verify": {
-    "commands": ["pnpm typecheck", "pnpm test"],
-    "blockOnFailure": true
-  },
-
-  // Give every task its own git worktree and branch.
-  "worktree": {
-    "mode": "task",
-    "branchPrefix": "nexcode/",
-    "linkPaths": ["node_modules"]
-  },
-
-  // Only allowed once isolation is on.
-  "maxConcurrentTasks": 3
-}
-```
-
-## Scheduled work
-
-Recurring tasks use plain presets rather than cron syntax: every N minutes, daily at a
-time, or weekly on chosen days. A scheduled task is queued when it comes due. It never
-starts a stopped engine on its own.
-
-## Use NEXCODE from another agent
-
-NEXCODE also exposes itself over MCP, so Claude Code or any other MCP client can queue work
-into it, check status and resolve approvals from inside its own flow. Engine start and stop
-is gated behind an explicit setting and stays hidden until you enable it.
-
-## Verify a build
-
-```bash
-pnpm -r build
-pnpm typecheck
-pnpm lint
-pnpm test
-```
-
-## Documentation
-
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) walks through the module boundaries and
-  the invariants the system guarantees.
-- Each feature branch carries a README focused on that subsystem.
-
-## Credits
-
-The product model is adapted from [CrewCtl](https://github.com/omergocmen/CrewCtl) by Ömer
-Göçmen, released under the MIT license. NEXCODE reimplements that model on a different
-foundation: TypeScript, SQLite persistence and an Electron desktop application.
