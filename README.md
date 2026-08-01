@@ -1,155 +1,110 @@
 <div align="center">
 
-# NEXCODE
+# Verification Gate
 
-**Run every coding CLI you already have as one AI engineering team.**
-
-Claude Code, Codex CLI, Gemini CLI, OpenCode and Antigravity, coordinated by a single
-operator that plans, delegates, reviews and ships. On your machine, with your own
-subscriptions, in a desktop app you can actually watch.
+**A model saying "the tests pass" is not evidence. A green command is.**
 
 </div>
 
 ---
 
-## What it is
+## The problem
 
-You probably have two or three AI coding CLIs installed. Each one is good. None of them
-talk to each other, none of them review each other's work, and none of them can run while
-you do something else.
+Ask any coding agent whether its work is done and it will tell you yes. Ask it to review its
+own output and it will usually approve. The whole quality loop in most agent systems rests on
+a sentence the model generated, which is exactly the thing you cannot verify by generating
+more sentences.
 
-NEXCODE turns them into a team.
+## What this branch adds
 
-You write a goal. An **operator** agent reads it, writes a plan, and hands the work to
-specialist agents running as separate CLI processes. A reviewer checks the result. Your
-own test and lint commands run as a hard gate. Only then does the work ship, on its own
-git branch, without ever touching your working tree.
-
-Everything is visible while it happens: which agent is working, what it is writing, line
-by line, and why the operator decided what it decided.
-
-## How it works
-
-```
-Goal
- |
- +--> Operator plans and delegates
- |         |
- |         +--> planner    (writes the approach)
- |         +--> executor   (writes the code)
- |         +--> reviewer   (finds the problems)
- |
- +--> Verification gate    (your real test / typecheck / lint commands)
- |
- +--> Delivery on an isolated git branch
-```
-
-The operator never writes code. Specialists never decide when the task is done. The
-verification gate outranks both: a model saying "tests pass" is not evidence, a green
-command is.
-
-## What makes it different
-
-**Real evidence, not model claims.** After every round, NEXCODE runs the commands you
-define. A red gate closes every delivery shortcut and sends the decision back to the
-operator. If the operator insists anyway, the first attempt is rejected outright. Work is
-never silently shipped on a broken build, and never thrown away either.
-
-**Your working tree stays clean.** Each task runs in its own git worktree on its own
-branch. Nothing is pushed anywhere. If a task fails, its tree is kept so you can inspect it.
-
-**Parallel by default, safely.** Multiple tasks can run at once, each in its own isolated
-slot. Concurrency requires isolation: NEXCODE refuses to run tasks in parallel without it,
-because that corrupts working trees.
-
-**One click back.** Every task snapshots the working directory before it starts. "Return to
-this version" restores changed and deleted files, removes what was added, and takes a redo
-snapshot first, so undo is itself undoable.
-
-**Nothing sensitive leaks into the UI.** `.env` files, credentials and private keys are
-never rendered into the live diff or stored in snapshots.
-
-**Bring your own everything.** CLI agents use the subscriptions you already pay for. API
-providers are available as a second execution path, with keys in your OS keychain and
-per-call cost tracking.
-
-## The four surfaces
-
-| Surface | What it shows |
-|---|---|
-| **Command Center** | Write a goal, watch the queue, the live event stream, approvals and engine controls |
-| **Board** | Task lifecycle across Pending, Running, Completed and Failed |
-| **Live Code** | Git-style file and hunk diffs, streaming as agents write |
-| **Team Flow** | The orchestration scene: operator core, agent nodes, data packets and a full timeline |
-
-## Getting started
-
-Requires Node.js 22+, pnpm, and at least one supported coding CLI already installed and
-signed in.
-
-```bash
-git clone https://github.com/alierenlibusiness/nexcode.git
-cd nexcode
-pnpm install
-pnpm dev
-```
-
-NEXCODE discovers the CLIs on your machine, checks whether they are ready, and builds the
-agent catalog for you. Open the Command Center, start the engine, and give it a goal.
-
-### Turning on the good parts
-
-Both are off by default so behavior is identical to a plain run until you opt in.
+After every round of agent work, and **before** any completion decision, NEXCODE runs the
+commands you actually use.
 
 ```jsonc
 {
-  // Run your real commands as a delivery gate.
   "verify": {
-    "commands": ["pnpm typecheck", "pnpm test"],
-    "blockOnFailure": true
-  },
-
-  // Give every task its own git worktree and branch.
-  "worktree": {
-    "mode": "task",
-    "branchPrefix": "nexcode/",
-    "linkPaths": ["node_modules"]
-  },
-
-  // Only allowed once isolation is on.
-  "maxConcurrentTasks": 3
+    "commands": ["pnpm typecheck", "pnpm test", "pnpm lint"],
+    "timeoutSeconds": 600,
+    "maxOutputChars": 6000,
+    "blockOnFailure": true,
+    "maxAttempts": 2
+  }
 }
 ```
 
-## Scheduled work
+Commands run fail-fast in the task's working directory. The first red command stops the run;
+there is no point running lint when typecheck is already broken.
 
-Recurring tasks use plain presets rather than cron syntax: every N minutes, daily at a
-time, or weekly on chosen days. A scheduled task is queued when it comes due. It never
-starts a stopped engine on its own.
+## What a red gate does
 
-## Use NEXCODE from another agent
+A failing gate is not a log line. It changes what the engine is allowed to do:
 
-NEXCODE also exposes itself over MCP, so Claude Code or any other MCP client can queue work
-into it, check status and resolve approvals from inside its own flow. Engine start and stop
-is gated behind an explicit setting and stays hidden until you enable it.
+| Shortcut | Green gate | Red gate |
+|---|---|---|
+| FAST mode early completion | allowed | closed |
+| PASS fast path (skip second operator call) | allowed | closed |
+| Review loop governor | allowed | closed |
+| Operator says "complete" | delivered | **rejected once** |
 
-## Verify a build
+That last row is the important one. If the operator decides to ship anyway while the gate is
+red, the decision is rejected and a correction round is forced. The rejection is logged and
+surfaced in the UI.
 
-```bash
-pnpm -r build
-pnpm typecheck
-pnpm lint
-pnpm test
+## What a red gate does not do
+
+It does not delete work.
+
+If the operator comes back a second time still wanting to complete, the task ships with the
+gate result written into its verification summary and its remaining risk. Two hours of agent
+output are never discarded because one test stayed red. You get the work, plus an honest
+record of what is broken.
+
+`maxAttempts` controls how many times the gate may block. `blockOnFailure: false` turns the
+gate into pure reporting.
+
+## Evidence, not a status code
+
+The operator does not just learn that something failed. It gets the output:
+
+```
+## Doğrulama kapısı
+
+Durum: KIRMIZI
+
+### pnpm test [DÜŞTÜ]
+
+​```
+FAIL src/auth/login.test.ts
+  expected 401, received 500
+​```
+
+Kapı kırmızı. Kestirme teslimat yapma: düşen komutu geçirecek düzeltmeyi planla veya
+sorunun neden giderilemediğini kalan riskte açıkça belirt.
 ```
 
-## Documentation
+Long output is clipped from the middle, never the end. Test runners put the summary last, so
+tail-clipping would throw away the part that matters.
 
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) walks through the module boundaries and
-  the invariants the system guarantees.
-- Each feature branch carries a README focused on that subsystem.
+## Off by default
 
-## Credits
+With `verify.commands` empty the gate never runs, never spawns a process, and behavior is
+byte-for-byte identical to a build without it. Opting in is a deliberate choice.
 
-The product model is adapted from [CrewCtl](https://github.com/omergocmen/CrewCtl) by Ömer
-Göçmen, released under the MIT license. NEXCODE reimplements that model on a different
-foundation: TypeScript, SQLite persistence and an Electron desktop application.
+## Files
+
+```
+packages/core/src/verify/verify-gate.ts        the gate
+packages/core/src/verify/verify-gate.test.ts   gate behavior
+packages/core/src/engine/engine-verify.test.ts engine integration contracts
+apps/desktop/src/process-ports.ts              real process execution
+```
+
+## Verify
+
+```bash
+pnpm test --filter verify
+```
+
+The integration tests cover the cases that matter: the gate is skipped when unconfigured, a
+green gate leaves the fast path intact, a red gate closes it, a stubborn operator is rejected
+exactly once, and the work still ships on the second attempt.
