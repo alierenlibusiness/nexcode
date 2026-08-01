@@ -19,8 +19,7 @@ import {
 } from "@nexcode/core/db";
 import { KeyringSecretStore } from "@nexcode/core/keyring";
 import { registerIpcHandlers, type IpcContext } from "./ipc";
-import { EngineHost } from "./engine-host";
-import { startScheduler } from "./scheduler";
+import { EngineHost, startScheduler } from "@nexcode/core/host";
 
 const KEYCHAIN_SERVICE = "nexcode";
 

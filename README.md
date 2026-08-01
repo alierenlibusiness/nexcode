@@ -108,3 +108,7 @@ link handling, commit rules and cleanup are all tested without touching a real r
 ```bash
 pnpm test --filter worktree
 ```
+
+## License
+
+MIT. See [`LICENSE`](LICENSE).

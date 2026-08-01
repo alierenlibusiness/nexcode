@@ -1,18 +1,37 @@
-/** Yapısal (JSON) loglama (PRD §18). */
+/** Yapısal (JSON) loglama. */
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
 export type LogFields = Record<string, unknown>;
 
+export interface LogRecord {
+  ts: string;
+  level: LogLevel;
+  message: string;
+  [field: string]: unknown;
+}
+
+export type LogSink = (record: LogRecord) => void;
+
+/**
+ * Loglar **standart hataya** yazılır, standart çıktıya değil.
+ *
+ * Standart çıktı programın kendi çıktısına ayrılmıştır. MCP stdio sunucusu stdout'u
+ * JSON-RPC protokolü için kullanır; oraya düşen tek bir log satırı istemcinin
+ * ayrıştırmasını bozar ve bağlantıyı öldürür.
+ */
+const defaultSink: LogSink = (record) => {
+  process.stderr.write(`${JSON.stringify(record)}\n`);
+};
+
+let sink: LogSink = defaultSink;
+
+/** Log hedefini değiştirir (ör. masaüstünde dosyaya ya da devtools'a yazmak için). */
+export function setLogSink(next: LogSink | null): void {
+  sink = next ?? defaultSink;
+}
+
 function emit(level: LogLevel, message: string, fields?: LogFields): void {
-  const record = { ts: new Date().toISOString(), level, message, ...fields };
-  const line = JSON.stringify(record);
-  if (level === "error") {
-    console.error(line);
-  } else if (level === "warn") {
-    console.warn(line);
-  } else {
-    console.log(line);
-  }
+  sink({ ts: new Date().toISOString(), level, message, ...fields });
 }
 
 export const logger = {
