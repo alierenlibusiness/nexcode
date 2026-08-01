@@ -17,7 +17,7 @@ Adding tests for a function, class or module.
 - Name each test after the behaviour it pins: what, under which condition, expecting what.
 - One logical assertion per test; a failing name should identify the defect.
 - Cover the edge cases that actually break: empty, boundary, duplicate, unicode, null.
-- Keep tests deterministic — inject clocks, randomness and I/O.
+- Keep tests deterministic: inject clocks, randomness and I/O.
 - Do not mock what you own unless it crosses a real boundary.
 
 ## Verification

@@ -18,14 +18,14 @@ describe("normalizeConfig", () => {
     expect(config.liveDiff).toBe(true);
   });
 
-  it("saftır — girdiyi mutasyona uğratmaz", () => {
+  it("saftır: girdiyi mutasyona uğratmaz", () => {
     const input = { approvalMode: "ask", agents: { a: { id: "a", name: "A", role: "executor" } } };
     const snapshot = JSON.parse(JSON.stringify(input)) as unknown;
     normalizeConfig(input);
     expect(input).toEqual(snapshot);
   });
 
-  it("idempotenttir — kendi çıktısına yeniden uygulandığında değişmez", () => {
+  it("idempotenttir: kendi çıktısına yeniden uygulandığında değişmez", () => {
     const once = normalizeConfig({
       approvalMode: "ask",
       riskyPatterns: ["rm -rf", "rm -rf", "git push"],
@@ -224,7 +224,7 @@ describe("FALLBACK_CONFIG", () => {
     ]);
   });
 
-  it("otonom onay alınmadan gelir — motor onaysız başlatılamaz", () => {
+  it("otonom onay alınmadan gelir: motor onaysız başlatılamaz", () => {
     expect(FALLBACK_CONFIG.autonomousConsentAcceptedAt).toBeNull();
   });
 });

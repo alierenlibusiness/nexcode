@@ -16,7 +16,7 @@ Planning verification for a feature or a release.
 - Map each acceptance criterion to the cheapest level that can prove it.
 - Push logic tests down to unit level; keep e2e for the few critical journeys.
 - Name explicitly what will NOT be tested and why.
-- Identify the risky areas — new boundaries, data loss, auth — and over-cover those.
+- Identify the risky areas: new boundaries, data loss, auth; and over-cover those.
 - State the command that runs each level.
 
 ## Verification

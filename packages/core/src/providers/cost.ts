@@ -1,7 +1,7 @@
 import type { CompletionRequest, CostEstimate, TokenUsage } from "./types";
 import type { ModelPricing } from "./pricing";
 
-/** Rough token tahmini (~4 karakter/token) — gerçek usage yoksa kullanılır. */
+/** Rough token tahmini (~4 karakter/token): gerçek usage yoksa kullanılır. */
 export function estimateTokens(req: CompletionRequest): number {
   const chars =
     (req.system?.length ?? 0) + req.messages.reduce((sum, m) => sum + m.content.length, 0);

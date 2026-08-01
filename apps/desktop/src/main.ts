@@ -27,7 +27,7 @@ const KEYCHAIN_SERVICE = "nexcode";
 let mainWindow: BrowserWindow | null = null;
 
 // Renderer'ı özel `app://` protokolünden sunarız. Bu, Next.js statik export'unun MUTLAK
-// asset yollarını (`/_next/...`) doğru çözer — `file://` altında bunlar bozulur (PRD §5.1).
+// asset yollarını (`/_next/...`) doğru çözer: `file://` altında bunlar bozulur (PRD §5.1).
 // Şema, app hazır olmadan ÖNCE privileged kaydedilmeli.
 protocol.registerSchemesAsPrivileged([
   { scheme: "app", privileges: { standard: true, secure: true, supportFetchAPI: true } },

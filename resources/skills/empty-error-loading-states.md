@@ -16,7 +16,7 @@ Any view that fetches or lists data.
 - Empty state explains what belongs here and offers the action that creates it.
 - Loading state preserves layout to avoid a shift when data arrives.
 - Error state says what failed, whether it is retryable, and offers the retry.
-- Distinguish empty from filtered-empty — they need different guidance.
+- Distinguish empty from filtered-empty: they need different guidance.
 - Never show a bare spinner as a terminal state.
 
 ## Verification

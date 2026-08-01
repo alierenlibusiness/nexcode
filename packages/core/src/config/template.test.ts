@@ -7,7 +7,7 @@ import { FALLBACK_CONFIG } from "./defaults";
 /**
  * `resources/nexcode.config.default.json` kullanıcıya görünen, paylaşılabilir ayar
  * şablonudur; `FALLBACK_CONFIG` ise aynı değerlerin kod içi son çare kopyasıdır.
- * İkisinin ayrışması, kullanıcının gördüğü ayarla uygulamanın davranışını ayırır —
+ * İkisinin ayrışması, kullanıcının gördüğü ayarla uygulamanın davranışını ayırır:
  * bu test o ayrışmayı engeller.
  */
 const TEMPLATE_PATH = join(__dirname, "..", "..", "..", "..", "resources", "nexcode.config.default.json");

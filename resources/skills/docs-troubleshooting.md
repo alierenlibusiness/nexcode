@@ -16,7 +16,7 @@ Documenting known failure modes.
 - Organise by the symptom the user sees, not by the subsystem.
 - Quote the actual error text so search finds it.
 - Give the cause, then the fix, then how to confirm it worked.
-- Cover environment issues — wrong version, missing tool, permissions.
+- Cover environment issues: wrong version, missing tool, permissions.
 - Link to the issue tracker for unresolved problems.
 
 ## Verification

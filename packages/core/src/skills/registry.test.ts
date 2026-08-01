@@ -20,7 +20,7 @@ describe("parseSkillFile", () => {
     expect(parsed.body).toContain("# Unit Testing");
   });
 
-  it("frontmatter yoksa dosya adını ve ilk başlığı kullanır — dosya sessizce düşmez", () => {
+  it("frontmatter yoksa dosya adını ve ilk başlığı kullanır: dosya sessizce düşmez", () => {
     const parsed = parseSkillFile("skills/debugging.md", "# Hata Ayıklama\n\nAdımlar…");
     expect(parsed.name).toBe("debugging");
     expect(parsed.description).toBe("Hata Ayıklama");
@@ -95,7 +95,7 @@ describe("matchSkills", () => {
     expect(hints[0]?.summary.endsWith("…")).toBe(true);
   });
 
-  it("rehber dosyasının yolunu taşır — uzman gerekirse okur", () => {
+  it("rehber dosyasının yolunu taşır: uzman gerekirse okur", () => {
     const hints = matchSkills(catalog, "endpoint", { limit: 12, charBudget: 2400 });
     expect(hints[0]?.referencePath).toBe("skills/api-design.md");
   });

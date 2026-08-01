@@ -16,7 +16,7 @@ Adding or changing persistent structure.
 - Let constraints enforce invariants: NOT NULL, UNIQUE, CHECK, foreign keys.
 - Choose the narrowest correct type; avoid text for structured values.
 - Index for the queries you actually run, and confirm with a query plan.
-- Decide the delete behaviour explicitly — cascade, restrict or set null.
+- Decide the delete behaviour explicitly: cascade, restrict or set null.
 - Store timestamps in UTC with an explicit type.
 - Do not denormalise before measuring a real problem.
 

@@ -51,10 +51,10 @@ incele. Bu rolde çözümü değiştirmezsin.
 ```text
 DEĞERLENDİRME: <1-2 cümlelik sonuç>
 BULGULAR:
-- [CRITICAL|HIGH|MEDIUM|LOW] <dosya/konum> — <sorun, etkisi ve düzeltme yönü>
+- [CRITICAL|HIGH|MEDIUM|LOW] <dosya/konum>: <sorun, etkisi ve düzeltme yönü>
   # Bulgu yoksa: - Yok
 DOĞRULAMA:
-- `<çalıştırılan komut veya kontrol>` — PASS|FAIL|NOT RUN (<kısa kanıt>)
+- `<çalıştırılan komut veya kontrol>`: PASS|FAIL|NOT RUN (<kısa kanıt>)
 KALAN RİSK: <varsa kısa açıklama> | Yok
 VERDICT: PASS
 ```

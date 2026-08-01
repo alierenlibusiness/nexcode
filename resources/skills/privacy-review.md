@@ -14,7 +14,7 @@ A feature that stores or transmits personal data.
 ## Checklist
 
 - List every personal field collected and the purpose that justifies it.
-- Drop what has no stated purpose — the cheapest privacy control is not collecting.
+- Drop what has no stated purpose: the cheapest privacy control is not collecting.
 - Define retention and the mechanism that actually deletes.
 - Check third-party transmission, including analytics and error reporting.
 - Confirm export and deletion requests can be fulfilled.

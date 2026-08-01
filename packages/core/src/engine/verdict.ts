@@ -35,7 +35,7 @@ function lastNonEmptyLine(text: string): string | null {
 /**
  * İnceleme kararını okur. Sözleşme gereği çıktının **son** satırı, arkasında hiçbir metin
  * olmadan `VERDICT: PASS` veya `VERDICT: FAIL` olmalıdır. Son satır uymuyorsa karar
- * belirsizdir (`null`) ve motor bunu inceleme başarısızlığı olarak ele alır — sessizce
+ * belirsizdir (`null`) ve motor bunu inceleme başarısızlığı olarak ele alır: sessizce
  * PASS varsaymaz.
  */
 export function parseVerdict(text: string): ReviewVerdict | null {
@@ -55,7 +55,7 @@ export function parseWorkerStatus(text: string): WorkerStatus | null {
 }
 
 /**
- * Bir incelemenin `FAIL` gerekçelerini çıkarır — sonraki turda hedefli düzeltme görevi
+ * Bir incelemenin `FAIL` gerekçelerini çıkarır: sonraki turda hedefli düzeltme görevi
  * açmak için kullanılır. Yalnızca CRITICAL/HIGH bulgular düzeltme gerektirir; MEDIUM/LOW
  * kalan risk olarak raporlanır.
  */

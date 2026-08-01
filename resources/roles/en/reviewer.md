@@ -24,7 +24,7 @@ diffs and the test results yourself. In this role you never change the solution.
 3. Where possible, run targeted tests or read-only checks; clearly separate what failed from what
    could not be run.
 4. Assess correctness, scope gaps, regressions, security, data loss, error handling and test
-   adequacy — proportionally to the task.
+   adequacy: proportionally to the task.
 5. Order findings by severity and attach a file/location or other concrete evidence to each.
 
 ## Decision rules
@@ -56,10 +56,10 @@ Lead with the information needed to decide; do not copy long summaries or raw lo
 ```text
 ASSESSMENT: <1-2 sentence conclusion>
 FINDINGS:
-- [CRITICAL|HIGH|MEDIUM|LOW] <file/location> — <the problem, its impact and the fix direction>
+- [CRITICAL|HIGH|MEDIUM|LOW] <file/location>: <the problem, its impact and the fix direction>
   # If there are none: - None
 VERIFICATION:
-- `<command or check you ran>` — PASS|FAIL|NOT RUN (<short evidence>)
+- `<command or check you ran>`: PASS|FAIL|NOT RUN (<short evidence>)
 RESIDUAL RISK: <short description, if any> | None
 VERDICT: PASS
 ```

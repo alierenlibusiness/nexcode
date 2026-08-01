@@ -10,7 +10,7 @@ const root = dirname(dirname(fileURLToPath(import.meta.url)));
 export function rebuildNative(runtime) {
   const pnpmDir = join(root, "node_modules", ".pnpm");
   if (!existsSync(pnpmDir)) {
-    throw new Error("node_modules/.pnpm yok — önce `pnpm install` çalıştır.");
+    throw new Error("node_modules/.pnpm yok: önce `pnpm install` çalıştır.");
   }
   const entry = readdirSync(pnpmDir).find((d) => d.startsWith("better-sqlite3@"));
   if (!entry) throw new Error("better-sqlite3 bulunamadı.");

@@ -25,7 +25,7 @@ extraResources:
   - from: ../renderer/out
     to: renderer/out
 
-# Uygulama ikonu — Windows için gerçek .ico (NSIS installer ikonları .png kabul etmez).
+# Uygulama ikonu: Windows için gerçek .ico (NSIS installer ikonları .png kabul etmez).
 win:
   icon: build/icon.ico
   target:
@@ -35,7 +35,7 @@ win:
       arch: [x64]
   # Üretim için code-signing sertifikası burada yapılandırılır (PRD §21).
 
-# Sihirbazlı (assisted) NSIS installer — kullanıcı profiline kurar (admin gerekmez).
+# Sihirbazlı (assisted) NSIS installer: kullanıcı profiline kurar (admin gerekmez).
 nsis:
   oneClick: false # sihirbaz sayfalarını göster
   perMachine: false # makine geneli değil, kullanıcı profili (%LOCALAPPDATA%\Programs\NEXCODE)

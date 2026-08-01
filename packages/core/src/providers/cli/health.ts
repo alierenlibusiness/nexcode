@@ -17,7 +17,7 @@ import { logger } from "../../logger";
  * 2. Geçici prompt dosyası **her çıkış yolunda** (başarı, hata, timeout) silinir.
  *
  * Önbellek sürümlüdür: yürütme sözleşmesi değiştiğinde `HEALTH_CONTRACT_VERSION` artırılır
- * ve eski kayıtlar startup'ta geçersizleşir — kullanıcının elle cache temizlemesi gerekmez.
+ * ve eski kayıtlar startup'ta geçersizleşir: kullanıcının elle cache temizlemesi gerekmez.
  */
 
 export const HEALTH_CONTRACT_VERSION = 1;

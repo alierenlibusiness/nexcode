@@ -29,6 +29,16 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      # Proje genelinde em dash (U+2014) yasaktır; sonradan geri sızmasını bu adım engeller.
+      # Desen hex kaçışıyla yazılır, aksi halde bu dosya kendi kuralını ihlal ederdi.
+      - name: Em dash check
+        run: |
+          if git ls-files -z | xargs -0 grep -lP '\x{2014}' 2>/dev/null; then
+            echo "::error::Yukarıdaki dosyalar em dash (U+2014) iceriyor. Iki nokta, noktali virgul veya parantez kullanin."
+            exit 1
+          fi
+          echo "Em dash bulunamadi."
+
       - name: Build (core first, then apps)
         run: pnpm -r build
 

@@ -80,7 +80,7 @@ describe("computeNextRun", () => {
     expect(next).toEqual(new Date(2026, 6, 26, 8, 0, 0));
   });
 
-  it("tam sınır anında bir sonraki güne geçer — aynı tik'te iki kez kuyruğa almaz", () => {
+  it("tam sınır anında bir sonraki güne geçer: aynı tik'te iki kez kuyruğa almaz", () => {
     const boundary = new Date(2026, 6, 25, 9, 30, 0);
     const next = computeNextRun({ trigger: { type: "daily", at: "09:30" } }, boundary);
     expect(next).toEqual(new Date(2026, 6, 26, 9, 30, 0));

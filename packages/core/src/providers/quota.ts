@@ -53,7 +53,7 @@ export class QuotaTracker {
     return live.reduce((sum, e) => sum + e.tokens, 0);
   }
 
-  /** Havuz kotası hâlâ uygun mu (PRD §9.4 — false ise API'ye geçilir). */
+  /** Havuz kotası hâlâ uygun mu (PRD §9.4: false ise API'ye geçilir). */
   isAvailable(poolId: string, at: number = this.now()): boolean {
     const window = this.windows.get(poolId);
     if (!window) return true; // kota tanımsız → sınırsız varsay

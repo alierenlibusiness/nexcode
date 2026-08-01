@@ -16,7 +16,7 @@ Documenting or generating from an HTTP API.
 - Describe every response the endpoint can actually return, including errors.
 - Use shared components for repeated shapes rather than duplicating them.
 - Mark required fields honestly; optional-by-default hides bugs.
-- Include realistic examples — they are what consumers read first.
+- Include realistic examples: they are what consumers read first.
 - Validate the spec in CI and keep it in the same commit as the code.
 
 ## Verification

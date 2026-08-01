@@ -18,7 +18,7 @@ Building or changing a login path.
 - Make sessions expire, rotate on privilege change, and be revocable server-side.
 - Set cookies HttpOnly, Secure and SameSite; keep tokens out of localStorage.
 - Rate-limit and lock out after repeated failures; make the response timing uniform.
-- Treat account recovery as an authentication path — it is the usual way in.
+- Treat account recovery as an authentication path: it is the usual way in.
 
 ## Verification
 

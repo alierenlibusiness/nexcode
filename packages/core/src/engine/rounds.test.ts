@@ -45,7 +45,7 @@ describe("roundPolicyFor", () => {
     expect(policy.maxRounds).toBe(6);
   });
 
-  it("config operatör limitleri tavandır — mod politikası bunları aşamaz", () => {
+  it("config operatör limitleri tavandır: mod politikası bunları aşamaz", () => {
     const config = normalizeConfig({
       ...FALLBACK_CONFIG,
       operator: { ...FALLBACK_CONFIG.operator, maxRounds: 2, maxDelegationsPerRound: 2 },

@@ -6,7 +6,7 @@ import { ASSIGNMENT_KINDS } from "../config/schema";
  *
  * Operatör her çağrıda **yalnızca** bu şemaya uyan tek bir JSON nesnesi üretir: Markdown,
  * kod bloğu, önsöz, sonsöz veya yorum yoktur. Parse yalnızca protokol hatalarında ve
- * `operator.protocolRetries` kadar tekrarlanır — model çıktısı sessizce yorumlanmaz.
+ * `operator.protocolRetries` kadar tekrarlanır: model çıktısı sessizce yorumlanmaz.
  *
  * Ayrıştırma tarafı yine de bağışlayıcıdır (kod çiti, çevre metin): katı prompt + toleranslı
  * parser, tek bir biçim kaymasının turu çöpe atmasını engeller.
@@ -142,7 +142,7 @@ export function parseOperatorDecision(text: string): ParseResult {
       .slice(0, 5)
       .map((issue) => `${issue.path.join(".") || "(kök)"}: ${issue.message}`)
       .join("; ");
-    return { ok: false, error: `Şema uyuşmazlığı — ${issues}` };
+    return { ok: false, error: `Şema uyuşmazlığı; ${issues}` };
   }
 
   return { ok: true, decision: parsed.data };

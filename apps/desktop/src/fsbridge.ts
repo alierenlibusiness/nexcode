@@ -8,7 +8,7 @@ export interface FsEntry {
 }
 
 const IGNORED = new Set([".git", "node_modules", ".next", "dist", "out", ".turbo"]);
-const MAX_FILE_BYTES = 2_000_000; // 2 MB — büyük/binary dosya koruması
+const MAX_FILE_BYTES = 2_000_000; // 2 MB: büyük/binary dosya koruması
 
 /** Bir dizinin doğrudan çocukları (dizinler önce, ada göre). Lazy ağaç genişletme için. */
 export function readDir(dirPath: string): FsEntry[] {
@@ -47,7 +47,7 @@ export function readFileText(filePath: string): FileContent {
   return { path: filePath, content, truncated: false, tooLarge: false };
 }
 
-/** Dosyaya yazar (editörden Ctrl+S kaydetme). Kullanıcının kendi düzenlemesi — insan eylemi. */
+/** Dosyaya yazar (editörden Ctrl+S kaydetme). Kullanıcının kendi düzenlemesi: insan eylemi. */
 export function writeFileText(filePath: string, content: string): void {
   writeFileSync(filePath, content, "utf8");
 }

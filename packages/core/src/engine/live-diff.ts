@@ -1,7 +1,7 @@
 import type { DiffHunk, DiffLine, FileAction, FileChangeEvent, FileChangeSummary } from "./events";
 
 /**
- * Canlı satır diff'i — Canlı Kod yüzeyini besler.
+ * Canlı satır diff'i: Canlı Kod yüzeyini besler.
  *
  * Değişmezler:
  * - Hassas dosya içeriği (`.env`, credential, özel anahtar) **hiçbir zaman** olay
@@ -61,7 +61,7 @@ export function isScannable(relativePath: string): boolean {
   return !segments.some((segment) => IGNORED_DIRECTORIES.includes(segment));
 }
 
-/** İçerik ikili mi — NUL baytı veya yüksek oranda basılamayan karakter. */
+/** İçerik ikili mi: NUL baytı veya yüksek oranda basılamayan karakter. */
 export function isBinaryContent(content: string): boolean {
   if (content.includes("\0")) return true;
   const sample = content.slice(0, 8000);
@@ -141,7 +141,7 @@ function lcsDiff(before: readonly string[], after: readonly string[]): LcsOp[] {
   if (n === 0) return after.map((text) => ({ kind: "added" as const, text }));
   if (m === 0) return before.map((text) => ({ kind: "removed" as const, text }));
 
-  // (n+1) x (m+1) LCS uzunluk tablosu — sınırlar diffLines tarafından uygulanır.
+  // (n+1) x (m+1) LCS uzunluk tablosu: sınırlar diffLines tarafından uygulanır.
   const table: number[][] = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0));
   for (let i = n - 1; i >= 0; i--) {
     const row = table[i];

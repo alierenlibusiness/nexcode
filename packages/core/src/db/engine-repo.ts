@@ -443,7 +443,7 @@ export class EngineRepository {
       .run(key, value);
   }
 
-  /** Bugünkü toplam model çağrısı — günlük bütçe kontrolü için. */
+  /** Bugünkü toplam model çağrısı: günlük bütçe kontrolü için. */
   callsToday(today = new Date().toISOString().slice(0, 10)): number {
     const stored = this.getState("callsDate");
     if (stored !== today) return 0;

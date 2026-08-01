@@ -44,7 +44,7 @@ ACCEPTANCE CRITERIA:
 - <observable outcome>
 
 STEPS:
-1. [<file/component>] <concrete change> — Verification: <test or check>
+1. [<file/component>] <concrete change>: Verification: <test or check>
 2. ...
 
 RISKS:

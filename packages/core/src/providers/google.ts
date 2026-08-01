@@ -9,7 +9,7 @@ import { getPricing } from "./pricing";
 import { computeCost } from "./cost";
 
 /**
- * Google Gemini (`generateContent`) API adapter'ı — DevOps Agent için (PRD §8.6).
+ * Google Gemini (`generateContent`) API adapter'ı: DevOps Agent için (PRD §8.6).
  * Not: Google, Gemini CLI'ı Antigravity CLI'a geçiriyor; CLI tarafı ayrı adapter'da
  * (`cli/antigravity`). Bu adapter API anahtarı modudur (ücretsiz katman da bu yol).
  */

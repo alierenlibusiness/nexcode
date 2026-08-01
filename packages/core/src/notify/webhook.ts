@@ -5,7 +5,7 @@ import { logger } from "../logger";
  * Görev bildirimleri.
  *
  * Görev tamamlanınca ya da başarısız olunca yapılandırılmış webhook'a `{ text, … }`
- * gövdesiyle POST edilir — Slack incoming webhook ile uyumludur. Boş URL bildirimi kapatır.
+ * gövdesiyle POST edilir: Slack incoming webhook ile uyumludur. Boş URL bildirimi kapatır.
  *
  * Bildirim gönderimi **hiçbir zaman görevi başarısız kılmaz**: ağ hatası loglanır ve yutulur.
  */
@@ -37,7 +37,7 @@ export function buildWebhookBody(payload: NotifyPayload): WebhookBody {
   const summary = payload.text.length > 900 ? `${payload.text.slice(0, 900)}…` : payload.text;
 
   return {
-    text: `${icon} NEXCODE — ${payload.outcome === "done" ? "task completed" : "task failed"}: ${title}\n\n${summary}`,
+    text: `${icon} NEXCODE; ${payload.outcome === "done" ? "task completed" : "task failed"}: ${title}\n\n${summary}`,
     taskId: payload.taskId,
     outcome: payload.outcome,
     ...(payload.workingDir !== undefined ? { workingDir: payload.workingDir } : {}),
@@ -82,7 +82,7 @@ export class Notifier {
       }
       return true;
     } catch (error) {
-      // Bildirim en iyi çabadır — görev sonucunu etkilemez.
+      // Bildirim en iyi çabadır: görev sonucunu etkilemez.
       logger.warn("notify.webhook.failed", { error: String(error), taskId: payload.taskId });
       return false;
     }

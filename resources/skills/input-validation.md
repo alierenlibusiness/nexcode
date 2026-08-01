@@ -16,7 +16,7 @@ Any code that accepts external input.
 - Validate at the trust boundary (API handler, IPC, form submit), not deep inside.
 - Use a schema validator and derive the type from the schema, not the reverse.
 - Reject unknown fields explicitly rather than silently dropping them, unless stripping is intended.
-- Enforce length, range and format limits — unbounded input is a denial-of-service vector.
+- Enforce length, range and format limits: unbounded input is a denial-of-service vector.
 - Normalise before comparing (case, unicode, whitespace, path separators).
 - Return field-level errors the caller can act on.
 

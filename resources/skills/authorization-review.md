@@ -14,7 +14,7 @@ Reviewing anything that returns or modifies another user's data.
 ## Checklist
 
 - Verify authorisation server-side on every request; UI hiding is not enforcement.
-- Check object-level access — the classic hole is a valid session reading another user's id.
+- Check object-level access: the classic hole is a valid session reading another user's id.
 - Confirm the check happens before the side effect, not after.
 - Look for bulk endpoints and exports that skip the per-object check.
 - Verify the default is deny; new routes must opt into access.

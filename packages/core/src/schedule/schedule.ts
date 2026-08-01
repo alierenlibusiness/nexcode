@@ -1,13 +1,13 @@
 import type { ExecutionMode, Schedule, ScheduleTrigger } from "../config/schema";
 
 /**
- * Zamanlanmış görevler — **saf ve yan etkisiz** hesap katmanı.
+ * Zamanlanmış görevler: **saf ve yan etkisiz** hesap katmanı.
  *
  * Yan etkiler (görev üretme, yayın, config kaydetme) yalnızca main process'teki
  * zamanlayıcı tik'indedir. Bu ayrım sayesinde zamanlama mantığı saatten ve süreçten
  * bağımsız test edilebilir.
  *
- * Motor duruyorsa zamanlanan görev **yalnızca kuyruğa girer** — otomatik başlatma yoktur.
+ * Motor duruyorsa zamanlanan görev **yalnızca kuyruğa girer**: otomatik başlatma yoktur.
  */
 
 export interface ScheduleInput {
@@ -24,7 +24,7 @@ export type ScheduleNormalizeResult = { ok: true; schedule: Schedule } | { ok: f
 
 const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
-/** Dostça ön ayarlar — arayüzdeki aralık seçeneklerinin tek kaynağı. */
+/** Dostça ön ayarlar: arayüzdeki aralık seçeneklerinin tek kaynağı. */
 export const INTERVAL_PRESETS: readonly number[] = [1, 5, 15, 30, 60, 120, 240, 480, 720, 1440];
 
 /** Kullanıcı girdisini doğrulanmış bir zamanlama nesnesine çevirir. */
@@ -76,7 +76,7 @@ export function normalizeSchedule(
 }
 
 /**
- * Sonraki çalışma zamanı — **her zaman `from`'dan kesin ileri**.
+ * Sonraki çalışma zamanı: **her zaman `from`'dan kesin ileri**.
  *
  * Sınır anında (tam 09:30:00) hesaplanırsa bir sonraki güne geçer; böylece aynı tik
  * içinde görev iki kez kuyruğa alınmaz.
@@ -95,7 +95,7 @@ export function computeNextRun(schedule: Pick<Schedule, "trigger">, from: Date):
     return candidate.getTime() > from.getTime() ? candidate : addDays(candidate, 1);
   }
 
-  // weekly — bugünden başlayarak 7 gün ileriye bakılır.
+  // weekly: bugünden başlayarak 7 gün ileriye bakılır.
   const days = [...trigger.days].sort((a, b) => a - b);
   for (let offset = 0; offset <= 7; offset++) {
     const day = addDays(from, offset);
@@ -117,7 +117,7 @@ export function dueSchedules(schedules: readonly Schedule[], now: Date): Schedul
   });
 }
 
-/** Bir zamanlama çalıştıktan sonraki durumu (saf — çağıran kaydeder). */
+/** Bir zamanlama çalıştıktan sonraki durumu (saf: çağıran kaydeder). */
 export function advanceSchedule(schedule: Schedule, now: Date, taskId: string): Schedule {
   return {
     ...schedule,

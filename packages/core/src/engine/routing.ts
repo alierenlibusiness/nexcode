@@ -38,7 +38,7 @@ export interface CatalogInput {
 }
 
 /**
- * Operatörün görebileceği agent kataloğu. Operatörün kendisi katalogda yer almaz —
+ * Operatörün görebileceği agent kataloğu. Operatörün kendisi katalogda yer almaz:
  * kendine görev veremez.
  */
 export function buildCatalog({ config, health = {}, quarantined = new Set() }: CatalogInput): CatalogAgent[] {
@@ -65,7 +65,7 @@ export function buildCatalog({ config, health = {}, quarantined = new Set() }: C
   return entries;
 }
 
-/** Operatör olarak çalışacak agent — açık seçim yoksa ilk etkin `operator` rolü. */
+/** Operatör olarak çalışacak agent: açık seçim yoksa ilk etkin `operator` rolü. */
 export function resolveOperatorId(config: NexcodeConfig): string | null {
   const explicit = config.operator.agentId;
   const chosen = explicit === "" ? undefined : config.agents[explicit];
@@ -73,7 +73,7 @@ export function resolveOperatorId(config: NexcodeConfig): string | null {
   return stableProfiles(config).find((profile) => profile.enabled && profile.role === "operator")?.id ?? null;
 }
 
-/** Yerleşik alan agent'ları önce, keşfedilenler sonra — kararlı ve öngörülebilir sıra. */
+/** Yerleşik alan agent'ları önce, keşfedilenler sonra: kararlı ve öngörülebilir sıra. */
 function stableProfiles(config: NexcodeConfig): AgentProfile[] {
   return Object.values(config.agents).sort((a, b) => {
     if (a.discovered !== b.discovered) return a.discovered ? 1 : -1;
@@ -233,7 +233,7 @@ function findCycle(assignments: readonly NormalizedAssignment[]): string[] | nul
 
 /**
  * Bağımlılıkları koruyarak paralel çalıştırılabilir gruplar üretir (Kahn).
- * Aynı gruptaki işler eşzamanlı yürütülebilir — paralel varsayılan, sıralı istisnadır.
+ * Aynı gruptaki işler eşzamanlı yürütülebilir: paralel varsayılan, sıralı istisnadır.
  */
 export function parallelBatches(assignments: readonly NormalizedAssignment[]): NormalizedAssignment[][] {
   const remaining = new Map(assignments.map((a) => [a.id, a]));
@@ -261,7 +261,7 @@ export function parallelBatches(assignments: readonly NormalizedAssignment[]): N
  *
  * Dengeli veya derin modda katalogda planner, executor ve reviewer varsa üçü de İLK planda
  * kullanılır ve `plan → implement → review` olarak `dependsOn` ile zincirlenir. Operatörün
- * atladığı planner veya reviewer motor tarafından eklenir — hız optimizasyonu, kullanıcının
+ * atladığı planner veya reviewer motor tarafından eklenir: hız optimizasyonu, kullanıcının
  * etkinleştirdiği rolleri devre dışı bırakamaz.
  *
  * Plan/uygulama içermeyen araştırma ve salt inceleme görevlerine rol enjekte edilmez.
@@ -281,7 +281,7 @@ export function enforceRoleChain(
   const result = [...assignments];
   const usedIds = new Set(result.map((a) => a.id));
 
-  // 1) Planlama — katalogda planner varsa ve operatör açmadıysa zincire eklenir.
+  // 1) Planlama: katalogda planner varsa ve operatör açmadıysa zincire eklenir.
   const planner = pickAgentForKind(catalog, "plan");
   const hasPlan = result.some((a) => a.kind === "plan");
   if (!hasPlan && planner !== undefined) {
@@ -313,7 +313,7 @@ export function enforceRoleChain(
     warnings.push("Planlama adımı motor tarafından zincire eklendi (hazır planner rolü atlanmıştı).");
   }
 
-  // 2) Bağımsız inceleme — uygulama teslimatını denetler.
+  // 2) Bağımsız inceleme: uygulama teslimatını denetler.
   const reviewer = pickAgentForKind(catalog, "review");
   const hasReview = result.some((a) => a.kind === "review");
   if (policy.requireReview && !hasReview && reviewer !== undefined) {

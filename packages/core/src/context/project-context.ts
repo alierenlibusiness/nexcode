@@ -3,7 +3,7 @@
  *
  * Her çalışma klasörü kendi profilini taşır; görev açılışında operatöre yüklenir, böylece
  * tüm kod tabanı her görevde baştan taranmak zorunda kalmaz. Görev bitiminde operatör
- * profili **revize eder** — bu bir changelog değildir, projenin güncel fotoğrafıdır.
+ * profili **revize eder**: bu bir changelog değildir, projenin güncel fotoğrafıdır.
  */
 
 export const PROJECT_CONTEXT_PATH = ".nexcode/CONTEXT.md";

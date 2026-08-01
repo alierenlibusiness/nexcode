@@ -14,7 +14,7 @@ export interface AntigravityCliAdapterOptions {
 }
 
 /**
- * Antigravity CLI adapter'ı — Google abonelik/ücretsiz katman modu, DevOps Agent için
+ * Antigravity CLI adapter'ı: Google abonelik/ücretsiz katman modu, DevOps Agent için
  * (PRD §8.6, §9.2). Google, Gemini CLI'ı Antigravity'ye geçiriyor (tarih varsayım).
  * `--output-format json` zarfı varsa parse eder; yoksa düz stdout'u sonuç sayar (toleranslı).
  */
@@ -77,7 +77,7 @@ export function parseAntigravityOutput(stdout: string): CompletionResult {
       };
     }
   } catch {
-    // JSON değil — düz metin moduna düş.
+    // JSON değil: düz metin moduna düş.
   }
   return { text: trimmed, usage: { inputTokens: 0, outputTokens: 0 }, stopReason: null };
 }

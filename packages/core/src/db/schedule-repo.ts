@@ -4,7 +4,7 @@ import type { Schedule } from "../config/schema";
 /**
  * Zamanlama deposu.
  *
- * CRUD kendi uçlarıyla **anında** kalıcılaşır — büyük config kaydetme yolundan geçmez,
+ * CRUD kendi uçlarıyla **anında** kalıcılaşır: büyük config kaydetme yolundan geçmez,
  * böylece bir zamanlama eklemek kaydedilmemiş ayar taslaklarını etkilemez.
  */
 export class ScheduleRepository {

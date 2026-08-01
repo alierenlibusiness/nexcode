@@ -70,7 +70,7 @@ describe("Notifier", () => {
     expect(fetcher).not.toHaveBeenCalled();
   });
 
-  it("ağ hatasını yutar — görev sonucunu etkilemez", async () => {
+  it("ağ hatasını yutar: görev sonucunu etkilemez", async () => {
     const fetcher = vi.fn<Fetcher>().mockRejectedValue(new Error("ECONNREFUSED"));
     const config = withNotify({ webhookUrl: "https://hooks.example/x" });
 

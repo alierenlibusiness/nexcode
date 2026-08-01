@@ -67,7 +67,7 @@ describe("effectiveInvocation", () => {
     expect(invocation.args).toContain("claude-sonnet-4-6");
   });
 
-  it("model boşken argüman eklemez — CLI varsayılanı kullanılır", () => {
+  it("model boşken argüman eklemez: CLI varsayılanı kullanılır", () => {
     const invocation = effectiveInvocation({ adapter: "claude", profileArgs: [], agentModel: "", globalModel: "" });
     expect(invocation.args).not.toContain("--model");
   });

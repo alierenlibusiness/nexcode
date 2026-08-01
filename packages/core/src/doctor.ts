@@ -9,7 +9,7 @@ import type { HealthResult } from "./providers/cli/health";
  * "Neden çalışmıyor?" sorusunu tek ekranda yanıtlar: kurulu CLI'lar, sağlık durumları,
  * operatör seçimi, otonom onay, veri dizini ve config geçerliliği.
  *
- * Saf bir raporlayıcıdır — girdileri çağıran toplar, bu modül yalnızca yorumlar.
+ * Saf bir raporlayıcıdır: girdileri çağıran toplar, bu modül yalnızca yorumlar.
  */
 
 export type DiagnosticLevel = "ok" | "warn" | "error";
@@ -86,7 +86,7 @@ export function runDoctor(input: DoctorInput): DoctorReport {
       diagnostics.push({
         level: "ok",
         subject: `CLI · ${cli.adapter}`,
-        message: `${cli.command}${cli.version === null ? "" : ` — ${cli.version}`}`,
+        message: `${cli.command}${cli.version === null ? "" : `; ${cli.version}`}`,
       });
     }
   }

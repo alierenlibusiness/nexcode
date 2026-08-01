@@ -1,7 +1,7 @@
 import type { AssignmentKind, CliAdapter, ExecutionMode, OrchestrationRole } from "../config/schema";
 
 /**
- * Motor olay sözleşmesi — dört görsel yüzey (Komuta Merkezi, Pano, Canlı Kod, Ekip Akışı)
+ * Motor olay sözleşmesi: dört görsel yüzey (Komuta Merkezi, Pano, Canlı Kod, Ekip Akışı)
  * ve kalıcı olay geçmişi bu tiplere bağlıdır.
  *
  * Sözleşme kuralları:
@@ -59,7 +59,7 @@ export interface TaskSummary {
   changedFiles: number;
 }
 
-/** Bir CLI/API sürecinin yaşam döngüsü — terminal kartları ve ekip haritası bunu tüketir. */
+/** Bir CLI/API sürecinin yaşam döngüsü: terminal kartları ve ekip haritası bunu tüketir. */
 export interface ActivityEvent {
   assignmentId: string;
   agentId: string;
@@ -72,7 +72,7 @@ export interface ActivityEvent {
   durationMs?: number;
 }
 
-/** Operatör ↔ uzman veri akışı — Ekip Akışı sahnesindeki hatlar bu olaydan doğar. */
+/** Operatör ↔ uzman veri akışı: Ekip Akışı sahnesindeki hatlar bu olaydan doğar. */
 export interface MessageEvent {
   assignmentId: string;
   kind: "delegation" | "result" | "failure" | "blocked";
@@ -149,7 +149,7 @@ export interface ScheduleSummary {
   triggerLabel: string;
 }
 
-/** Ayrık birleşim — tüketiciler `type` üzerinden daraltır. */
+/** Ayrık birleşim: tüketiciler `type` üzerinden daraltır. */
 export type EngineEvent =
   | { type: "status"; seq: number; ts: string; taskId: string | null; payload: EngineStatus }
   | { type: "queue"; seq: number; ts: string; taskId: null; payload: QueueSnapshot }
@@ -175,7 +175,7 @@ export class EngineEventBus {
     this.seq = startSeq;
   }
 
-  /** Son üretilen sıra numarası — yeniden başlatmada geçmişin devamı için. */
+  /** Son üretilen sıra numarası: yeniden başlatmada geçmişin devamı için. */
   get lastSeq(): number {
     return this.seq;
   }

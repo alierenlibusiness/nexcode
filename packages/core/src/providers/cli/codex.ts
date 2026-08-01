@@ -14,7 +14,7 @@ export interface CodexCliAdapterOptions {
 }
 
 /**
- * Codex CLI adapter'ı — OpenAI abonelik (ChatGPT Plus/Pro) modu, Frontend Agent için
+ * Codex CLI adapter'ı: OpenAI abonelik (ChatGPT Plus/Pro) modu, Frontend Agent için
  * (PRD §8.2, §9.2). `codex exec --json` headless çalışır ve JSONL olay akışı üretir;
  * son agent mesajı + usage'ı toleranslı şekilde toplarız.
  *
@@ -64,7 +64,7 @@ interface CodexEvent {
   usage?: { input_tokens?: number; output_tokens?: number };
 }
 
-/** Codex `exec --json` JSONL çıktısını parse eder (saf fonksiyon — sözleşme testiyle sabitlenir). */
+/** Codex `exec --json` JSONL çıktısını parse eder (saf fonksiyon: sözleşme testiyle sabitlenir). */
 export function parseCodexJsonl(stdout: string): CompletionResult {
   let text = "";
   let inputTokens = 0;

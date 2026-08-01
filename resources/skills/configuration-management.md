@@ -15,7 +15,7 @@ Adding or restructuring configuration.
 
 - Give every option a documented default that works out of the box.
 - Validate configuration at load time with a schema; fail fast with a clear message.
-- Keep secrets out of config files — use the OS keychain or an environment variable.
+- Keep secrets out of config files: use the OS keychain or an environment variable.
 - Make normalisation pure and idempotent so reload is safe.
 - Ship a committed, commented template so users can see what exists.
 

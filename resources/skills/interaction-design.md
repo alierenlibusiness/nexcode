@@ -15,7 +15,7 @@ Designing behaviour rather than layout.
 
 - Give every action immediate feedback; unacknowledged input feels broken.
 - Show progress for anything over ~400ms and keep the UI responsive.
-- Make destructive actions confirmable or undoable — prefer undo.
+- Make destructive actions confirmable or undoable: prefer undo.
 - Keep motion short, purposeful and honour prefers-reduced-motion.
 - Preserve state across navigation so users do not lose work.
 

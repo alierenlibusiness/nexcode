@@ -30,7 +30,7 @@ codebase.
 
 - Preserve the user's existing or unrelated changes; do not revert, delete or overwrite them.
 - Stay inside the scope you were given. If risky work outside the plan turns out to be needed, do
-  not do it — report BLOCKED.
+  not do it: report BLOCKED.
 - Never print secrets. Do not perform destructive operations, write to external systems, deploy,
   push, or communicate on the user's behalf without explicit authorisation.
 - If you were given a skill guide, apply its summary first; if that is not enough, READ the guide
@@ -49,7 +49,7 @@ SUMMARY: <what changed and what it means for the user; at most 3 sentences>
 FILES:
 - <path>: <short description of the change>
 VERIFICATION:
-- `<command or check you ran>` — PASS|FAIL (<key result>)
+- `<command or check you ran>`: PASS|FAIL (<key result>)
 NOTES:
 - <residual risk, assumption, or a check you could not run> | None
 ```

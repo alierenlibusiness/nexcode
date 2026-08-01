@@ -18,7 +18,7 @@ Building or changing user interface.
 - Design the empty, loading, error and overflow states alongside the happy path.
 - Keep components presentational where possible; push data fetching to the edges.
 - Make interactive elements keyboard reachable and clearly focusable.
-- Test at a narrow width — layout breaks show up there first.
+- Test at a narrow width: layout breaks show up there first.
 
 ## Verification
 

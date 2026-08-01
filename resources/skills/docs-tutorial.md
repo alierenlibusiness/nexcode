@@ -15,7 +15,7 @@ Writing a getting-started guide.
 
 - State prerequisites and the end result up front.
 - Keep a single happy path; move alternatives to a later section.
-- Make every step verifiable — show what the reader should see.
+- Make every step verifiable: show what the reader should see.
 - Never skip a step because it is obvious to you.
 - End with a working artefact and a clear next step.
 

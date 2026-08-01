@@ -14,7 +14,7 @@ Reviewing a change that touches auth, input, storage or external calls.
 ## Checklist
 
 - Follow untrusted input from entry to sink; every sink needs the right escaping.
-- Check authentication and authorisation separately — being logged in is not being allowed.
+- Check authentication and authorisation separately: being logged in is not being allowed.
 - Look for injection: SQL, command, path traversal, template, prototype pollution.
 - Confirm secrets are not logged, echoed, committed or sent to a third party.
 - Check that errors do not leak internal structure to the client.

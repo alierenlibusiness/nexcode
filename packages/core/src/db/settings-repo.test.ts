@@ -30,7 +30,7 @@ describe("AgentSettingsRepository", () => {
   });
 });
 
-describe("AgentSettingsRepository — model seçimi (Faz 2, kullanıcı AI seçer)", () => {
+describe("AgentSettingsRepository: model seçimi (Faz 2, kullanıcı AI seçer)", () => {
   it("seçim yoksa resolveModel agent varsayılanını döner", () => {
     const { settings, workspaceId } = setup();
     const m = settings.resolveModel(workspaceId, "frontend");

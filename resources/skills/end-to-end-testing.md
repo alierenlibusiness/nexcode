@@ -14,7 +14,7 @@ Validating a critical user journey.
 ## Checklist
 
 - Cover the few journeys whose failure is unacceptable; do not e2e everything.
-- Drive the app the way a user does — visible text and roles, not internal selectors.
+- Drive the app the way a user does: visible text and roles, not internal selectors.
 - Wait on state, never on fixed timeouts.
 - Make each test create its own data and clean up after itself.
 - Capture a screenshot or trace on failure to make triage possible.

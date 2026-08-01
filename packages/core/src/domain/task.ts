@@ -1,7 +1,7 @@
 import type { ExecutionMode } from "../config/schema";
 
 /**
- * Görev durumu — Kanban panosunun sütunları ve motorun yaşam döngüsü aynı sözlüğü kullanır.
+ * Görev durumu: Kanban panosunun sütunları ve motorun yaşam döngüsü aynı sözlüğü kullanır.
  *
  * `approval` yalnızca `approvalMode: "ask"` ve riskli plan durumunda oluşur; görsel panoda
  * ayrı sütun yoktur, onay bekleyen görev Komuta Merkezi'ndeki onay kartında görünür.
@@ -17,7 +17,7 @@ export const TASK_STATUSES: readonly TaskStatus[] = [
   "blocked",
 ];
 
-/** Görev türü — normal görev ya da tamamlanmış bir görev hakkındaki salt-okunur sohbet. */
+/** Görev türü: normal görev ya da tamamlanmış bir görev hakkındaki salt-okunur sohbet. */
 export type TaskKind = "task" | "operator-chat";
 
 /** Görev veri modeli (PRD §14). */
@@ -33,7 +33,7 @@ export interface Task {
   kind: TaskKind;
   /** `operator-chat` görevlerinde ana görevin id'si. */
   parentTaskId: string | null;
-  /** Görevi üreten zamanlama (varsa) — Pano'da "⏱ zamanlanmış" rozeti. */
+  /** Görevi üreten zamanlama (varsa): Pano'da "⏱ zamanlanmış" rozeti. */
   scheduleId: string | null;
   /** Onay kuyruğundaki planın hash'i; plan değişirse onay geçersizleşir. */
   planHash: string | null;

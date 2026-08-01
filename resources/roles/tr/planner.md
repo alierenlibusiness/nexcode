@@ -42,7 +42,7 @@ KABUL KRİTERLERİ:
 - <gözlemlenebilir sonuç>
 
 ADIMLAR:
-1. [<dosya/bileşen>] <somut değişiklik> — Doğrulama: <test veya kontrol>
+1. [<dosya/bileşen>] <somut değişiklik>: Doğrulama: <test veya kontrol>
 2. ...
 
 RİSKLER:

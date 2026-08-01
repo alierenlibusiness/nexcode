@@ -25,7 +25,7 @@ describe("ProjectContext", () => {
     expect(await new ProjectContext(port, 6000).load("C:/p")).toContain("Next.js + SQLite");
   });
 
-  it("profil yoksa boş döner — motor bölümü hiç eklemez", async () => {
+  it("profil yoksa boş döner: motor bölümü hiç eklemez", async () => {
     const { port } = makePort();
     expect(await new ProjectContext(port, 6000).load("C:/p")).toBe("");
   });

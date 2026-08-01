@@ -138,7 +138,7 @@ const defaultSleep = (ms: number): Promise<void> => new Promise((resolve) => set
 
 /**
  * Kriptografik olmayan, kararlı 64-bit FNV-1a. Onay kuyruğundaki planın değişip
- * değişmediğini tespit etmek için kullanılır — güvenlik sınırı değil, kurcalama tespitidir.
+ * değişmediğini tespit etmek için kullanılır: güvenlik sınırı değil, kurcalama tespitidir.
  */
 export function planHash(text: string): string {
   let hi = 0x811c9dc5;
@@ -720,7 +720,7 @@ export class Engine {
       },
     });
 
-    // Günlük bütçe sayacı tek noktadan beslenir — operatör ve uzman çağrıları dahil.
+    // Günlük bütçe sayacı tek noktadan beslenir: operatör ve uzman çağrıları dahil.
     this.callsToday += result.calls;
 
     this.deps.events.emit(
@@ -871,7 +871,7 @@ function summarizeHistory(history: readonly AssignmentRecord[]): string {
       const status = record.status === "completed" ? "TAMAMLANDI" : "BAŞARISIZ";
       const verdict = record.verdict === null ? "" : ` · VERDICT: ${record.verdict}`;
       return [
-        `── ${record.assignment.id} (${record.assignment.kind} · ${record.assignment.agentName}) — ${status}${verdict}`,
+        `── ${record.assignment.id} (${record.assignment.kind} · ${record.assignment.agentName}): ${status}${verdict}`,
         record.output.trim(),
       ].join("\n");
     })

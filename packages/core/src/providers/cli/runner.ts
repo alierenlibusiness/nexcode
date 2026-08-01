@@ -21,7 +21,7 @@ export class CliParseError extends Error {
   }
 }
 
-/** Rol etiketli düz-metin prompt — CLI'lar tek prompt string'i alır (sistem + mesajlar). */
+/** Rol etiketli düz-metin prompt: CLI'lar tek prompt string'i alır (sistem + mesajlar). */
 export function buildTaggedPrompt(req: CompletionRequest): string {
   const parts: string[] = [];
   if (req.system) parts.push(`[system]\n${req.system}`);

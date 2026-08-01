@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "commonjs",
-  "description": "NEXCODE — çoklu-agent, paralel vibe coding masaüstü IDE",
+  "description": "NEXCODE; çoklu-agent, paralel vibe coding masaüstü IDE",
   "author": "NEXCODE",
   "main": "dist/main.js",
   "scripts": {

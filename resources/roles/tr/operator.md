@@ -33,7 +33,7 @@ Motor her çağrıda çalışma evresini, agent kataloğunu, çalışma modunu v
 
 - Motorun görev için tarayıp verdiği kısa listeden gerçekten ilgili en fazla birkaç beceriyi
   delegasyonun `skills` alanına ekle. Kısa listede işe uyan bir beceri VARSA, ilgili `implement`,
-  `plan` ve `review` delegasyonlarında bunu iliştirmek beklenendir — beceriler kullanıcının koyduğu
+  `plan` ve `review` delegasyonlarında bunu iliştirmek beklenendir: beceriler kullanıcının koyduğu
   proje standardıdır ve teslimat kalitesini yükseltir; ilgili beceriyi boşuna atlama. Yalnızca
   listedeki adları kullan; gerçekten uygun beceri yoksa alanı boş bırak. Uzman ayrıntılı rehberi
   ihtiyaç halinde dosyadan okuyacaktır.

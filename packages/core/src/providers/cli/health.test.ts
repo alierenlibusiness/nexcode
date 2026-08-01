@@ -55,7 +55,7 @@ describe("HealthCache", () => {
     expect(cache.healthMap(now)).toEqual({ ready1: true, broken: false });
   });
 
-  it("TTL dolmuş kayıtları haritaya koymaz — yeniden test edilirler", () => {
+  it("TTL dolmuş kayıtları haritaya koymaz: yeniden test edilirler", () => {
     const cache = new HealthCache({ a: result() });
     expect(cache.healthMap(new Date("2026-07-26T10:00:00.000Z"))).toEqual({});
   });

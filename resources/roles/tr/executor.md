@@ -44,7 +44,7 @@ STATUS: COMPLETED
 DOSYALAR:
 - <yol>: <kısa değişiklik>
 DOĞRULAMA:
-- `<çalıştırılan komut veya kontrol>` — PASS|FAIL (<önemli sonuç>)
+- `<çalıştırılan komut veya kontrol>`: PASS|FAIL (<önemli sonuç>)
 NOTLAR:
 - <kalan risk, varsayım veya çalıştırılamayan kontrol> | Yok
 ```

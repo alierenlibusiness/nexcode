@@ -34,7 +34,7 @@ function assignment(over: Partial<OperatorAssignment> & Pick<OperatorAssignment,
 }
 
 describe("buildCatalog", () => {
-  it("operatörü katalog dışında tutar — kendine görev veremez", () => {
+  it("operatörü katalog dışında tutar: kendine görev veremez", () => {
     const catalog = buildCatalog({ config: FALLBACK_CONFIG });
     expect(catalog.some((a) => a.id === "ceo")).toBe(false);
     expect(catalog.map((a) => a.id).sort()).toEqual(["backend", "devops", "frontend", "qa", "security"]);

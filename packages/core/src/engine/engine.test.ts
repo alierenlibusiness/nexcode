@@ -17,7 +17,7 @@ function makeConfig(over: Partial<NexcodeConfig> = {}): NexcodeConfig {
     autonomousConsentAcceptedAt: CONSENT,
     agents: {
       ...FALLBACK_CONFIG.agents,
-      // Katalogda planner bulunması için — yerleşik altılıda planner yoktur.
+      // Katalogda planner bulunması için: yerleşik altılıda planner yoktur.
       architect: {
         id: "architect",
         name: "Architect",
@@ -81,7 +81,7 @@ const PLAN = JSON.stringify({
   assignments: [{ id: "impl", agentId: "backend", kind: "implement", instruction: "Endpoint ekle" }],
 });
 
-describe("Engine — mutlu yol", () => {
+describe("Engine: mutlu yol", () => {
   it("ilk turda plan → implement → review zincirini kurar ve PASS ile teslim eder", async () => {
     const { engine, calls } = harness((input) => {
       if (input.kind === "operator") return ok(PLAN);
@@ -133,7 +133,7 @@ describe("Engine — mutlu yol", () => {
     expect(result.final).toBe("Bitti");
   });
 
-  it("operatör doğrudan yanıt verebilir — delegasyon açmaz", async () => {
+  it("operatör doğrudan yanıt verebilir: delegasyon açmaz", async () => {
     const { engine, calls } = harness(() =>
       ok('{"status":"complete","final":"Sistemde 64 beceri etkin.","verification":"envanterden okundu"}'),
     );
@@ -146,7 +146,7 @@ describe("Engine — mutlu yol", () => {
   });
 });
 
-describe("Engine — inceleme ve turlar", () => {
+describe("Engine: inceleme ve turlar", () => {
   it("FAIL sonrası ikinci turda hedefli düzeltme açar ve PASS ile biter", async () => {
     const { engine, calls } = harness((input, i) => {
       if (input.kind === "operator") {
@@ -166,7 +166,7 @@ describe("Engine — inceleme ve turlar", () => {
       if (input.kind === "implement") return ok("STATUS: COMPLETED");
       // İlk inceleme FAIL, ikinci PASS.
       return calls.filter((c) => c.kind === "review").length === 1
-        ? ok("BULGULAR:\n- [CRITICAL] src/auth.ts — token doğrulanmıyor\nVERDICT: FAIL")
+        ? ok("BULGULAR:\n- [CRITICAL] src/auth.ts: token doğrulanmıyor\nVERDICT: FAIL")
         : ok("VERDICT: PASS");
     });
 
@@ -208,7 +208,7 @@ describe("Engine — inceleme ve turlar", () => {
   });
 });
 
-describe("Engine — protokol dayanıklılığı", () => {
+describe("Engine: protokol dayanıklılığı", () => {
   it("bozuk çıktıdan sonra düzeltme talimatıyla yeniden dener", async () => {
     const { engine, calls } = harness((input, i) => {
       if (input.kind === "operator") return i === 0 ? ok("Tabii, hemen başlıyorum!") : ok(PLAN);
@@ -243,7 +243,7 @@ describe("Engine — protokol dayanıklılığı", () => {
   });
 });
 
-describe("Engine — kurtarma", () => {
+describe("Engine: kurtarma", () => {
   it("geçici hatada aynı agent ile yeniden dener", async () => {
     let implAttempts = 0;
     const { engine } = harness((input, i) => {
@@ -323,7 +323,7 @@ describe("Engine — kurtarma", () => {
   });
 });
 
-describe("Engine — güvenlik ve bütçeler", () => {
+describe("Engine: güvenlik ve bütçeler", () => {
   it("otonom onay olmadan başlatılmaz", async () => {
     const { engine, calls } = harness(() => ok(PLAN), { autonomousConsentAcceptedAt: null });
     const result = await engine.runTask(task);
@@ -393,7 +393,7 @@ describe("Engine — güvenlik ve bütçeler", () => {
   });
 });
 
-describe("Engine — yaşam döngüsü kancaları", () => {
+describe("Engine: yaşam döngüsü kancaları", () => {
   it("görev öncesi checkpoint alır ve canlı diff'i durdurur", async () => {
     const createCheckpoint = vi.fn().mockResolvedValue(undefined);
     const stop = vi.fn().mockResolvedValue([{ path: "a.ts", action: "modified", added: 2, removed: 0, previewStatus: "ok", hunks: [] }]);

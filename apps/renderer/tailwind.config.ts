@@ -1,6 +1,6 @@
 import type { Config } from "tailwindcss";
 
-/** NEXCODE tasarım sistemi — logodan türetildi (elektrik mavisi + krom, koyu premium). */
+/** NEXCODE tasarım sistemi: logodan türetildi (elektrik mavisi + krom, koyu premium). */
 const config: Config = {
   content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}"],
   theme: {

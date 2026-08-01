@@ -9,7 +9,7 @@ import { logger } from "../../logger";
  * CLI keşfi.
  *
  * PATH'in yanında npm, pnpm, Yarn, Bun, Volta, Scoop, WinGet, Chocolatey, Homebrew ve
- * yaygın Unix konumları taranır — kullanıcı CLI'ını hangi paket yöneticisiyle kurduysa
+ * yaygın Unix konumları taranır: kullanıcı CLI'ını hangi paket yöneticisiyle kurduysa
  * bulunur, PATH'e elle eklemesi gerekmez.
  *
  * Kullanıcının sildiği otomatik adapter'lar `discoveryIgnoredAdapters` listesindedir ve
@@ -80,7 +80,7 @@ export function candidateDirectories(env: NodeJS.ProcessEnv = process.env, platf
 
 export interface DiscoveredCli {
   adapter: CliAdapter;
-  /** Çalıştırılacak komut — mutlak yol ya da PATH'te bulunan ad. */
+  /** Çalıştırılacak komut: mutlak yol ya da PATH'te bulunan ad. */
   command: string;
   version: string | null;
 }

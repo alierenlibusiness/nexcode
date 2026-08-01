@@ -25,7 +25,7 @@ const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
 
 /**
  * `---` blokuyla başlayan beceri dosyasını ayrıştırır. Frontmatter yoksa dosya adı ad,
- * ilk başlık ya da ilk satır açıklama olarak kullanılır — hiçbir dosya sessizce düşmez.
+ * ilk başlık ya da ilk satır açıklama olarak kullanılır: hiçbir dosya sessizce düşmez.
  */
 export function parseSkillFile(path: string, raw: string): SkillDefinition {
   const fallbackName = path
@@ -117,7 +117,7 @@ export interface MatchOptions {
   charBudget: number;
 }
 
-/** Göreve uygun beceri kısa listesi — skoru sıfır olanlar hiç önerilmez. */
+/** Göreve uygun beceri kısa listesi: skoru sıfır olanlar hiç önerilmez. */
 export function matchSkills(
   skills: readonly SkillDefinition[],
   text: string,
@@ -161,7 +161,7 @@ export class SkillRegistry {
     this.loaded = true;
   }
 
-  /** Paketle gelen tüm beceri adları — ilk kurulumda `skills.enabled` bunlarla doldurulur. */
+  /** Paketle gelen tüm beceri adları: ilk kurulumda `skills.enabled` bunlarla doldurulur. */
   allNames(): string[] {
     return this.skills.map((skill) => skill.name).sort();
   }

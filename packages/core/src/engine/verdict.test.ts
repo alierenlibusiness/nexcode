@@ -25,7 +25,7 @@ describe("parseVerdict", () => {
     expect(parseVerdict("Bence VERDICT: PASS olmalı ama emin değilim.")).toBeNull();
   });
 
-  it("karar yoksa null döner — sessizce PASS varsaymaz", () => {
+  it("karar yoksa null döner: sessizce PASS varsaymaz", () => {
     expect(parseVerdict("Her şey iyi görünüyor.")).toBeNull();
     expect(parseVerdict("")).toBeNull();
   });
@@ -52,15 +52,15 @@ describe("extractBlockingFindings", () => {
   it("yalnızca CRITICAL ve HIGH bulguları toplar", () => {
     const review = [
       "BULGULAR:",
-      "- [CRITICAL] src/auth.ts — token doğrulanmıyor",
-      "- [HIGH] src/db.ts — SQL injection riski",
-      "- [MEDIUM] src/ui.tsx — erişilebilirlik etiketi eksik",
-      "- [LOW] README — yazım hatası",
+      "- [CRITICAL] src/auth.ts: token doğrulanmıyor",
+      "- [HIGH] src/db.ts: SQL injection riski",
+      "- [MEDIUM] src/ui.tsx: erişilebilirlik etiketi eksik",
+      "- [LOW] README: yazım hatası",
       "VERDICT: FAIL",
     ].join("\n");
     expect(extractBlockingFindings(review)).toEqual([
-      "src/auth.ts — token doğrulanmıyor",
-      "src/db.ts — SQL injection riski",
+      "src/auth.ts: token doğrulanmıyor",
+      "src/db.ts: SQL injection riski",
     ]);
   });
 

@@ -3,7 +3,7 @@ import type { SecretStore } from "./secret-store";
 
 /**
  * OS keychain tabanlı sır deposu (Windows Credential Manager / macOS Keychain).
- * Native bağımlılık içerir — yalnızca Electron main process'te kullanılmalıdır
+ * Native bağımlılık içerir: yalnızca Electron main process'te kullanılmalıdır
  * (renderer bu alt yola `@nexcode/core/keyring` erişmemelidir).
  */
 export class KeyringSecretStore implements SecretStore {

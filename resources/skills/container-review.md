@@ -17,7 +17,7 @@ Reviewing a Dockerfile or image build.
 - Use a multi-stage build so build tools do not ship.
 - Run as a non-root user.
 - Order layers so dependency installation caches independently of source changes.
-- Never bake secrets into a layer — history keeps them.
+- Never bake secrets into a layer: history keeps them.
 - Declare a health check and a correct signal-handling entrypoint.
 
 ## Verification

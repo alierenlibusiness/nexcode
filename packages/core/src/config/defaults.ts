@@ -40,7 +40,7 @@ export const DEFAULT_RISKY_PATTERNS: readonly string[] = [
 ];
 
 /**
- * Yerleşik 6 alan agent'ı — hibrit roster'ın sabit çekirdeği (PRD §8).
+ * Yerleşik 6 alan agent'ı: hibrit roster'ın sabit çekirdeği (PRD §8).
  * Her biri bir orkestrasyon rolü taşır; bu rol alabileceği görev türünü BAĞLAYICI kılar.
  * Keşfedilen CLI agent'ları bunların yanına eklenir, yerlerini almaz.
  */
@@ -97,7 +97,7 @@ export const DEFAULT_AGENT_PROFILES: Readonly<Record<string, AgentProfile>> = {
     role: "reviewer",
     domain: "security",
     roleFile: "reviewer.md",
-    // Tetiklemeli rol — sürekli/yüksek hacimli değil, bu yüzden API anahtarı yeterli.
+    // Tetiklemeli rol: sürekli/yüksek hacimli değil, bu yüzden API anahtarı yeterli.
     connection: "api_only",
     autonomy: "autonomous",
     model: { provider: "anthropic", modelId: "claude-opus-4-8" },
@@ -128,7 +128,7 @@ export const DEFAULT_AGENT_PROFILES: Readonly<Record<string, AgentProfile>> = {
     domain: "devops",
     roleFile: "executor.md",
     connection: "api_only",
-    // Production'a otonom dokunmaz — her adım insan onayı ister.
+    // Production'a otonom dokunmaz: her adım insan onayı ister.
     autonomy: "manual",
     model: { provider: "google", modelId: "gemini-3.5-flash" },
     modelOverride: false,

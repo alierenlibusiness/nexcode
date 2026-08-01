@@ -6,7 +6,7 @@ import type { RoundPolicy } from "./rounds";
  * Prompt kurulumu ve karakter bütçeleri.
  *
  * İki değişmez korunur:
- * 1. Bağlam **sessizce kesilmez** — kesme her zaman görünür bir işaretle bildirilir.
+ * 1. Bağlam **sessizce kesilmez**: kesme her zaman görünür bir işaretle bildirilir.
  * 2. Büyük kullanıcı metni katı JSON operatör protokolünü bozmaz; dosyaya taşınır.
  */
 

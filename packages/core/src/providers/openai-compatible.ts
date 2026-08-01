@@ -12,7 +12,7 @@ import { computeCost } from "./cost";
 /**
  * OpenAI-uyumlu Chat Completions API adapter'ı. OpenAI'nin yanı sıra DeepSeek ve
  * MiniMax aynı sözleşmeyi (`/chat/completions`) sunduğu için tek adapter üçünü de
- * karşılar — yalnızca `id`, `baseUrl` ve pricing tablosu (provider üzerinden) değişir
+ * karşılar: yalnızca `id`, `baseUrl` ve pricing tablosu (provider üzerinden) değişir
  * (PRD §6.3 provider-agnostic gateway, §8.2/8.5).
  */
 export interface OpenAICompatibleOptions {

@@ -6,7 +6,7 @@ import { matchSkills, parseSkillFile } from "./registry";
 
 /**
  * Paketle gelen beceri kataloğunun sözleşmesi. Bir beceri dosyası bozulursa operatörün
- * gördüğü envanter sessizce eksilir — bu test o sessiz kaybı engeller.
+ * gördüğü envanter sessizce eksilir: bu test o sessiz kaybı engeller.
  */
 const SKILLS_DIR = join(__dirname, "..", "..", "..", "..", "resources", "skills");
 

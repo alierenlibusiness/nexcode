@@ -1,97 +1,155 @@
+<div align="center">
+
 # NEXCODE
 
-Çoklu-agent, paralel "vibe coding" iş akışları için masaüstü-öncelikli yapay zeka geliştirme ortamı.
+**Run every coding CLI you already have as one AI engineering team.**
 
-> Ürün vizyonu ve tam spesifikasyon: [`docs/PRD.md`](docs/PRD.md). Agent talimatları: [`CLAUDE.md`](CLAUDE.md).
+Claude Code, Codex CLI, Gemini CLI, OpenCode and Antigravity, coordinated by a single
+operator that plans, delegates, reviews and ships. On your machine, with your own
+subscriptions, in a desktop app you can actually watch.
 
-## Durum — Faz 2 (Tam Ekip · Çoklu Sağlayıcı · IDE Kabuğu)
+</div>
 
-Faz 1 orkestrasyonunun üzerine **Faz 2** kuruldu:
+---
 
-- **6 agent'ın tamamı:** CEO · Frontend · Backend · Security · QA · DevOps (PRD §8 model/bağlantı eşlemesi).
-- **Provider-agnostic AI Gateway:** Anthropic, OpenAI (GPT/Codex), Google (Gemini),
-  DeepSeek, MiniMax — ve **veri-güdümlü registry** sayesinde yeni sağlayıcı (Kimi, GLM…)
-  eklemek sadece bir kayıt eklemek (OpenAI-uyumlu API'ler tek adapter'ı paylaşır).
-- **Her agent için AI seçimi:** kullanıcı UI'dan agent başına model seçer; SQLite'da saklanır.
-- **API / CLI çift mod + otomatik geçiş:** `api_only` · `cli_only` · `cli_first`.
-  CLI adapter'ları: Claude Code · Codex CLI · Antigravity CLI. Kota dolunca (5 saatlik
-  kayan pencere, `QuotaTracker`) API'ye düşer; her çağrı `cost_logs`'a `connection_mode` ile yazılır.
-- **QA 3-kademeli eskalasyon:** DeepSeek V4 Flash → MiniMax M3 → Sonnet 4.6.
-- **Inter-agent message bus (§6.7):** Backend → Security `review_request`, tamamlanan
-  kod görevi → QA `test_request` (event-driven).
-- **Merge-time conflict resolver (§6.2):** dosya kapsamı örtüşme tespiti + paralel-batch planlama.
-- **IDE kabuğu (VS Code benzeri 3 panel):** solda **Open Folder** ile dosya ağacı, ortada
-  salt-okunur kod görüntüleyici + **terminal**, sağda **vibe-coding sohbeti** (CEO orkestrasyon) ve
-  agent/model paneli.
-- **Approval Gate** (sıfır-tolerans) ve **in-process kuyruk** (Faz 1) korunur.
+## What it is
 
-Kalan: görev başına git worktree + commit otomasyonu, imzalı Windows/macOS installer
-(electron-builder config + entitlements hazır, sertifika/Apple hesabı gerektirir). Yol haritası: PRD §23.
+You probably have two or three AI coding CLIs installed. Each one is good. None of them
+talk to each other, none of them review each other's work, and none of them can run while
+you do something else.
 
-## Monorepo Yapısı
+NEXCODE turns them into a team.
+
+You write a goal. An **operator** agent reads it, writes a plan, and hands the work to
+specialist agents running as separate CLI processes. A reviewer checks the result. Your
+own test and lint commands run as a hard gate. Only then does the work ship, on its own
+git branch, without ever touching your working tree.
+
+Everything is visible while it happens: which agent is working, what it is writing, line
+by line, and why the operator decided what it decided.
+
+## How it works
 
 ```
-packages/core      Paylaşılan çekirdek: domain tipleri, SQLite şeması/repo,
-                   secret-store (keychain), IPC kontrat (Zod), logger
-apps/desktop       Electron main + preload + IPC handler
-apps/renderer      Next.js (statik export) — karanlık tema UI kabuğu
+Goal
+ |
+ +--> Operator plans and delegates
+ |         |
+ |         +--> planner    (writes the approach)
+ |         +--> executor   (writes the code)
+ |         +--> reviewer   (finds the problems)
+ |
+ +--> Verification gate    (your real test / typecheck / lint commands)
+ |
+ +--> Delivery on an isolated git branch
 ```
 
-`@nexcode/core` alt yolları:
+The operator never writes code. Specialists never decide when the task is done. The
+verification gate outranks both: a model saying "tests pass" is not evidence, a green
+command is.
 
-- `@nexcode/core` — saf (native-bağımsız) API; renderer + main güvenle kullanır
-  (registry, adapter'lar, orchestrator, message bus, quota, escalation, conflict-resolver)
-- `@nexcode/core/db` — better-sqlite3 (yalnızca main process)
-- `@nexcode/core/keyring` — OS keychain (yalnızca main process)
-- `@nexcode/core/providers` — CLI adapter'ları + AdapterFactory (node:child_process; yalnızca main)
+## What makes it different
 
-## Gereksinimler
+**Real evidence, not model claims.** After every round, NEXCODE runs the commands you
+define. A red gate closes every delivery shortcut and sends the decision back to the
+operator. If the operator insists anyway, the first attempt is rejected outright. Work is
+never silently shipped on a broken build, and never thrown away either.
 
-- Node.js ≥ 22
-- pnpm ≥ 9
+**Your working tree stays clean.** Each task runs in its own git worktree on its own
+branch. Nothing is pushed anywhere. If a task fails, its tree is kept so you can inspect it.
 
-> Bu bir **pnpm** monorepo'sudur — `npm` değil `pnpm` kullanın.
+**Parallel by default, safely.** Multiple tasks can run at once, each in its own isolated
+slot. Concurrency requires isolation: NEXCODE refuses to run tasks in parallel without it,
+because that corrupts working trees.
 
-## Komutlar
+**One click back.** Every task snapshots the working directory before it starts. "Return to
+this version" restores changed and deleted files, removes what was added, and takes a redo
+snapshot first, so undo is itself undoable.
+
+**Nothing sensitive leaks into the UI.** `.env` files, credentials and private keys are
+never rendered into the live diff or stored in snapshots.
+
+**Bring your own everything.** CLI agents use the subscriptions you already pay for. API
+providers are available as a second execution path, with keys in your OS keychain and
+per-call cost tracking.
+
+## The four surfaces
+
+| Surface | What it shows |
+|---|---|
+| **Command Center** | Write a goal, watch the queue, the live event stream, approvals and engine controls |
+| **Board** | Task lifecycle across Pending, Running, Completed and Failed |
+| **Live Code** | Git-style file and hunk diffs, streaming as agents write |
+| **Team Flow** | The orchestration scene: operator core, agent nodes, data packets and a full timeline |
+
+## Getting started
+
+Requires Node.js 22+, pnpm, and at least one supported coding CLI already installed and
+signed in.
 
 ```bash
-pnpm install          # bağımlılıkları kur (better-sqlite3 native binary dahil)
-pnpm dev              # TEK KOMUT: ABI hazırlığı + renderer dev + Electron'u aç
-pnpm build            # tüm paketleri derle (topolojik sıra)
-pnpm typecheck        # strict tsc tüm paketlerde
-pnpm test             # Vitest (core birim testleri)
-pnpm lint             # ESLint
-```
-
-### Masaüstü uygulamasını çalıştırma
-
-```bash
+git clone https://github.com/alierenlibusiness/nexcode.git
+cd nexcode
+pnpm install
 pnpm dev
 ```
 
-`pnpm dev` şunları otomatik yapar (bkz. [`scripts/dev.mjs`](scripts/dev.mjs)):
-better-sqlite3'ü Electron ABI'sine hazırlar → Next.js dev server'ı başlatır (:3000) →
-hazır olunca Electron penceresini açar. Üretimde `apps/renderer/out` export'u `file://` ile yüklenir.
+NEXCODE discovers the CLIs on your machine, checks whether they are ready, and builds the
+agent catalog for you. Open the Command Center, start the engine, and give it a goal.
 
-> **Native ABI notu:** `better-sqlite3` native binary'si Node ile Electron'da farklı ABI
-> kullanır. `pnpm dev` binary'yi **Electron ABI'sine** geçirir; sonrasında `pnpm test` (Node)
-> çalışmaz. Testlere dönmek için: **`pnpm rebuild:node`**. (Tek komutlar:
-> `pnpm rebuild:electron` / `pnpm rebuild:node`.)
+### Turning on the good parts
 
-### Kurulum sihirbazı (setup.exe) üretme
+Both are off by default so behavior is identical to a plain run until you opt in.
 
-```bash
-pnpm rebuild:electron                          # native modülü Electron ABI'sine hazırla
-pnpm build                                     # core + desktop + renderer/out
-pnpm --filter @nexcode/desktop package         # NSIS installer → release/NEXCODE-Setup-<sürüm>.exe
+```jsonc
+{
+  // Run your real commands as a delivery gate.
+  "verify": {
+    "commands": ["pnpm typecheck", "pnpm test"],
+    "blockOnFailure": true
+  },
+
+  // Give every task its own git worktree and branch.
+  "worktree": {
+    "mode": "task",
+    "branchPrefix": "nexcode/",
+    "linkPaths": ["node_modules"]
+  },
+
+  // Only allowed once isolation is on.
+  "maxConcurrentTasks": 3
+}
 ```
 
-Üretilen `release/NEXCODE-Setup-0.1.0.exe` **sihirbazlı** (oneClick değil), **kullanıcı
-profiline kurar** (admin gerekmez; `%LOCALAPPDATA%\Programs\NEXCODE`), masaüstü + başlat
-menüsü kısayolu oluşturur. İmzalama için kod-imzalama sertifikası gerekir (PRD §21).
-better-sqlite3 ve `@napi-rs/keyring` native modülleri pakete dahildir (`asar.unpacked`).
+## Scheduled work
 
-## Standartlar
+Recurring tasks use plain presets rather than cron syntax: every N minutes, daily at a
+time, or weekly on chosen days. A scheduled task is queued when it comes due. It never
+starts a stopped engine on its own.
 
-Strict TypeScript (`strict`, `noUncheckedIndexedAccess`), Conventional Commits, Vitest.
-Detay: [`CLAUDE.md`](CLAUDE.md) ve [`docs/PRD.md`](docs/PRD.md) §18.
+## Use NEXCODE from another agent
+
+NEXCODE also exposes itself over MCP, so Claude Code or any other MCP client can queue work
+into it, check status and resolve approvals from inside its own flow. Engine start and stop
+is gated behind an explicit setting and stays hidden until you enable it.
+
+## Verify a build
+
+```bash
+pnpm -r build
+pnpm typecheck
+pnpm lint
+pnpm test
+```
+
+## Documentation
+
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) walks through the module boundaries and
+  the invariants the system guarantees.
+- Each feature branch carries a README focused on that subsystem.
+
+## Credits
+
+The product model is adapted from [CrewCtl](https://github.com/omergocmen/CrewCtl) by Ömer
+Göçmen, released under the MIT license. NEXCODE reimplements that model on a different
+foundation: TypeScript, SQLite persistence and an Electron desktop application.

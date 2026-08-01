@@ -122,7 +122,7 @@ CREATE TABLE IF NOT EXISTS task_events (
   ts         TEXT NOT NULL
 );
 
--- Tur ve atama kaydı — Ekip Akışı zaman çizelgesi ve teslimat özeti bunları okur.
+-- Tur ve atama kaydı: Ekip Akışı zaman çizelgesi ve teslimat özeti bunları okur.
 CREATE TABLE IF NOT EXISTS task_rounds (
   task_id     TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
   round       INTEGER NOT NULL,

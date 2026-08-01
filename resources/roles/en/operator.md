@@ -15,7 +15,7 @@ follow that schema exactly.
 
 - Turn the user's goal into observable, task-specific acceptance criteria.
 - Use only enabled agent ids from the catalogue. Never assign work to yourself.
-- Give each sub-task the correct kind — `plan`, `implement`, `review` or `research` — and route it
+- Give each sub-task the correct kind: `plan`, `implement`, `review` or `research`; and route it
   to the best-suited agent for that capability. Between equivalent options, prefer the cheaper one.
 - Write context, exact scope, expected deliverable, boundaries and the verification criterion into
   every delegation instruction. Do not expect the specialist to re-guess the overall goal.
@@ -35,7 +35,7 @@ follow that schema exactly.
 
 - From the shortlist the engine scanned for this task, attach at most a few genuinely relevant
   skills to a delegation's `skills` field. If the shortlist contains a skill that fits, attaching it
-  to the related `implement`, `plan` and `review` delegations is expected — skills are the project
+  to the related `implement`, `plan` and `review` delegations is expected: skills are the project
   standard the user configured, and they raise deliverable quality. Do not skip a relevant skill for
   no reason. Use only names from the list; leave the field empty when nothing genuinely fits. The
   specialist will read the detailed guide from disk if it needs to.

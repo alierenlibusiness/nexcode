@@ -1,5 +1,5 @@
 {
-  "_comment": "TEMPLATE — copied to your personal config.json on first run. Installed CLIs (Claude Code / Codex / Gemini / OpenCode / Antigravity) are auto-detected and added as specialist agents. config.json is machine-specific and git-ignored; THIS file is shareable and is the settings baseline everyone sees. Keys starting with _ are documentation only and are stripped at load time.",
+  "_comment": "TEMPLATE; copied to your personal config.json on first run. Installed CLIs (Claude Code / Codex / Gemini / OpenCode / Antigravity) are auto-detected and added as specialist agents. config.json is machine-specific and git-ignored; THIS file is shareable and is the settings baseline everyone sees. Keys starting with _ are documentation only and are stripped at load time.",
 
   "version": 1,
 
@@ -23,7 +23,7 @@
   "_taskPromptCharBudget_comment": "If your task text exceeds this (e.g. a 1000-line spec), the full text is written to .nexcode/TASK-<id>.md in the working folder and the prompt carries only a head+tail digest plus a 'read the full text from the file' marker. This keeps the strict JSON operator protocol intact and stops context from being silently truncated.",
   "taskPromptCharBudget": 6000,
 
-  "_timeout_comment": "agentTimeoutSeconds is the hard ceiling for one delegation. cliSilenceTimeoutSeconds ends a delegation that produced no new output for that long — progress already recorded is preserved. Per-adapter silence limits (codex/gemini 180s, claude 240s, opencode 300s) override this where they are stricter.",
+  "_timeout_comment": "agentTimeoutSeconds is the hard ceiling for one delegation. cliSilenceTimeoutSeconds ends a delegation that produced no new output for that long; progress already recorded is preserved. Per-adapter silence limits (codex/gemini 180s, claude 240s, opencode 300s) override this where they are stricter.",
   "agentTimeoutSeconds": 900,
   "cliSilenceTimeoutSeconds": 300,
 
@@ -42,7 +42,7 @@
   "versioningRetention": 20,
 
   "sandbox": {
-    "_comment": "Agent jail. 'workspace' = agents may only write inside the working folder; writes outside are blocked (no Docker or Git required). 'off' restores unrestricted behaviour. extraWritableDirs lists absolute paths outside the working folder that stay writable — useful for monorepos.",
+    "_comment": "Agent jail. 'workspace' = agents may only write inside the working folder; writes outside are blocked (no Docker or Git required). 'off' restores unrestricted behaviour. extraWritableDirs lists absolute paths outside the working folder that stay writable; useful for monorepos.",
     "mode": "workspace",
     "extraWritableDirs": []
   },
@@ -99,7 +99,7 @@
       "modelExclude": []
     },
     "opencode": {
-      "_comment": "Naming an explicit model skips auto-selection entirely (most reliable — copy a line from `opencode models`). Left empty, modelPreferences patterns are tried in order and the FIRST match wins; '*' is a wildcard. Provider names differ per user (yours may be opencode-go, minimax, openrouter or your own server), so no provider is hardcoded — reorder the list to put your own first. modelExclude lists providers not assumed reachable; delete a line to use your local server.",
+      "_comment": "Naming an explicit model skips auto-selection entirely (most reliable; copy a line from `opencode models`). Left empty, modelPreferences patterns are tried in order and the FIRST match wins; '*' is a wildcard. Provider names differ per user (yours may be opencode-go, minimax, openrouter or your own server), so no provider is hardcoded; reorder the list to put your own first. modelExclude lists providers not assumed reachable; delete a line to use your local server.",
       "model": "",
       "modelPreferences": ["*deepseek*free*", "*free*", "*"],
       "modelExclude": ["ollama/*", "lmstudio/*", "llamacpp/*", "local/*", "localhost/*"]
@@ -169,7 +169,7 @@
       "discovered": false
     },
     "security": {
-      "_comment": "Trigger-driven, never continuous — an API key is enough. Reports only; it must not write files.",
+      "_comment": "Trigger-driven, never continuous; an API key is enough. Reports only; it must not write files.",
       "id": "security",
       "name": "Security",
       "enabled": true,
@@ -199,7 +199,7 @@
       "discovered": false
     },
     "devops": {
-      "_comment": "Never touches production autonomously — every step asks for human approval.",
+      "_comment": "Never touches production autonomously; every step asks for human approval.",
       "id": "devops",
       "name": "DevOps",
       "enabled": true,

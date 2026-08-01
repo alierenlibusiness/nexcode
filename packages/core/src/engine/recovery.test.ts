@@ -52,7 +52,7 @@ describe("decideRecovery", () => {
     expect(decideRecovery({ ...base, failure: "model", attempt: 0 }).quarantine).toBe(true);
   });
 
-  it("süre ve sessizlik aşımında karantina uygulamaz — geçici koşul olabilir", () => {
+  it("süre ve sessizlik aşımında karantina uygulamaz: geçici koşul olabilir", () => {
     expect(decideRecovery({ ...base, failure: "timeout", attempt: 0 }).quarantine).toBe(false);
     expect(decideRecovery({ ...base, failure: "stalled", attempt: 0 }).quarantine).toBe(false);
   });
@@ -76,7 +76,7 @@ describe("decideRecovery", () => {
 });
 
 describe("stalledSummary", () => {
-  it("sürecin hiç çalışmadığını söylemez — ilerlemenin korunduğunu bildirir", () => {
+  it("sürecin hiç çalışmadığını söylemez: ilerlemenin korunduğunu bildirir", () => {
     const summary = stalledSummary(300);
     expect(summary).toContain("300 saniye");
     expect(summary).toContain("hiç çalışmadığı anlamına gelmez");

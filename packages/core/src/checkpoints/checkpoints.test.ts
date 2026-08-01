@@ -106,7 +106,7 @@ describe("Checkpoints", () => {
     expect(files["a.ts"]).toBe("içerik");
   });
 
-  it("geri yüklemeden önce redo checkpoint'i oluşturur — geri alma geri alınabilir", async () => {
+  it("geri yüklemeden önce redo checkpoint'i oluşturur: geri alma geri alınabilir", async () => {
     counter = 0;
     const { port, files } = makePort({ "a.ts": "v1" });
     const checkpoints = new Checkpoints(port, options);

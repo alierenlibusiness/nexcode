@@ -12,7 +12,7 @@ export interface CostLogEntry {
   inputTokens: number;
   outputTokens: number;
   usdCost: number;
-  /** Abonelik havuzu kimliği — paylaşılan CLI havuzu (CEO+Backend) için (PRD §9.3). */
+  /** Abonelik havuzu kimliği: paylaşılan CLI havuzu (CEO+Backend) için (PRD §9.3). */
   subscriptionPoolId?: string | null;
 }
 
@@ -61,7 +61,7 @@ export class CostLogRepository {
     return id;
   }
 
-  /** Toplam taşma (API) maliyeti — abonelik dışı gerçek USD harcaması. */
+  /** Toplam taşma (API) maliyeti: abonelik dışı gerçek USD harcaması. */
   totalApiCost(): number {
     const row = this.db
       .prepare(`SELECT COALESCE(SUM(usd_cost), 0) AS total FROM cost_logs WHERE connection_mode = 'api'`)
@@ -69,7 +69,7 @@ export class CostLogRepository {
     return row.total;
   }
 
-  /** Bağlantı moduna göre özet (api vs cli) — dashboard'da abonelik tasarrufunu gösterir. */
+  /** Bağlantı moduna göre özet (api vs cli): dashboard'da abonelik tasarrufunu gösterir. */
   summaryByConnectionMode(): CostSummaryRow[] {
     return this.db
       .prepare(

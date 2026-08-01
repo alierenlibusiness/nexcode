@@ -2,16 +2,16 @@ import type { ConnectionMode } from "../domain/agent";
 import type { ModelPricing } from "./pricing";
 
 /**
- * Sağlayıcı/model kayıt defteri — TEK kaynak (PRD §5 sağlayıcı bağımsızlığı, §9.2).
+ * Sağlayıcı/model kayıt defteri: TEK kaynak (PRD §5 sağlayıcı bağımsızlığı, §9.2).
  * Yeni bir AI eklemek = buraya bir kayıt eklemek (kod değil, veri). Kullanıcı her agent
  * için bu listeden model seçer; UI bu registry'yi numaralandırır.
  *
  * Yeni OpenAI-uyumlu sağlayıcı (Kimi, GLM, Qwen, Cohere…) eklemek için: `kind:
- * "openai-compatible"`, `baseUrl` ve `models` ver — adapter mevcut OpenAICompatibleAdapter'dır.
+ * "openai-compatible"`, `baseUrl` ve `models` ver: adapter mevcut OpenAICompatibleAdapter'dır.
  */
 export type ProviderKind = "anthropic" | "openai-compatible" | "google";
 
-/** Bir sağlayıcının abonelik CLI'sı (varsa) — PRD §9.2. */
+/** Bir sağlayıcının abonelik CLI'sı (varsa): PRD §9.2. */
 export type CliKind = "claude-code" | "codex" | "antigravity";
 
 export interface ProviderModel {

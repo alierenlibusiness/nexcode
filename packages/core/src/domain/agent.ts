@@ -14,7 +14,7 @@ export type AgentStatus =
 /** Kademeli otonomi seviyeleri (PRD Prensip 12). */
 export type AutonomyLevel = "manual" | "supervised" | "autonomous";
 
-/** Bağlantı modu — API anahtarı ya da CLI abonelik (PRD §9). */
+/** Bağlantı modu: API anahtarı ya da CLI abonelik (PRD §9). */
 export type ConnectionMode = "api" | "cli";
 
 /** Bir agent'ın bağlandığı model referansı (PRD §7). */

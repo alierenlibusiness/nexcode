@@ -8,7 +8,7 @@ import { isScannable, isSensitivePath } from "../engine/live-diff";
  * oluşan dosyaları kaldırır.
  *
  * İki güvenlik değişmezi:
- * 1. **Geri almanın geri alınması** — bir checkpoint geri yüklenmeden önce mevcut durum
+ * 1. **Geri almanın geri alınması**: bir checkpoint geri yüklenmeden önce mevcut durum
  *    için yeni bir `redo` checkpoint'i oluşturulur.
  * 2. Geri yükleme yalnızca **motor boştayken** yapılabilir; çalışan agent'ın altından
  *    dosya çekilmez.
@@ -28,7 +28,7 @@ export interface CheckpointMeta {
 export interface Checkpoint extends CheckpointMeta {
   /**
    * Köke göre yol → içerik. `null`, dosyanın var olduğunu ama içeriğinin güvenle
-   * saklanamadığını belirtir (ikili, hassas veya sınır aşan) — geri yüklemede dokunulmaz.
+   * saklanamadığını belirtir (ikili, hassas veya sınır aşan): geri yüklemede dokunulmaz.
    */
   files: Record<string, string | null>;
 }
@@ -102,7 +102,7 @@ export class Checkpoints {
   /**
    * Bir checkpoint'e döner.
    *
-   * `engineIdle` false ise hiçbir şey yapılmaz — çalışan bir görev sırasında geri yükleme
+   * `engineIdle` false ise hiçbir şey yapılmaz: çalışan bir görev sırasında geri yükleme
    * dosya sistemini agent'ın altından çeker.
    */
   async restore(id: string, engineIdle: boolean): Promise<RestoreResult> {

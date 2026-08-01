@@ -15,16 +15,16 @@ function ensureColumn(db: DB, table: string, column: string, definition: string)
  * Sürümlü, **ileri-only** ve idempotent migration'lar.
  *
  * Her adım yalnızca bir kez çalışır; `user_version` pragması ilerletilir. Hiçbir adım veri
- * silmez — durum sözcükleri değişirse eski değerler yenilerine eşlenir, satırlar atılmaz.
+ * silmez: durum sözcükleri değişirse eski değerler yenilerine eşlenir, satırlar atılmaz.
  */
 const MIGRATIONS: ReadonlyArray<(db: DB) => void> = [
-  // 1 — Faz 2: kullanıcının agent başına model seçimi (PRD §9.5).
+  // 1: Faz 2: kullanıcının agent başına model seçimi (PRD §9.5).
   (db) => {
     ensureColumn(db, "agent_settings", "model_provider", "TEXT");
     ensureColumn(db, "agent_settings", "model_id", "TEXT");
   },
 
-  // 2 — Orkestrasyon motoru: görev kaydı motorun yaşam döngüsünü taşır.
+  // 2: Orkestrasyon motoru: görev kaydı motorun yaşam döngüsünü taşır.
   (db) => {
     ensureColumn(db, "tasks", "prompt", "TEXT NOT NULL DEFAULT ''");
     ensureColumn(db, "tasks", "execution_mode", "TEXT NOT NULL DEFAULT 'auto'");
@@ -52,7 +52,7 @@ const MIGRATIONS: ReadonlyArray<(db: DB) => void> = [
   },
 ];
 
-/** Şema sürümü — `MIGRATIONS` uzunluğu ile eşittir. */
+/** Şema sürümü: `MIGRATIONS` uzunluğu ile eşittir. */
 export const SCHEMA_VERSION = MIGRATIONS.length;
 
 function applyMigrations(db: DB): void {

@@ -1,7 +1,7 @@
 import type { ExecutionMode, NexcodeConfig } from "../config/schema";
 
 /**
- * Yürütme politikası — bir görevin hız/kalite bütçesini belirler.
+ * Yürütme politikası: bir görevin hız/kalite bütçesini belirler.
  *
  * Küçük iş gereksiz rollere bölünmez, çok bileşenli veya riskli iş tek uzmana yığılmaz.
  * `auto` görevi inceleyip diğer üç moddan birine çözümlenir; kullanıcı açıkça mod seçtiyse
@@ -50,7 +50,7 @@ const BASE_POLICIES: Readonly<Record<Exclude<ExecutionMode, "auto">, Omit<RoundP
   },
 };
 
-/** Context bütçesinin moda göre oranı — derin mod tam bütçeyi kullanır. */
+/** Context bütçesinin moda göre oranı: derin mod tam bütçeyi kullanır. */
 const CONTEXT_RATIO: Readonly<Record<Exclude<ExecutionMode, "auto">, number>> = {
   fast: 0.35,
   balanced: 0.7,
@@ -125,7 +125,7 @@ export function roundPolicyFor(mode: ExecutionMode, prompt: string, config: Nexc
   };
 }
 
-/** Tur sınırına ulaşıldı mı — ulaşıldıysa motor kısmi teslimata geçer. */
+/** Tur sınırına ulaşıldı mı: ulaşıldıysa motor kısmi teslimata geçer. */
 export function isFinalRound(round: number, policy: RoundPolicy): boolean {
   return round >= policy.maxRounds;
 }

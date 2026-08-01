@@ -10,7 +10,7 @@ describe("trimFromEnd / trimFromStart", () => {
     expect(trimFromStart("kısa", 100)).toBe("kısa");
   });
 
-  it("kesmeyi görünür biçimde bildirir — sessizce kırpmaz", () => {
+  it("kesmeyi görünür biçimde bildirir: sessizce kırpmaz", () => {
     const long = "x".repeat(500);
     expect(trimFromEnd(long, 100)).toContain("karakter kırpıldı");
     expect(trimFromStart(long, 100)).toContain("karakter kırpıldı");
@@ -83,7 +83,7 @@ describe("buildOperatorPrompt", () => {
     expect(prompt).toContain("alabileceği iş: implement");
     expect(prompt).toContain("alabileceği iş: review");
     // Operatörün kendisi katalogda değildir.
-    expect(prompt).not.toContain("- ceo —");
+    expect(prompt).not.toContain("- ceo: ");
   });
 
   it("tur ve mod bütçesini görünür kılar", () => {

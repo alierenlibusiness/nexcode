@@ -22,9 +22,9 @@ interface ClaudeCliJson {
 }
 
 /**
- * Claude Code CLI adapter'ı — abonelik (CLI) modu (PRD §6.3, §9.1).
+ * Claude Code CLI adapter'ı: abonelik (CLI) modu (PRD §6.3, §9.1).
  * `claude -p --output-format json` ile headless çalışır; prompt stdin'den verilir.
- * Maliyet abonelik havuzundan tüketilir (per-token API faturası değil) — `estimateCost`
+ * Maliyet abonelik havuzundan tüketilir (per-token API faturası değil): `estimateCost`
  * öngörülen abonelik maliyetini 0 döner, gerçek maliyet CLI çıktısındaki cost ile gelir.
  */
 export class ClaudeCodeAdapter implements AIProviderAdapter {

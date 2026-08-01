@@ -21,7 +21,7 @@ export interface AdapterFactoryDeps {
 
 /**
  * Bir agent'ın `ModelRef`'i ve kullanıcının `ConnectionPreference`'ına göre doğru
- * adapter'ı (API ya da CLI) üretir — "istersek API, istersek CLI" mantığının uygulandığı
+ * adapter'ı (API ya da CLI) üretir: "istersek API, istersek CLI" mantığının uygulandığı
  * tek nokta (PRD §6.3 provider-agnostic gateway, §9.3-§9.5).
  */
 export class AdapterFactory {
@@ -72,7 +72,7 @@ export class AdapterFactory {
     const kind = providerCliKind(model.provider);
     if (!kind) {
       throw new Error(
-        `'${model.provider}' için abonelik CLI'sı yok — bu agent'ı API moduna alın (PRD §9.2).`,
+        `'${model.provider}' için abonelik CLI'sı yok: bu agent'ı API moduna alın (PRD §9.2).`,
       );
     }
     const runnerOpt = this.deps.cliRunner ? { runner: this.deps.cliRunner } : {};

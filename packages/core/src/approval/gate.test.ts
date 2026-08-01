@@ -22,7 +22,7 @@ describe("classifyAction", () => {
   });
 });
 
-describe("requiresHumanApproval — sıfır tolerans", () => {
+describe("requiresHumanApproval: sıfır tolerans", () => {
   const levels: AutonomyLevel[] = ["manual", "supervised", "autonomous"];
 
   it("'required' eylemler HER otonomi seviyesinde onay gerektirir", () => {

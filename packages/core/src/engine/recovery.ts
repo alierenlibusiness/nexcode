@@ -5,15 +5,15 @@ import type { NexcodeConfig } from "../config/schema";
  *
  * Geçici sağlayıcı hatalarında delegasyon aynı agent ile üstel bekleyerek yeniden denenir;
  * kalıcı hatada iş aynı yetenekteki sağlıklı bir agent'a devredilir. Operatöre geri dönüp
- * yeni bir plan turu harcamak **son çaredir** — pahalıdır ve tamamlanmış işi tekrarlatır.
+ * yeni bir plan turu harcamak **son çaredir**: pahalıdır ve tamamlanmış işi tekrarlatır.
  */
 
 export type FailureClass =
-  /** Rate limit, aşırı yük, ağ dalgalanması — aynı agent ile beklenip tekrar denenir. */
+  /** Rate limit, aşırı yük, ağ dalgalanması: aynı agent ile beklenip tekrar denenir. */
   | "transient"
-  /** Oturum açılmamış / yetkisiz — agent bu oturumda kullanılamaz. */
+  /** Oturum açılmamış / yetkisiz: agent bu oturumda kullanılamaz. */
   | "auth"
-  /** Model bulunamadı veya erişilemiyor — agent bu oturumda kullanılamaz. */
+  /** Model bulunamadı veya erişilemiyor: agent bu oturumda kullanılamaz. */
   | "model"
   /** Toplam süre tavanı aşıldı. */
   | "timeout"
@@ -155,12 +155,12 @@ export function decideRecovery(input: RecoveryInput): RecoveryDecision {
  * `stalled` durumunun kullanıcıya gösterilen özeti.
  *
  * Bir CLI önce dosya ve araç çıktıları üretip yalnızca son adımda sessiz kalabilir; bu yüzden
- * mesaj "hiç çalışmadı" demez — o ana kadarki ilerleme kaydının korunduğunu söyler.
+ * mesaj "hiç çalışmadı" demez: o ana kadarki ilerleme kaydının korunduğunu söyler.
  */
 export function stalledSummary(silenceSeconds: number): string {
   return [
     `Agent ${String(silenceSeconds)} saniye boyunca yeni çıktı üretmediği için delegasyon sonlandırıldı.`,
-    "Bu, sürecin hiç çalışmadığı anlamına gelmez — o ana kadarki ilerleme kayıtları korunmuştur.",
+    "Bu, sürecin hiç çalışmadığı anlamına gelmez: o ana kadarki ilerleme kayıtları korunmuştur.",
   ].join(" ");
 }
 

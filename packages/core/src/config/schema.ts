@@ -17,7 +17,7 @@ import type { ConnectionPreference } from "../providers/connection";
 // Sabitler
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Yürütme politikası — görevin hız/kalite bütçesini belirler. */
+/** Yürütme politikası: görevin hız/kalite bütçesini belirler. */
 export const EXECUTION_MODES = ["auto", "fast", "balanced", "deep"] as const;
 export type ExecutionMode = (typeof EXECUTION_MODES)[number];
 
@@ -25,7 +25,7 @@ export type ExecutionMode = (typeof EXECUTION_MODES)[number];
 export const ASSIGNMENT_KINDS = ["plan", "implement", "review", "research"] as const;
 export type AssignmentKind = (typeof ASSIGNMENT_KINDS)[number];
 
-/** Orkestrasyon rolü — hangi görev türünü alabileceğini BAĞLAYICI biçimde belirler. */
+/** Orkestrasyon rolü: hangi görev türünü alabileceğini BAĞLAYICI biçimde belirler. */
 export const ORCHESTRATION_ROLES = ["operator", "planner", "executor", "reviewer"] as const;
 export type OrchestrationRole = (typeof ORCHESTRATION_ROLES)[number];
 
@@ -45,7 +45,7 @@ export const CLI_ADAPTERS = ["claude", "codex", "gemini", "opencode", "antigravi
 export type CliAdapter = (typeof CLI_ADAPTERS)[number];
 
 /**
- * CLI marka renkleri — dört görsel yüzeyde (Komuta Merkezi, Pano, Canlı Kod, Ekip Akışı)
+ * CLI marka renkleri: dört görsel yüzeyde (Komuta Merkezi, Pano, Canlı Kod, Ekip Akışı)
  * TEK standarttır. Çalışıyor/hata durumu renkle değil ayrı ipuçlarıyla belirtilir.
  */
 export const CLI_COLOR: Readonly<Record<CliAdapter, string>> = {
@@ -59,7 +59,7 @@ export const CLI_COLOR: Readonly<Record<CliAdapter, string>> = {
 
 /**
  * Adapter başına sessizlik sınırı (saniye). Bir CLI bu süre boyunca yeni çıktı üretmezse
- * delegasyon `CLI_STALLED` olarak sınıflandırılır — süreç hiç çalışmadı demek DEĞİLDİR,
+ * delegasyon `CLI_STALLED` olarak sınıflandırılır: süreç hiç çalışmadı demek DEĞİLDİR,
  * o ana kadarki ilerleme kaydı korunur.
  */
 export const ADAPTER_SILENCE_SECONDS: Readonly<Record<CliAdapter, number>> = {
@@ -72,7 +72,7 @@ export const ADAPTER_SILENCE_SECONDS: Readonly<Record<CliAdapter, number>> = {
 };
 
 /**
- * Bağlantı tercihi — API anahtarı, CLI aboneliği ya da kota dolunca API'ye düşen CLI.
+ * Bağlantı tercihi: API anahtarı, CLI aboneliği ya da kota dolunca API'ye düşen CLI.
  * Tek kaynak `providers/connection.ts`'tir; aşağıdaki tip kontrolü ikisinin ayrışmasını engeller.
  */
 const CONNECTION_PREFERENCE_VALUES = ["api_only", "cli_only", "cli_first"] as const;
@@ -97,11 +97,11 @@ const agentProfileSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
   enabled: z.boolean().default(true),
-  /** Orkestrasyon rolü — izinli görev türünün kaynağı (ALLOWED_KINDS). */
+  /** Orkestrasyon rolü: izinli görev türünün kaynağı (ALLOWED_KINDS). */
   role: z.enum(ORCHESTRATION_ROLES),
   /** NexCode alan agent'ı (ceo/frontend/backend/security/qa/devops); keşfedilen CLI'larda yok. */
   domain: z.string().optional(),
-  /** Rol prompt dosyası — `resources/roles/<lang>/` altında çözümlenir. */
+  /** Rol prompt dosyası: `resources/roles/<lang>/` altında çözümlenir. */
   roleFile: z.string().default("executor.md"),
   connection: z.enum(CONNECTION_PREFERENCE_VALUES).default("cli_first"),
   autonomy: z.enum(["manual", "supervised", "autonomous"]).default("supervised"),
@@ -116,7 +116,7 @@ const agentProfileSchema = z.object({
   cmd: z.string().optional(),
   args: z.array(z.string()).default([]),
   adapter: z.enum(CLI_ADAPTERS).optional(),
-  /** Otomatik keşifle oluşturuldu mu — kullanıcı silerse gizleme listesine eklenir. */
+  /** Otomatik keşifle oluşturuldu mu: kullanıcı silerse gizleme listesine eklenir. */
   discovered: z.boolean().default(false),
 });
 
@@ -159,7 +159,7 @@ const cliModelSettingSchema = z.object({
 
 export const nexcodeConfigSchema = z
   .object({
-    /** Şema sürümü — ileri-only migration için. */
+    /** Şema sürümü: ileri-only migration için. */
     version: z.number().int().min(1).default(1),
 
     /** Arayüz dili; `system` işletim sistemi dilini kullanır, bulunamazsa EN. */
@@ -190,7 +190,7 @@ export const nexcodeConfigSchema = z
     /** Yeni çıktı gelmezse delegasyonun sonlandırılacağı süre (saniye). */
     cliSilenceTimeoutSeconds: z.number().int().min(30).default(300),
 
-    /** Otonom çalışma onayı — bu değer null iken motor başlatılamaz. */
+    /** Otonom çalışma onayı: bu değer null iken motor başlatılamaz. */
     autonomousConsentAcceptedAt: z.string().nullable().default(null),
     /** Kullanıcının sildiği otomatik adapter'lar; sonraki taramada geri oluşturulmaz. */
     discoveryIgnoredAdapters: z.array(z.string()).default([]),
@@ -348,7 +348,7 @@ export const nexcodeConfigSchema = z
       })
       .default({}),
 
-    /** Agent profilleri — id → profil. 6 alan agent'ı + keşfedilen CLI'lar. */
+    /** Agent profilleri: id → profil. 6 alan agent'ı + keşfedilen CLI'lar. */
     agents: z.record(agentProfileSchema).default({}),
 
     /** Zamanlanmış görevler. */
@@ -364,7 +364,7 @@ export const nexcodeConfigSchema = z
       })
       .default({}),
 
-    /** CLI abonelik kotası — kayan pencere dolunca `cli_first` agent'lar API'ye düşer. */
+    /** CLI abonelik kotası: kayan pencere dolunca `cli_first` agent'lar API'ye düşer. */
     quota: z
       .object({
         windowHours: z.number().min(0.5).default(5),
@@ -390,7 +390,7 @@ export type CliModelSetting = z.infer<typeof cliModelSettingSchema>;
 // Normalizasyon
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Bilinen CLI adları — `cmd` değerinden adapter türetmek için. */
+/** Bilinen CLI adları: `cmd` değerinden adapter türetmek için. */
 const CMD_TO_ADAPTER: ReadonlyArray<readonly [RegExp, CliAdapter]> = [
   [/(^|[\\/])claude(-code)?(\.(cmd|bat|exe))?$/i, "claude"],
   [/(^|[\\/])codex(\.(cmd|bat|exe))?$/i, "codex"],
@@ -401,7 +401,7 @@ const CMD_TO_ADAPTER: ReadonlyArray<readonly [RegExp, CliAdapter]> = [
 
 /**
  * Bir komut adından bilinen adapter'ı türetir. Bilinen CLI adı taşıyan `cmd`,
- * profildeki çelişkili `adapter` alanından ÜSTÜNDÜR — böylece bir bilgisayarda oluşmuş
+ * profildeki çelişkili `adapter` alanından ÜSTÜNDÜR: böylece bir bilgisayarda oluşmuş
  * bozuk profil (ör. `adapter: claude` + `cmd: codex`) başka bilgisayarda yanlış CLI çalıştırmaz.
  */
 export function adapterFromCmd(cmd: string | undefined): CliAdapter | undefined {
@@ -438,7 +438,7 @@ export function silenceSecondsFor(adapter: CliAdapter | undefined): number {
  *
  * Uygulanan onarımlar:
  * - Bilinen `cmd`, çelişkili `adapter` alanını ezer ve eski model override'ını temizler.
- * - Otomatik keşfedilmiş profildeki, kullanıcı seçimi olmayan `model` alanı düşürülür —
+ * - Otomatik keşfedilmiş profildeki, kullanıcı seçimi olmayan `model` alanı düşürülür:
  *   global CLI ayarını sessizce ezmesin.
  * - `roleFile` her zaman rolüyle tutarlıdır; operatör rolü `operator.md`'ye sabitlenir.
  * - Agent kayıt anahtarı ile `id` alanı eşitlenir.

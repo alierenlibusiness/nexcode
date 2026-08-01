@@ -18,7 +18,7 @@ function factory(opts: {
   });
 }
 
-describe("AdapterFactory — API/CLI seçimi", () => {
+describe("AdapterFactory: API/CLI seçimi", () => {
   it("api_only → Anthropic API adapter", () => {
     const adapter = factory({ apiKey: "sk-1" }).resolve(model, "api_only");
     expect(adapter.id).toBe("anthropic");
@@ -46,7 +46,7 @@ describe("AdapterFactory — API/CLI seçimi", () => {
   });
 });
 
-describe("AdapterFactory — çoklu sağlayıcı yönlendirme (Faz 2)", () => {
+describe("AdapterFactory: çoklu sağlayıcı yönlendirme (Faz 2)", () => {
   const cases: Array<[string, string, string]> = [
     ["openai", "gpt-5.5", "openai"],
     ["deepseek", "deepseek-v4-flash", "deepseek"],
