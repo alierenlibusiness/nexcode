@@ -108,3 +108,7 @@ pnpm test --filter verify
 The integration tests cover the cases that matter: the gate is skipped when unconfigured, a
 green gate leaves the fast path intact, a red gate closes it, a stubborn operator is rejected
 exactly once, and the work still ships on the second attempt.
+
+## License
+
+MIT. See [`LICENSE`](LICENSE).
