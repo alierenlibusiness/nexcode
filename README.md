@@ -111,4 +111,4 @@ pnpm typecheck
 
 ## License
 
-MIT. See [`LICENSE`](../../LICENSE) on `main`.
+MIT. See [`LICENSE`](LICENSE).
