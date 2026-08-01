@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { openDatabase } from "./connection";
 import { CostLogRepository } from "./cost-log-repo";
-import { TaskRepository } from "./task-repo";
+import { EngineRepository } from "./engine-repo";
 
 function setup() {
   const db = openDatabase(":memory:");
-  return { cost: new CostLogRepository(db), tasks: new TaskRepository(db) };
+  return { cost: new CostLogRepository(db), tasks: new EngineRepository(db) };
 }
 
 function repo() {
@@ -15,7 +15,7 @@ function repo() {
 describe("CostLogRepository (PRD §9.4 maliyet kaydı)", () => {
   it("API çağrısını kaydeder ve task'a göre listeler", () => {
     const { cost, tasks } = setup();
-    const task = tasks.create({ title: "T" });
+    const task = tasks.create({ prompt: "T", workingDir: "/w" });
     const id = cost.record({
       agentId: null,
       taskId: task.id,
@@ -34,7 +34,7 @@ describe("CostLogRepository (PRD §9.4 maliyet kaydı)", () => {
 
   it("CLI çağrısı usd=0 (abonelik havuzu) ile kaydedilir", () => {
     const { cost, tasks } = setup();
-    const task = tasks.create({ title: "T" });
+    const task = tasks.create({ prompt: "T", workingDir: "/w" });
     cost.record({
       agentId: null,
       taskId: task.id,
@@ -57,7 +57,7 @@ describe("CostLogRepository (PRD §9.4 maliyet kaydı)", () => {
     expect(r.totalApiCost()).toBeCloseTo(1.3, 5);
   });
 
-  it("connection_mode bazında özet (cli vs api) — dashboard tasarrufunu gösterir", () => {
+  it("connection_mode bazında özet (cli vs api): dashboard tasarrufunu gösterir", () => {
     const r = repo();
     r.record({ agentId: null, taskId: null, provider: "anthropic", modelId: "claude-opus-4-8", connectionMode: "cli", inputTokens: 5000, outputTokens: 2000, usdCost: 0, subscriptionPoolId: "pool" });
     r.record({ agentId: null, taskId: null, provider: "anthropic", modelId: "claude-opus-4-8", connectionMode: "api", inputTokens: 1000, outputTokens: 400, usdCost: 0.045 });

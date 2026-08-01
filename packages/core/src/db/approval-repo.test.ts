@@ -1,14 +1,14 @@
 import { describe, it, expect } from "vitest";
 import { openDatabase } from "./connection";
 import { WorkspaceRepository } from "./workspace-repo";
-import { TaskRepository } from "./task-repo";
+import { EngineRepository } from "./engine-repo";
 import { ApprovalRepository } from "./approval-repo";
 
 function setup() {
   const db = openDatabase(":memory:");
   const ws = new WorkspaceRepository(db).create({ name: "W", repoPath: "/w" });
-  const tasks = new TaskRepository(db);
-  const task = tasks.create({ title: "Deploy" });
+  const tasks = new EngineRepository(db);
+  const task = tasks.create({ prompt: "Deploy", workingDir: "/w" });
   return { approvals: new ApprovalRepository(db), taskId: task.id, workspaceId: ws.id };
 }
 
