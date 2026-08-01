@@ -1,155 +1,100 @@
 <div align="center">
 
-# NEXCODE
+# Persistence Layer
 
-**Run every coding CLI you already have as one AI engineering team.**
-
-Claude Code, Codex CLI, Gemini CLI, OpenCode and Antigravity, coordinated by a single
-operator that plans, delegates, reviews and ships. On your machine, with your own
-subscriptions, in a desktop app you can actually watch.
+**One SQLite file holds the queue, the history and every decision the operator made.**
 
 </div>
 
 ---
 
-## What it is
+## What this branch adds
 
-You probably have two or three AI coding CLIs installed. Each one is good. None of them
-talk to each other, none of them review each other's work, and none of them can run while
-you do something else.
+The storage layer behind the orchestration engine: task queue, round and assignment records,
+a persistent event log, operator conversations, checkpoints, schedules and counters.
 
-NEXCODE turns them into a team.
+One file. Transactional. Portable. Close the app mid-task and everything is still there when
+you reopen it.
 
-You write a goal. An **operator** agent reads it, writes a plan, and hands the work to
-specialist agents running as separate CLI processes. A reviewer checks the result. Your
-own test and lint commands run as a hard gate. Only then does the work ship, on its own
-git branch, without ever touching your working tree.
+## Why SQLite instead of JSON files
 
-Everything is visible while it happens: which agent is working, what it is writing, line
-by line, and why the operator decided what it decided.
+Task state is written from multiple slots at once. Snapshots and events must land together or
+not at all. History has to be queryable by task, by round and by sequence.
 
-## How it works
+A directory of JSON files gives you none of that, and gives you partial writes for free.
+
+## Schema
 
 ```
-Goal
- |
- +--> Operator plans and delegates
- |         |
- |         +--> planner    (writes the approach)
- |         +--> executor   (writes the code)
- |         +--> reviewer   (finds the problems)
- |
- +--> Verification gate    (your real test / typecheck / lint commands)
- |
- +--> Delivery on an isolated git branch
+tasks               queue and lifecycle: pending, approval, running, done, failed, blocked
+task_events         persistent event log, keyed by the same `seq` the live stream uses
+task_rounds         round and phase records with plan summaries
+task_assignments    who was assigned what, the verdict, the duration
+task_conversation   read-only operator chat about a finished task
+checkpoints         pre-task snapshots
+checkpoint_files    file contents; NULL means "known to exist, not safely storable"
+schedules           recurring task definitions
+engine_state        config and counters
+cli_health          versioned CLI readiness cache
 ```
 
-The operator never writes code. Specialists never decide when the task is done. The
-verification gate outranks both: a model saying "tests pass" is not evidence, a green
-command is.
+## Versioned migrations
 
-## What makes it different
+Migrations are forward-only, idempotent, transactional and tracked with SQLite's
+`user_version` pragma. Each step runs exactly once.
 
-**Real evidence, not model claims.** After every round, NEXCODE runs the commands you
-define. A red gate closes every delivery shortcut and sends the decision back to the
-operator. If the operator insists anyway, the first attempt is rejected outright. Work is
-never silently shipped on a broken build, and never thrown away either.
+**No migration deletes data.** When the task status vocabulary changed from Kanban words to
+engine words, old values were mapped rather than dropped:
 
-**Your working tree stays clean.** Each task runs in its own git worktree on its own
-branch. Nothing is pushed anywhere. If a task fails, its tree is kept so you can inspect it.
+```sql
+UPDATE tasks SET status = 'pending' WHERE status = 'backlog';
+UPDATE tasks SET status = 'running' WHERE status IN ('in_progress', 'review');
+UPDATE tasks SET prompt = title  WHERE prompt = '';
+```
 
-**Parallel by default, safely.** Multiple tasks can run at once, each in its own isolated
-slot. Concurrency requires isolation: NEXCODE refuses to run tasks in parallel without it,
-because that corrupts working trees.
+An existing database keeps its history across an upgrade instead of starting empty.
 
-**One click back.** Every task snapshots the working directory before it starts. "Return to
-this version" restores changed and deleted files, removes what was added, and takes a redo
-snapshot first, so undo is itself undoable.
+## The sequence contract
 
-**Nothing sensitive leaks into the UI.** `.env` files, credentials and private keys are
-never rendered into the live diff or stored in snapshots.
+This is the detail everything visual depends on.
 
-**Bring your own everything.** CLI agents use the subscriptions you already pay for. API
-providers are available as a second execution path, with keys in your OS keychain and
-per-call cost tracking.
+The persistent event log and the live stream share **one** `seq` counter. On startup the
+renderer subscribes to the live stream first, then replays history, and deduplicates by
+`seq`. Nothing arriving during the replay is lost, and nothing is processed twice.
 
-## The four surfaces
+Reverse that order and you drop every event that arrives mid-replay. It looks fine in
+testing and loses data under load.
 
-| Surface | What it shows |
-|---|---|
-| **Command Center** | Write a goal, watch the queue, the live event stream, approvals and engine controls |
-| **Board** | Task lifecycle across Pending, Running, Completed and Failed |
-| **Live Code** | Git-style file and hunk diffs, streaming as agents write |
-| **Team Flow** | The orchestration scene: operator core, agent nodes, data packets and a full timeline |
+`lastEventSeq()` lets numbering continue from history after a restart, so sequence numbers
+stay globally unique for the life of the database.
 
-## Getting started
+## Safety rules the repository enforces
 
-Requires Node.js 22+, pnpm, and at least one supported coding CLI already installed and
-signed in.
+- A running task cannot be deleted.
+- Only pending tasks can be edited. Changing a task's goal invalidates its stored plan hash
+  and clears its round and assignment records, because they describe different work now.
+- Operator chat tasks never enter the execution queue.
+- Snapshot rows with `NULL` content are files that exist but could not be safely stored
+  (binary, sensitive, oversized). Restore skips them instead of writing garbage.
+- The daily call counter resets by date, so a budget cannot leak across days.
+
+## Files
+
+```
+packages/core/src/db/
+  schema.ts              table definitions and indexes
+  connection.ts          versioned forward-only migrations
+  engine-repo.ts         queue, rounds, assignments, events, conversation, counters
+  config-repo.ts         config with template seeding and corruption recovery
+  schedule-repo.ts       schedule CRUD
+  checkpoint-store.ts    snapshot persistence plus filesystem access
+```
+
+## Verify
 
 ```bash
-git clone https://github.com/alierenlibusiness/nexcode.git
-cd nexcode
-pnpm install
-pnpm dev
+pnpm test --filter db
 ```
 
-NEXCODE discovers the CLIs on your machine, checks whether they are ready, and builds the
-agent catalog for you. Open the Command Center, start the engine, and give it a goal.
-
-### Turning on the good parts
-
-Both are off by default so behavior is identical to a plain run until you opt in.
-
-```jsonc
-{
-  // Run your real commands as a delivery gate.
-  "verify": {
-    "commands": ["pnpm typecheck", "pnpm test"],
-    "blockOnFailure": true
-  },
-
-  // Give every task its own git worktree and branch.
-  "worktree": {
-    "mode": "task",
-    "branchPrefix": "nexcode/",
-    "linkPaths": ["node_modules"]
-  },
-
-  // Only allowed once isolation is on.
-  "maxConcurrentTasks": 3
-}
-```
-
-## Scheduled work
-
-Recurring tasks use plain presets rather than cron syntax: every N minutes, daily at a
-time, or weekly on chosen days. A scheduled task is queued when it comes due. It never
-starts a stopped engine on its own.
-
-## Use NEXCODE from another agent
-
-NEXCODE also exposes itself over MCP, so Claude Code or any other MCP client can queue work
-into it, check status and resolve approvals from inside its own flow. Engine start and stop
-is gated behind an explicit setting and stays hidden until you enable it.
-
-## Verify a build
-
-```bash
-pnpm -r build
-pnpm typecheck
-pnpm lint
-pnpm test
-```
-
-## Documentation
-
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) walks through the module boundaries and
-  the invariants the system guarantees.
-- Each feature branch carries a README focused on that subsystem.
-
-## Credits
-
-The product model is adapted from [CrewCtl](https://github.com/omergocmen/CrewCtl) by Ömer
-Göçmen, released under the MIT license. NEXCODE reimplements that model on a different
-foundation: TypeScript, SQLite persistence and an Electron desktop application.
+54 tests covering ownership queries, event deduplication, migration behavior, corrupted
+config recovery and end-to-end snapshot restore against a real temporary directory.
