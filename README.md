@@ -108,3 +108,7 @@ packages/core/src/engine/
 pnpm test --filter engine
 pnpm typecheck
 ```
+
+## License
+
+MIT. See [`LICENSE`](../../LICENSE) on `main`.

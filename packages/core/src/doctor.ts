@@ -68,7 +68,7 @@ export function runDoctor(input: DoctorInput): DoctorReport {
           level: "error",
           subject: "Otonom onay",
           message: "Otonom çalışma henüz kabul edilmedi.",
-          hint: "Uygulamada motoru ilk kez başlatırken çıkan onay penceresini kabul edin.",
+          hint: "Terminalde `nexcode consent --accept` çalıştırın ya da uygulamada onay penceresini kabul edin.",
         }
       : { level: "ok", subject: "Otonom onay", message: `Kabul edildi: ${config.autonomousConsentAcceptedAt}` },
   );
