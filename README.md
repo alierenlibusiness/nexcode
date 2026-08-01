@@ -112,3 +112,7 @@ packages/core/src/providers/
 pnpm test --filter providers
 pnpm test --filter cli
 ```
+
+## License
+
+MIT. See [`LICENSE`](LICENSE).

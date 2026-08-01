@@ -122,3 +122,40 @@ describe("materializePrompt", () => {
     expect(materializePrompt(["-p", "--json"], "x", null)).toEqual(["-p", "--json"]);
   });
 });
+
+describe("otonom çalışma bayrakları", () => {
+  /**
+   * Agent'lar etkileşimsiz koşar; izin istemi geldiği anda süreç sessizce bekler ve
+   * sessizlik zaman aşımıyla düşer. Bu bayraklar olmadan hiçbir dosya yazılamaz.
+   */
+  it("Claude Code dosya düzenlemelerini sormadan uygular", () => {
+    const args = effectiveInvocation({ adapter: "claude", profileArgs: [], agentModel: "", globalModel: "" }).args;
+    expect(args).toContain("--permission-mode");
+    expect(args[args.indexOf("--permission-mode") + 1]).toBe("acceptEdits");
+  });
+
+  it("Codex model komutlarını çalışma klasörüne hapseder", () => {
+    const args = effectiveInvocation({ adapter: "codex", profileArgs: [], agentModel: "", globalModel: "" }).args;
+    expect(args).toContain("--sandbox");
+    expect(args[args.indexOf("--sandbox") + 1]).toBe("workspace-write");
+  });
+
+  it("hiçbir adapter CLI korumalarını tamamen kapatmaz", () => {
+    // İzolasyon, onay kapısı ve checkpoint bizim katmanımızın işidir; CLI'ın tüm
+    // korumalarını kapatmak bu katmanları anlamsız kılardı.
+    const forbidden = [
+      "--dangerously-skip-permissions",
+      "--allow-dangerously-skip-permissions",
+      "--dangerously-bypass-approvals-and-sandbox",
+      "bypassPermissions",
+      "danger-full-access",
+    ];
+
+    for (const adapter of ["claude", "codex", "gemini", "opencode", "antigravity"] as const) {
+      const args = effectiveInvocation({ adapter, profileArgs: [], agentModel: "", globalModel: "" }).args;
+      for (const flag of forbidden) {
+        expect(args, `${adapter} ${flag} kullanmamalı`).not.toContain(flag);
+      }
+    }
+  });
+});

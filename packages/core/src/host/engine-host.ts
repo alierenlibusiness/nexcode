@@ -10,9 +10,14 @@ import {
   Checkpoints,
   effectiveInvocation,
   materializePrompt,
+  normalizeCliOutput,
   SkillRegistry,
+  LiveDiffTracker,
+  buildFileChangeEvent,
   silenceSecondsFor,
   logger,
+  type FileChangeSummary,
+  type WorkspaceReader,
   type EngineDeps,
   type EngineEvent,
   type EngineTask,
@@ -21,8 +26,9 @@ import {
   type NexcodeConfig,
   type TaskOutcome,
   type AgentProfile,
-} from "@nexcode/core";
-import type { ConfigRepository, EngineRepository, SqliteCheckpointStore } from "@nexcode/core/db";
+} from "../index";
+import { discoverClis, syncDiscoveredAgents } from "../providers/node";
+import type { ConfigRepository, EngineRepository, SqliteCheckpointStore } from "../db/index";
 import { nodeVerifyPort, nodeWorktreePort, runProcess } from "./process-ports";
 
 /**
@@ -87,6 +93,29 @@ export class EngineHost {
       claimNext: (activeIds) => Promise.resolve(this.claimNext(activeIds)),
       runTask: (task) => this.runTask(task),
     });
+
+    this.refreshAgents();
+  }
+
+  /**
+   * Kurulu CLI'ları tarar ve agent kataloğunu tazeler.
+   *
+   * Paketle gelen profiller yalnızca hangi adapter'ı kullanacaklarını bilir; komut yolu
+   * makineye göre değişir. Bu adım olmadan her görev "komut tanımlı değil" diyerek düşer.
+   * Kurulum sırasında bir kez değil, her açılışta çalışır: CLI yolu güncellemeyle değişebilir.
+   */
+  refreshAgents(): void {
+    try {
+      const config = this.config();
+      const result = syncDiscoveredAgents(config, discoverClis());
+      if (result.added.length === 0 && result.removed.length === 0 && result.linked.length === 0) return;
+
+      this.options.configRepo.save({ ...config, agents: result.agents });
+      logger.info("agents.synced", { added: result.added, removed: result.removed, linked: result.linked });
+    } catch (error) {
+      // Keşif başarısız olursa uygulama açılmaya devam eder; doctor sorunu raporlar.
+      logger.warn("agents.sync_failed", { error: String(error) });
+    }
   }
 
   start(): void {
@@ -209,6 +238,7 @@ export class EngineHost {
       invoke: (input) => this.invoke(input),
       loadRole: (roleFile) => Promise.resolve(this.readRole(roleFile)),
       matchSkills: (goal, kind) => this.skills.match(goal, kind),
+      agentHealth: () => this.runnableAgents(),
       loadProjectContext: (dir) => Promise.resolve(readTextOr(path.join(dir, ".nexcode", "CONTEXT.md"), "")),
       writeSpill: (dir, relativePath, content) => {
         const target = path.join(dir, relativePath);
@@ -219,6 +249,7 @@ export class EngineHost {
       createCheckpoint: async (taskId, workingDir) => {
         await this.checkpoints.capture(taskId, workingDir);
       },
+      startLiveDiff: (taskId, workingDir) => this.startLiveDiff(taskId, workingDir),
       verifyGate: this.verifyGate,
       requestApproval: this.options.requestApproval,
       reviseProjectContext: (dir, delivery) => {
@@ -228,6 +259,77 @@ export class EngineHost {
         return Promise.resolve();
       },
     };
+  }
+
+  /**
+   * Canlı satır diff'ini başlatır.
+   *
+   * Görev başındaki içerik yakalanır, sonra periyodik tarama değişiklikleri `filechange`
+   * olayı olarak yayınlar. Dönen fonksiyon taramayı durdurur ve son durumu üretir; görev
+   * bittiği anda son diff kaybolmasın diye kapanışta bir kez daha taranır.
+   */
+  private async startLiveDiff(
+    taskId: string,
+    workingDir: string,
+  ): Promise<() => Promise<FileChangeSummary[]>> {
+    const tracker = new LiveDiffTracker(this.workspaceReader(), workingDir);
+    await tracker.capture();
+
+    let latest: FileChangeSummary[] = [];
+    let scanning = false;
+
+    const publish = async (): Promise<FileChangeSummary[]> => {
+      // Yeniden giriş kilidi: yavaş bir tarama bir sonrakiyle üst üste binmemeli.
+      if (scanning) return latest;
+      scanning = true;
+      try {
+        latest = await tracker.scan();
+        this.events.emit("filechange", taskId, buildFileChangeEvent(taskId, latest));
+      } catch (error) {
+        logger.warn("live_diff.scan_failed", { taskId, error: String(error) });
+      } finally {
+        scanning = false;
+      }
+      return latest;
+    };
+
+    const intervalMs = Math.max(500, this.config().liveDiffIntervalMs);
+    const timer = setInterval(() => void publish(), intervalMs);
+    timer.unref();
+
+    return async () => {
+      clearInterval(timer);
+      return await publish();
+    };
+  }
+
+  /** Canlı diff için salt-okunur çalışma klasörü erişimi. */
+  private workspaceReader(): WorkspaceReader {
+    return {
+      listFiles: (root) => this.options.checkpointStore.listFiles(root),
+      readFile: async (root, relativePath) => {
+        const content = await this.options.checkpointStore.readFile(root, relativePath);
+        // İçeriği okunamayan dosya (ikili, hassas, sınır aşan) `null` içerikle bildirilir;
+        // varlığı bilinir ama gövdesi olaya girmez.
+        return { content, bytes: content === null ? 0 : Buffer.byteLength(content, "utf8") };
+      },
+    };
+  }
+
+  /**
+   * Hangi profillerin gerçekten çalıştırılabildiği.
+   *
+   * Bu konak agent'ları CLI süreci olarak koşar, dolayısıyla komutu olmayan profil
+   * çalıştırılamaz. Katalogdan düşürülmezse operatör ona iş verir, iş "komut tanımlı
+   * değil" ile düşer ve bir tur boşa gider. `refreshAgents` kurulu adapter'ların
+   * komutunu doldurur; doldurulamayanlar burada elenir.
+   */
+  private runnableAgents(): Record<string, boolean> {
+    const health: Record<string, boolean> = {};
+    for (const [id, profile] of Object.entries(this.config().agents)) {
+      health[id] = profile.cmd !== undefined && profile.cmd.trim() !== "";
+    }
+    return health;
   }
 
   private readRole(roleFile: string): string {
@@ -285,19 +387,28 @@ export class EngineHost {
         ...(invocation.promptMode === "stdin" ? { stdin: input.prompt } : {}),
       });
 
+      // CLI kendi zarfını döndürür; asıl metin ve gerçek maliyet buradan ayıklanır.
+      const output = normalizeCliOutput(agent.adapter, result.stdout);
+
       if (!result.ok) {
+        const stderr = result.stderr.trim();
         return {
           ok: false,
           failure: {
-            message: result.stderr.trim() === "" ? result.stdout.trim() : result.stderr.trim(),
+            message: stderr === "" ? (output.error ?? output.text) : stderr,
             timedOut: result.timedOut === true,
           },
           calls: 1,
-          usdCost: 0,
+          usdCost: output.usdCost,
         };
       }
 
-      return { ok: true, text: result.stdout, calls: 1, usdCost: 0 };
+      // Süreç 0 dönse bile CLI işi hata olarak bitirmiş olabilir (kota, auth, sağlayıcı).
+      if (output.error !== null) {
+        return { ok: false, failure: { message: output.error }, calls: 1, usdCost: output.usdCost };
+      }
+
+      return { ok: true, text: output.text, calls: 1, usdCost: output.usdCost };
     } finally {
       if (promptDir !== null) rmSync(promptDir, { recursive: true, force: true });
     }

@@ -89,6 +89,14 @@ export interface EngineDeps {
   loadRole: (roleFile: string) => Promise<string>;
   /** Göreve göre skorlanmış beceri kısa listesi. */
   matchSkills: (goal: string, kind: AssignmentKind) => Promise<SkillHint[]>;
+  /**
+   * Hangi agent'ların gerçekten çalıştırılabildiği (`id` -> çalıştırılabilir mi).
+   *
+   * Yalnızca `invoke` bunu bilebilir: bir profil CLI komutu ya da API yolu olmadan
+   * çalışamaz. Verilmezse tüm agent'lar çalıştırılabilir sayılır. Çalıştırılamayan bir
+   * profil katalogda kalırsa operatör ona iş verir ve tur boşa gider.
+   */
+  agentHealth?: () => Record<string, boolean>;
   /** Çalışma klasörünün `.nexcode/CONTEXT.md` profili. */
   loadProjectContext: (workingDir: string) => Promise<string>;
   /** Bütçeyi aşan görev metnini çalışma klasörüne yazar. */
@@ -246,7 +254,11 @@ export class Engine {
         round++;
         this.emitStatus(task.id, operator.id, round, policy, config, delegations);
 
-        const catalog = buildCatalog({ config, quarantined: this.quarantine.ids });
+        const catalog = buildCatalog({
+          config,
+          quarantined: this.quarantine.ids,
+          health: this.deps.agentHealth?.() ?? {},
+        });
         const skills = config.skills.autoMatch ? await this.deps.matchSkills(task.prompt, "plan") : [];
 
         // ── Operatör kararı (protokol hatasında sınırlı tekrar) ──
