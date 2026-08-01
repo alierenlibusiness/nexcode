@@ -111,3 +111,7 @@ packages/core/src/mcp/node.ts          native subpath (inbound client and manage
 ```bash
 pnpm test --filter mcp
 ```
+
+## License
+
+MIT. See [`LICENSE`](LICENSE).

@@ -22,3 +22,7 @@ coverage/
 # OS
 .DS_Store
 Thumbs.db
+
+# CLI paketine build sırasında kopyalanan paylaşılan kaynaklar
+apps/cli/resources/
+apps/cli/LICENSE

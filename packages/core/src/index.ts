@@ -42,6 +42,7 @@ export * from "./agents/definitions";
 
 // Sağlayıcılar: tip ve katalog katmanı. Süreç başlatan runner ayrı alt yoldadır.
 export * from "./providers/cli/adapters";
+export * from "./providers/cli/output";
 export * from "./providers/types";
 export * from "./providers/registry";
 export * from "./providers/pricing";

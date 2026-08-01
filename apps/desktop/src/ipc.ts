@@ -56,7 +56,7 @@ import { McpManager } from "@nexcode/core/mcp";
 import { readDir, readFileText, writeFileText } from "./fsbridge";
 import { TerminalManager } from "./terminal";
 import { isCliInstalled } from "./cli-detect";
-import type { EngineHost } from "./engine-host";
+import type { EngineHost } from "@nexcode/core/host";
 
 const KEYCHAIN_SERVICE = "nexcode";
 
@@ -420,12 +420,18 @@ function registerFsHandlers(ctx: IpcContext): void {
   });
 
   ipcMain.handle(IpcChannels.fsCurrentRoot, () => ({ root: ctx.rootDir, entries: readDir(ctx.rootDir) }));
-  ipcMain.handle(IpcChannels.fsReadDir, (_e, raw: unknown) => readDir(fsReadDirInputSchema.parse(raw).path));
-  ipcMain.handle(IpcChannels.fsReadFile, (_e, raw: unknown) => readFileText(fsReadFileInputSchema.parse(raw).path));
+
+  // Kapsama kontrolü: dosya köprüsü kullanıcının açtığı klasörün dışına çıkamaz.
+  ipcMain.handle(IpcChannels.fsReadDir, (_e, raw: unknown) =>
+    readDir(fsReadDirInputSchema.parse(raw).path, ctx.rootDir),
+  );
+  ipcMain.handle(IpcChannels.fsReadFile, (_e, raw: unknown) =>
+    readFileText(fsReadFileInputSchema.parse(raw).path, ctx.rootDir),
+  );
 
   ipcMain.handle(IpcChannels.fsWriteFile, (_e, raw: unknown) => {
     const { path: file, content } = fsWriteFileInputSchema.parse(raw);
-    writeFileText(file, content);
+    writeFileText(file, content, ctx.rootDir);
     logger.info("fs.write_file", { path: file, bytes: content.length });
   });
 }

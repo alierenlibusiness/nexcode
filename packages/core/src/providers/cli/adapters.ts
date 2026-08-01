@@ -42,7 +42,10 @@ export const CLI_ADAPTER_SPECS: Readonly<Record<Exclude<CliAdapter, "custom">, C
     label: "Claude Code",
     binaries: ["claude", "claude-code"],
     versionArgs: ["--version"],
-    defaultArgs: ["-p", "--output-format", "json"],
+    // `acceptEdits`: dosya düzenlemeleri sorulmadan uygulanır, tehlikeli kabuk komutları
+    // yine onay ister. `bypassPermissions` bilerek kullanılmaz; izolasyon ve onay kapısı
+    // bizim katmanımızın işi, CLI'ın tüm korumalarını kapatmanın değil.
+    defaultArgs: ["-p", "--output-format", "json", "--permission-mode", "acceptEdits"],
     promptMode: "stdin",
     promptArgs: [],
     // Profilde açık `--model`/`-m` varsa yinelenmez; bu kontrol effectiveArgs'tadır.
@@ -55,7 +58,9 @@ export const CLI_ADAPTER_SPECS: Readonly<Record<Exclude<CliAdapter, "custom">, C
     label: "Codex CLI",
     binaries: ["codex"],
     versionArgs: ["--version"],
-    defaultArgs: ["exec", "--skip-git-repo-check"],
+    // `workspace-write`: model komutları çalışma klasörüne yazabilir, dışına çıkamaz.
+    // `danger-full-access` bilerek kullanılmaz.
+    defaultArgs: ["exec", "--skip-git-repo-check", "--sandbox", "workspace-write"],
     promptMode: "arg",
     promptArgs: ["{PROMPT}"],
     modelArgs: (model) => (model === "" ? [] : ["--model", model]),

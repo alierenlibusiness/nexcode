@@ -1,5 +1,5 @@
-import { computeNextRun, dueSchedules, logger } from "@nexcode/core";
-import type { ConfigRepository, EngineRepository, ScheduleRepository } from "@nexcode/core/db";
+import { computeNextRun, dueSchedules, logger } from "../index";
+import type { ConfigRepository, EngineRepository, ScheduleRepository } from "../db/index";
 import type { EngineHost } from "./engine-host";
 
 /**
