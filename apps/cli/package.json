@@ -36,19 +36,22 @@
   ],
   "main": "./dist/cli.js",
   "scripts": {
-    "build": "node scripts/copy-resources.mjs && tsc -p tsconfig.json",
+    "build": "node scripts/copy-resources.mjs && node scripts/bundle.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "prepack": "node scripts/copy-resources.mjs",
+    "prepack": "node scripts/copy-resources.mjs && node scripts/bundle.mjs",
     "start": "node dist/cli.js"
   },
   "engines": {
     "node": ">=22"
   },
   "dependencies": {
-    "@nexcode/core": "workspace:*",
     "better-sqlite3": "^11.7.0"
   },
   "publishConfig": {
     "access": "public"
+  },
+  "devDependencies": {
+    "@nexcode/core": "workspace:*",
+    "esbuild": "^0.28.1"
   }
 }
