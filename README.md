@@ -82,44 +82,63 @@ per-call cost tracking.
 | **Live Code** | Git-style file and hunk diffs, streaming as agents write |
 | **Team Flow** | The orchestration scene: operator core, agent nodes, data packets and a full timeline |
 
-## Try it in one command
+## Getting started
 
-No install, no clone. Requires Node.js 22+ and at least one supported coding CLI already
-installed and signed in.
+Requires Node.js 22+ and at least one supported coding CLI already installed and signed in.
 
-```bash
-npx nexcode doctor
-```
-
-That scans your machine for coding CLIs, checks whether they are ready, and tells you
-exactly what is missing. Then:
-
-```bash
-npx nexcode consent --accept
-npx nexcode task "add avatar upload and write its tests" --mode balanced
-npx nexcode run --once
-```
-
-NEXCODE discovers the CLIs on your machine and wires them into the agent catalog for you.
-
-### Install it properly
-
-```bash
-npm install -g nexcode
-nexcode doctor
-```
-
-### Or run the desktop app
+> **Note:** the `nexcode` package is not on the npm registry yet, so `npx nexcode` and
+> `npm install -g nexcode` will fail with a 404 until it is published. Build it from source
+> using the steps below. Publishing is a single command: `pnpm release`.
 
 ```bash
 git clone https://github.com/alierenlibusiness/nexcode.git
 cd nexcode
 pnpm install
+pnpm -r build
+```
+
+### Command line
+
+```bash
+node apps/cli/dist/cli.js doctor
+```
+
+That scans your machine for coding CLIs, checks whether they are ready, and tells you
+exactly what is missing. To install the command globally:
+
+```bash
+cd apps/cli && npm pack && npm install -g ./nexcode-0.1.0.tgz
+```
+
+Then:
+
+```bash
+nexcode consent --accept
+nexcode task "add avatar upload and write its tests" --mode balanced
+nexcode run --once
+```
+
+NEXCODE discovers the CLIs on your machine and wires them into the agent catalog for you.
+
+### Desktop app
+
+```bash
 pnpm dev
 ```
 
 Open the Command Center, start the engine, and give it a goal. The CLI and the desktop app
 share the same engine; point `NEXCODE_HOME` at the same directory and they share a queue.
+
+### Once published
+
+```bash
+npx nexcode doctor
+npm install -g nexcode
+```
+
+The published package bundles everything into a single unscoped install. `better-sqlite3`
+is the only native dependency and ships prebuilt binaries for common platforms; on an
+uncommon one, npm falls back to building it, which needs a C++ toolchain.
 
 ### Turning on the good parts
 
