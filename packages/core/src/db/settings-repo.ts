@@ -8,7 +8,7 @@ import {
 import { getAgentDefinition } from "../agents/definitions";
 import { isKnownModel } from "../providers/registry";
 
-/** Kullanıcının agent için seçtiği model (provider + modelId). */
+/** The model the user picked for an agent (provider plus modelId). */
 export interface AgentModelChoice {
   provider: string;
   modelId: string;
@@ -20,7 +20,7 @@ interface SettingsRow {
   model_id: string | null;
 }
 
-/** Per-agent bağlantı modu ve model seçimini SQLite'da saklar (PRD §9.5, §7). */
+/** Stores the per-agent connection mode and model selection in SQLite. */
 export class AgentSettingsRepository {
   constructor(private readonly db: DB) {}
 
@@ -52,7 +52,7 @@ export class AgentSettingsRepository {
       .run(workspaceId, role, preference);
   }
 
-  /** Kullanıcının seçtiği model override'ı (yoksa null). */
+  /** The model override the user selected (null when there is none). */
   getModelChoice(workspaceId: string, role: AgentRole): AgentModelChoice | null {
     const row = this.getRow(workspaceId, role);
     if (row?.model_provider && row.model_id) {
@@ -61,10 +61,10 @@ export class AgentSettingsRepository {
     return null;
   }
 
-  /** Agent için kullanılacak ModelRef: kullanıcı seçimi varsa o, yoksa agent varsayılanı (PRD §7/§8). */
+  /** The ModelRef to use for an agent: the user's choice when present, otherwise the agent default. */
   resolveModel(workspaceId: string, role: AgentRole): ModelRef {
     const def = getAgentDefinition(role);
-    if (!def) throw new Error(`Bilinmeyen agent rolü: ${role}`);
+    if (!def) throw new Error(`Unknown agent role: ${role}`);
     const choice = this.getModelChoice(workspaceId, role);
     if (choice) {
       return { ...def.model, provider: choice.provider, modelId: choice.modelId };
@@ -72,10 +72,10 @@ export class AgentSettingsRepository {
     return def.model;
   }
 
-  /** Kullanıcının agent için seçtiği modeli kaydeder (registry'de geçerli olmalı). */
+  /** Saves the model the user picked for an agent (it must be valid in the registry). */
   setModelChoice(workspaceId: string, role: AgentRole, choice: AgentModelChoice): void {
     if (!isKnownModel(choice.provider, choice.modelId)) {
-      throw new Error(`Bilinmeyen model: ${choice.provider}/${choice.modelId} (registry'de yok)`);
+      throw new Error(`Unknown model: ${choice.provider}/${choice.modelId} (not in the registry)`);
     }
     this.db
       .prepare(

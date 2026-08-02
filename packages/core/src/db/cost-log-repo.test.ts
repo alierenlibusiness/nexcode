@@ -12,8 +12,8 @@ function repo() {
   return setup().cost;
 }
 
-describe("CostLogRepository (PRD §9.4 maliyet kaydı)", () => {
-  it("API çağrısını kaydeder ve task'a göre listeler", () => {
+describe("CostLogRepository (cost records)", () => {
+  it("records an API call and lists it by task", () => {
     const { cost, tasks } = setup();
     const task = tasks.create({ prompt: "T", workingDir: "/w" });
     const id = cost.record({
@@ -32,7 +32,7 @@ describe("CostLogRepository (PRD §9.4 maliyet kaydı)", () => {
     expect(rows[0]).toMatchObject({ connectionMode: "api", usdCost: 0.0525 });
   });
 
-  it("CLI çağrısı usd=0 (abonelik havuzu) ile kaydedilir", () => {
+  it("records a CLI call with usd=0 (the subscription pool)", () => {
     const { cost, tasks } = setup();
     const task = tasks.create({ prompt: "T", workingDir: "/w" });
     cost.record({
@@ -49,7 +49,7 @@ describe("CostLogRepository (PRD §9.4 maliyet kaydı)", () => {
     expect(cost.totalApiCost()).toBe(0);
   });
 
-  it("totalApiCost yalnızca taşma (API) modunu toplar", () => {
+  it("totalApiCost sums only the overflow (API) mode", () => {
     const r = repo();
     r.record({ agentId: null, taskId: null, provider: "openai", modelId: "gpt-5.5", connectionMode: "cli", inputTokens: 100, outputTokens: 50, usdCost: 0 });
     r.record({ agentId: null, taskId: null, provider: "openai", modelId: "gpt-5.5", connectionMode: "api", inputTokens: 100, outputTokens: 50, usdCost: 1.25 });
@@ -57,7 +57,7 @@ describe("CostLogRepository (PRD §9.4 maliyet kaydı)", () => {
     expect(r.totalApiCost()).toBeCloseTo(1.3, 5);
   });
 
-  it("connection_mode bazında özet (cli vs api): dashboard tasarrufunu gösterir", () => {
+  it("summarises by connection_mode (cli vs api), showing the dashboard saving", () => {
     const r = repo();
     r.record({ agentId: null, taskId: null, provider: "anthropic", modelId: "claude-opus-4-8", connectionMode: "cli", inputTokens: 5000, outputTokens: 2000, usdCost: 0, subscriptionPoolId: "pool" });
     r.record({ agentId: null, taskId: null, provider: "anthropic", modelId: "claude-opus-4-8", connectionMode: "api", inputTokens: 1000, outputTokens: 400, usdCost: 0.045 });

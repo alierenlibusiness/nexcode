@@ -10,7 +10,7 @@ function repo(): ScheduleRepository {
 function schedule(overrides: Partial<Schedule> = {}): Schedule {
   return {
     id: "s1",
-    prompt: "Testleri koş",
+    prompt: "Run the tests",
     executionMode: "auto",
     trigger: { type: "interval", everyMinutes: 30 },
     enabled: true,
@@ -23,24 +23,24 @@ function schedule(overrides: Partial<Schedule> = {}): Schedule {
 }
 
 describe("ScheduleRepository", () => {
-  it("kaydeder ve id ile geri okur", () => {
+  it("saves and reads back by id", () => {
     const r = repo();
     r.save(schedule());
-    expect(r.getById("s1")?.prompt).toBe("Testleri koş");
-    expect(r.getById("yok")).toBeNull();
+    expect(r.getById("s1")?.prompt).toBe("Run the tests");
+    expect(r.getById("missing")).toBeNull();
   });
 
-  it("aynı id yeniden kaydedilince günceller, çoğaltmaz", () => {
+  it("updates instead of duplicating when the same id is saved again", () => {
     const r = repo();
     r.save(schedule());
-    r.save(schedule({ prompt: "Güncellendi" }));
+    r.save(schedule({ prompt: "Updated" }));
 
     const all = r.list();
     expect(all).toHaveLength(1);
-    expect(all[0]?.prompt).toBe("Güncellendi");
+    expect(all[0]?.prompt).toBe("Updated");
   });
 
-  it("tetik türlerini kayıpsız saklar", () => {
+  it("stores the trigger types without loss", () => {
     const r = repo();
     r.save(schedule({ id: "weekly", trigger: { type: "weekly", at: "09:30", days: [1, 3, 5] } }));
 
@@ -48,17 +48,17 @@ describe("ScheduleRepository", () => {
     expect(stored?.trigger).toEqual({ type: "weekly", at: "09:30", days: [1, 3, 5] });
   });
 
-  it("setEnabled yalnızca aktiflik alanını değiştirir", () => {
+  it("setEnabled changes only the enabled field", () => {
     const r = repo();
     r.save(schedule({ nextRunAt: "2026-08-01T10:00:00.000Z" }));
 
     const disabled = r.setEnabled("s1", false);
     expect(disabled?.enabled).toBe(false);
     expect(disabled?.nextRunAt).toBe("2026-08-01T10:00:00.000Z");
-    expect(r.setEnabled("yok", false)).toBeNull();
+    expect(r.setEnabled("missing", false)).toBeNull();
   });
 
-  it("siler ve olmayan kayıt için false döner", () => {
+  it("deletes and returns false for a record that does not exist", () => {
     const r = repo();
     r.save(schedule());
     expect(r.remove("s1")).toBe(true);

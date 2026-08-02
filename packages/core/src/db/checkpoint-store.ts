@@ -6,11 +6,11 @@ import type { Checkpoint, CheckpointMeta, CheckpointPort } from "../checkpoints/
 import { LIVE_DIFF_LIMITS, isBinaryContent, isScannable } from "../engine/live-diff";
 
 /**
- * `CheckpointPort`'un SQLite + dosya sistemi uygulaması.
+ * The SQLite plus file system implementation of `CheckpointPort`.
  *
- * Snapshot içerikleri veritabanında tutulur (işlemsel ve tek dosyada taşınabilir).
- * İçeriği güvenle saklanamayan dosyalar (ikili ya da sınır aşan) `NULL` içerikle
- * kaydedilir; geri yüklemede o dosyalara **dokunulmaz**.
+ * Snapshot contents live in the database (transactional and portable in a single file).
+ * Files whose content cannot be stored safely (binary or past the limits) are recorded with
+ * `NULL` content, and restore leaves those files **untouched**.
  */
 export class SqliteCheckpointStore implements CheckpointPort {
   constructor(private readonly db: DB) {}
@@ -111,7 +111,7 @@ function toMeta(row: Record<string, unknown>): CheckpointMeta {
   };
 }
 
-/** Çalışma klasörünü tarar; yok sayılan klasörlere hiç inmez. */
+/** Walks the working directory; never descends into ignored folders. */
 function walk(root: string, current: string, out: string[] = []): string[] {
   let entries: Dirent[];
   try {

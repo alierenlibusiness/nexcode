@@ -8,11 +8,11 @@ import type { NormalizedAssignment } from "../engine/routing";
 import type { ReviewVerdict } from "../engine/verdict";
 
 /**
- * Motorun kalıcı deposu: görev kuyruğu, tur/atama kaydı, olay geçmişi, operatör sohbeti
- * ve motor sayaçları.
+ * The persistent store of the engine: task queue, round and assignment records, event
+ * history, operator conversation and engine counters.
  *
- * Olay geçmişi ile canlı akış **aynı** `seq` numarasını paylaşır; sayfa açılışındaki replay
- * bu sayede tamponlanan canlı olayları tekilleştirebilir.
+ * The event history and the live stream share the **same** `seq` number, which is how the
+ * replay on page load can de-duplicate buffered live events.
  */
 
 interface TaskRow {
@@ -128,7 +128,7 @@ export interface AssignmentRecordRow {
 export class EngineRepository {
   constructor(private readonly db: DB) {}
 
-  // ── Görevler ──────────────────────────────────────────────────────────────
+  // ── Tasks ─────────────────────────────────────────────────────────────────
 
   create(input: CreateTaskInput): Task {
     const task: Task = {
@@ -200,10 +200,10 @@ export class EngineRepository {
   }
 
   /**
-   * Kuyruktan çalıştırılacak sıradaki görev (öncelik, sonra yaş).
+   * The next task to run from the queue (priority first, then age).
    *
-   * `skipIds` halihazırda bir slotta koşan görevlerdir; eşzamanlı yürütmede aynı görevin
-   * iki slota düşmesini bu parametre engeller.
+   * `skipIds` are the tasks already running in a slot; this parameter is what keeps the same
+   * task from landing in two slots under concurrent execution.
    */
   claimNext(skipIds: readonly string[] = []): Task | null {
     const placeholders = skipIds.map(() => "?").join(", ");
@@ -249,7 +249,7 @@ export class EngineRepository {
       );
   }
 
-  /** Yalnızca bekleyen görev düzenlenebilir; hedef değişince eski plan geçersizleşir. */
+  /** Only a pending task can be edited; changing the goal invalidates the old plan. */
   updatePending(id: string, input: { prompt?: string; executionMode?: ExecutionMode; workingDir?: string }): boolean {
     const task = this.getById(id);
     if (task === null || task.status !== "pending") return false;
@@ -260,14 +260,14 @@ export class EngineRepository {
       .run(prompt, titleFromPrompt(prompt), input.executionMode ?? task.executionMode, input.workingDir ?? task.workingDir, id);
 
     if (input.prompt !== undefined && input.prompt !== task.prompt) {
-      // Hedef değişti: önceki tur/atama kaydı artık geçerli değil.
+      // The goal changed: the earlier round and assignment records are no longer valid.
       this.db.prepare("DELETE FROM task_rounds WHERE task_id = ?").run(id);
       this.db.prepare("DELETE FROM task_assignments WHERE task_id = ?").run(id);
     }
     return true;
   }
 
-  /** Aktif görev silinemez. */
+  /** An active task cannot be deleted. */
   remove(id: string): boolean {
     const task = this.getById(id);
     if (task === null || task.status === "running") return false;
@@ -284,7 +284,7 @@ export class EngineRepository {
     };
   }
 
-  /** Sayfa açılışında replay edilecek görev: aktif, yoksa en son tamamlanan/başarısız. */
+  /** The task replayed on page load: the active one, otherwise the most recently finished. */
   replayTarget(): Task | null {
     const row = this.db
       .prepare(
@@ -295,7 +295,7 @@ export class EngineRepository {
     return row === undefined ? null : toTask(row);
   }
 
-  // ── Olay geçmişi ──────────────────────────────────────────────────────────
+  // ── Event history ─────────────────────────────────────────────────────────
 
   appendEvent(event: EngineEvent): void {
     this.db
@@ -303,7 +303,7 @@ export class EngineRepository {
       .run(event.seq, event.taskId, event.type, JSON.stringify(event.payload), event.ts);
   }
 
-  /** Bir görevin kayıtlı olayları (replay kaynağı). */
+  /** The recorded events of a task (the replay source). */
   eventsFor(taskId: string, limit = 1500): EngineEvent[] {
     const rows = this.db
       .prepare("SELECT * FROM task_events WHERE task_id = ? ORDER BY seq ASC LIMIT ?")
@@ -320,13 +320,13 @@ export class EngineRepository {
     );
   }
 
-  /** Yeniden başlatmada olay numaralandırması geçmişin devamından sürer. */
+  /** After a restart, event numbering continues from the history. */
   lastEventSeq(): number {
     const row = this.db.prepare("SELECT MAX(seq) AS seq FROM task_events").get() as { seq: number | null };
     return row.seq ?? 0;
   }
 
-  // ── Tur ve atama kaydı ────────────────────────────────────────────────────
+  // ── Round and assignment records ──────────────────────────────────────────
 
   startRound(taskId: string, round: number, phase: string, planSummary: string): void {
     this.db
@@ -401,7 +401,7 @@ export class EngineRepository {
     }));
   }
 
-  // ── Operatör sohbeti ──────────────────────────────────────────────────────
+  // ── Operator conversation ─────────────────────────────────────────────────
 
   appendConversation(taskId: string, role: ConversationEntry["role"], content: string): ConversationEntry {
     const entry: ConversationEntry = {
@@ -428,7 +428,7 @@ export class EngineRepository {
     }));
   }
 
-  // ── Motor durumu ──────────────────────────────────────────────────────────
+  // ── Engine state ──────────────────────────────────────────────────────────
 
   getState(key: string): string | null {
     const row = this.db.prepare("SELECT value FROM engine_state WHERE key = ?").get(key) as
@@ -443,7 +443,7 @@ export class EngineRepository {
       .run(key, value);
   }
 
-  /** Bugünkü toplam model çağrısı: günlük bütçe kontrolü için. */
+  /** Total model calls today, used for the daily budget check. */
   callsToday(today = new Date().toISOString().slice(0, 10)): number {
     const stored = this.getState("callsDate");
     if (stored !== today) return 0;

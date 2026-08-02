@@ -1,15 +1,15 @@
-// Native bağımlılıklı DB katmanı (better-sqlite3). Yalnızca main process'te kullanılır.
-// Renderer bu alt yola (`@nexcode/core/db`) erişmemelidir.
+// DB layer with a native dependency (better-sqlite3). Used only in the main process.
+// The renderer must not reach into this subpath (`@nexcode/core/db`).
 export * from "./schema";
 export * from "./connection";
 
-// Motor kalıcılığı: kuyruk, tur/atama kaydı, olay geçmişi, operatör sohbeti, sayaçlar.
+// Engine persistence: queue, round and assignment records, event history, operator conversation, counters.
 export * from "./engine-repo";
 export * from "./config-repo";
 export * from "./schedule-repo";
 export * from "./checkpoint-store";
 
-// Yardımcı depolar.
+// Supporting stores.
 export * from "./workspace-repo";
 export * from "./settings-repo";
 export * from "./approval-repo";

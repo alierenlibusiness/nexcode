@@ -3,7 +3,7 @@ import { openDatabase } from "./connection";
 import { WorkspaceRepository } from "./workspace-repo";
 
 describe("WorkspaceRepository", () => {
-  it("bir workspace oluşturur ve SQLite'a yazar", () => {
+  it("creates a workspace and writes it to SQLite", () => {
     const db = openDatabase(":memory:");
     const repo = new WorkspaceRepository(db);
 
@@ -18,7 +18,7 @@ describe("WorkspaceRepository", () => {
     expect(fetched).toEqual(created);
   });
 
-  it("workspace'leri oluşturulma sırasına göre (yeni→eski) listeler", () => {
+  it("lists workspaces newest first by creation time", () => {
     const db = openDatabase(":memory:");
     const repo = new WorkspaceRepository(db);
 
@@ -31,9 +31,9 @@ describe("WorkspaceRepository", () => {
     expect(all.map((w) => w.id)).toContain(b.id);
   });
 
-  it("bilinmeyen id için null döner", () => {
+  it("returns null for an unknown id", () => {
     const db = openDatabase(":memory:");
     const repo = new WorkspaceRepository(db);
-    expect(repo.getById("yok")).toBeNull();
+    expect(repo.getById("missing")).toBeNull();
   });
 });

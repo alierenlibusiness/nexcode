@@ -27,46 +27,46 @@ function repo(templatePath: string): ConfigRepository {
 }
 
 describe("ConfigRepository", () => {
-  it("ilk okumada şablonu tohumlar ve kalıcı kılar", () => {
-    const r = repo(templateWith({ ...FALLBACK_CONFIG, workingDir: "/tohum" }));
-    expect(r.load().workingDir).toBe("/tohum");
+  it("seeds from the template on the first read and persists it", () => {
+    const r = repo(templateWith({ ...FALLBACK_CONFIG, workingDir: "/seed" }));
+    expect(r.load().workingDir).toBe("/seed");
 
-    // İkinci okuma artık kayıttan gelir; şablon silinse de değer korunur.
+    // The second read comes from the record; the value survives the template being deleted.
     rmSync(join(dir, "template.json"), { force: true });
-    expect(r.load().workingDir).toBe("/tohum");
+    expect(r.load().workingDir).toBe("/seed");
   });
 
-  it("şablon yoksa kod içi güvenli tabana düşer", () => {
-    const r = repo(join(dir, "olmayan.json"));
+  it("falls back to the in-code safe base when the template is missing", () => {
+    const r = repo(join(dir, "missing.json"));
     expect(r.load().workingDir).toBe(FALLBACK_CONFIG.workingDir);
   });
 
-  it("şablon bozuksa kilitlenmez, güvenli tabana düşer", () => {
+  it("does not lock up on a corrupt template; it falls back to the safe base", () => {
     const path = join(dir, "template.json");
-    writeFileSync(path, "{ bozuk json", "utf8");
+    writeFileSync(path, "{ broken json", "utf8");
     expect(repo(path).load().workingDir).toBe(FALLBACK_CONFIG.workingDir);
   });
 
-  it("kaydedilen kayıt bozulursa güvenli tabana düşer", () => {
+  it("falls back to the safe base when the stored record is corrupt", () => {
     const db = openDatabase(":memory:");
-    db.prepare("INSERT INTO engine_state (key, value) VALUES ('config', 'bozuk')").run();
+    db.prepare("INSERT INTO engine_state (key, value) VALUES ('config', 'corrupt')").run();
     const r = new ConfigRepository(db, templateWith(FALLBACK_CONFIG));
     expect(r.load().workingDir).toBe(FALLBACK_CONFIG.workingDir);
   });
 
-  it("kaydederken normalize eder ve eksik alanları tamamlar", () => {
+  it("normalises on save and fills in the missing fields", () => {
     const r = repo(templateWith(FALLBACK_CONFIG));
     const saved = r.save({ ...FALLBACK_CONFIG, approvalMode: "ask" });
     expect(saved.approvalMode).toBe("ask");
     expect(r.load().approvalMode).toBe("ask");
   });
 
-  it("resetToTemplate kullanıcı değişikliğini şablona döndürür", () => {
-    const r = repo(templateWith({ ...FALLBACK_CONFIG, workingDir: "/sablon" }));
-    r.save({ ...FALLBACK_CONFIG, workingDir: "/kullanici" });
-    expect(r.load().workingDir).toBe("/kullanici");
+  it("resetToTemplate returns the user's change to the template", () => {
+    const r = repo(templateWith({ ...FALLBACK_CONFIG, workingDir: "/template" }));
+    r.save({ ...FALLBACK_CONFIG, workingDir: "/user" });
+    expect(r.load().workingDir).toBe("/user");
 
-    expect(r.resetToTemplate().workingDir).toBe("/sablon");
-    expect(r.load().workingDir).toBe("/sablon");
+    expect(r.resetToTemplate().workingDir).toBe("/template");
+    expect(r.load().workingDir).toBe("/template");
   });
 });

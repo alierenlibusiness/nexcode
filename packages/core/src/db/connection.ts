@@ -3,7 +3,7 @@ import { SCHEMA_SQL } from "./schema";
 
 export type DB = Database.Database;
 
-/** Sütun yoksa ekler (idempotent, geriye dönük uyumlu). */
+/** Adds the column when it is missing (idempotent, backwards compatible). */
 function ensureColumn(db: DB, table: string, column: string, definition: string): void {
   const cols = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
   if (!cols.some((c) => c.name === column)) {
@@ -12,19 +12,19 @@ function ensureColumn(db: DB, table: string, column: string, definition: string)
 }
 
 /**
- * Sürümlü, **ileri-only** ve idempotent migration'lar.
+ * Versioned, **forward-only** and idempotent migrations.
  *
- * Her adım yalnızca bir kez çalışır; `user_version` pragması ilerletilir. Hiçbir adım veri
- * silmez: durum sözcükleri değişirse eski değerler yenilerine eşlenir, satırlar atılmaz.
+ * Each step runs exactly once and advances the `user_version` pragma. No step deletes data:
+ * when status words change, old values are mapped onto the new ones rather than dropped.
  */
 const MIGRATIONS: ReadonlyArray<(db: DB) => void> = [
-  // 1: Faz 2: kullanıcının agent başına model seçimi (PRD §9.5).
+  // 1: per-agent model selection by the user.
   (db) => {
     ensureColumn(db, "agent_settings", "model_provider", "TEXT");
     ensureColumn(db, "agent_settings", "model_id", "TEXT");
   },
 
-  // 2: Orkestrasyon motoru: görev kaydı motorun yaşam döngüsünü taşır.
+  // 2: orchestration engine: the task record now carries the engine lifecycle.
   (db) => {
     ensureColumn(db, "tasks", "prompt", "TEXT NOT NULL DEFAULT ''");
     ensureColumn(db, "tasks", "execution_mode", "TEXT NOT NULL DEFAULT 'auto'");
@@ -43,7 +43,7 @@ const MIGRATIONS: ReadonlyArray<(db: DB) => void> = [
     ensureColumn(db, "tasks", "changed_files", "INTEGER NOT NULL DEFAULT 0");
     ensureColumn(db, "tasks", "started_at", "TEXT");
 
-    // Eski Kanban durum sözcüklerini motor sözlüğüne eşle (veri kaybı yok).
+    // Map the old Kanban status words onto the engine vocabulary (no data loss).
     db.exec(`
       UPDATE tasks SET status = 'pending' WHERE status = 'backlog';
       UPDATE tasks SET status = 'running' WHERE status IN ('in_progress', 'review');
@@ -52,7 +52,7 @@ const MIGRATIONS: ReadonlyArray<(db: DB) => void> = [
   },
 ];
 
-/** Şema sürümü: `MIGRATIONS` uzunluğu ile eşittir. */
+/** Schema version: equal to the length of `MIGRATIONS`. */
 export const SCHEMA_VERSION = MIGRATIONS.length;
 
 function applyMigrations(db: DB): void {
@@ -68,8 +68,8 @@ function applyMigrations(db: DB): void {
 }
 
 /**
- * SQLite veritabanını açar, pragmaları ayarlar ve şemayı (idempotent) uygular.
- * `:memory:` testlerde kullanılabilir.
+ * Opens the SQLite database, sets the pragmas and applies the schema idempotently.
+ * `:memory:` can be used in tests.
  */
 export function openDatabase(filename: string): DB {
   const db = new Database(filename);

@@ -2,10 +2,10 @@ import type { DB } from "./connection";
 import type { Schedule } from "../config/schema";
 
 /**
- * Zamanlama deposu.
+ * The schedule store.
  *
- * CRUD kendi uçlarıyla **anında** kalıcılaşır: büyük config kaydetme yolundan geçmez,
- * böylece bir zamanlama eklemek kaydedilmemiş ayar taslaklarını etkilemez.
+ * CRUD persists **immediately** through its own endpoints rather than the large config save
+ * path, so adding a schedule does not disturb unsaved settings drafts.
  */
 export class ScheduleRepository {
   constructor(private readonly db: DB) {}

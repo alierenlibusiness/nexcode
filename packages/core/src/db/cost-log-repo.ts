@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { DB } from "./connection";
 import type { ConnectionMode } from "../domain/agent";
 
-/** Bir model çağrısının maliyet kaydı (PRD §9.4, §14 cost_logs). */
+/** The cost record of a single model call. */
 export interface CostLogEntry {
   agentId: string | null;
   taskId: string | null;
@@ -12,7 +12,7 @@ export interface CostLogEntry {
   inputTokens: number;
   outputTokens: number;
   usdCost: number;
-  /** Abonelik havuzu kimliği: paylaşılan CLI havuzu (CEO+Backend) için (PRD §9.3). */
+  /** Subscription pool id, for a shared CLI pool such as CEO plus Backend. */
   subscriptionPoolId?: string | null;
 }
 
@@ -20,7 +20,7 @@ export interface CostLogRow extends CostLogEntry {
   id: string;
 }
 
-/** Sağlayıcı/havuz bazında maliyet toplamı (cost dashboard için, PRD §9.3). */
+/** Cost totals per provider or pool, for the cost dashboard. */
 export interface CostSummaryRow {
   key: string;
   usdCost: number;
@@ -30,9 +30,10 @@ export interface CostSummaryRow {
 }
 
 /**
- * Maliyet loglarını SQLite'a yazar/okur. Her model çağrısı (API veya CLI) buraya düşer;
- * `connection_mode` alanı ay sonunda "ne kadarı abonelik içinde, ne kadarı taşma API"
- * ayrımını sağlar (PRD §9.4). CLI çağrılarında usd_cost=0 (abonelik havuzuna yazılır).
+ * Reads and writes cost logs in SQLite. Every model call (API or CLI) lands here; the
+ * `connection_mode` field is what separates "how much was inside the subscription" from
+ * "how much overflowed to the API" at the end of the month. CLI calls record usd_cost=0
+ * because they are charged to the subscription pool.
  */
 export class CostLogRepository {
   constructor(private readonly db: DB) {}
@@ -61,7 +62,7 @@ export class CostLogRepository {
     return id;
   }
 
-  /** Toplam taşma (API) maliyeti: abonelik dışı gerçek USD harcaması. */
+  /** Total overflow (API) cost: the real USD spend outside the subscription. */
   totalApiCost(): number {
     const row = this.db
       .prepare(`SELECT COALESCE(SUM(usd_cost), 0) AS total FROM cost_logs WHERE connection_mode = 'api'`)
@@ -69,7 +70,7 @@ export class CostLogRepository {
     return row.total;
   }
 
-  /** Bağlantı moduna göre özet (api vs cli): dashboard'da abonelik tasarrufunu gösterir. */
+  /** Summary by connection mode (api vs cli): shows the subscription saving on the dashboard. */
   summaryByConnectionMode(): CostSummaryRow[] {
     return this.db
       .prepare(

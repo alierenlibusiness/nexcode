@@ -7,16 +7,16 @@ import { logger } from "../logger";
 const CONFIG_KEY = "config";
 
 /**
- * Kişiye özel yapılandırmanın deposu.
+ * The store of the user's own configuration.
  *
- * İlk çalıştırmada paketle gelen `resources/nexcode.config.default.json` şablonu kopyalanır;
- * okunamazsa kod içi `FALLBACK_CONFIG` kullanılır. Her okuma ve yazma `normalizeConfig`'ten
- * geçer, böylece elle düzenlenmiş ya da eski şemadan gelen kayıtlar onarılır.
+ * On first run the bundled `resources/nexcode.config.default.json` template is copied; if it
+ * cannot be read, the in-code `FALLBACK_CONFIG` is used. Every read and write goes through
+ * `normalizeConfig`, so hand-edited records or records from an older schema are repaired.
  */
 export class ConfigRepository {
   constructor(
     private readonly db: DB,
-    /** Paketle gelen şablonun mutlak yolu. */
+    /** Absolute path of the bundled template. */
     private readonly templatePath: string,
   ) {}
 
@@ -34,7 +34,7 @@ export class ConfigRepository {
     try {
       return normalizeConfig(JSON.parse(stored.value));
     } catch (error) {
-      // Bozuk kayıt kullanıcıyı kilitlemez; güvenli tabana dönülür ve neden loglanır.
+      // A corrupt record must not lock the user out; fall back to a safe base and log why.
       logger.error("config.load.invalid", { error: String(error) });
       return FALLBACK_CONFIG;
     }
@@ -50,7 +50,7 @@ export class ConfigRepository {
     return normalized;
   }
 
-  /** Kullanıcının kaydını silmeden şablon değerlerine döner. */
+  /** Returns to the template values without deleting the user's record. */
   resetToTemplate(): NexcodeConfig {
     return this.save(this.readTemplate());
   }

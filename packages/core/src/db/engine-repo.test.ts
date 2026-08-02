@@ -6,23 +6,23 @@ function repo(): EngineRepository {
   return new EngineRepository(openDatabase(":memory:"));
 }
 
-describe("EngineRepository: görev kuyruğu", () => {
-  it("prompt'un ilk satırından başlık türetir ve pending olarak açar", () => {
-    const task = repo().create({ prompt: "Login akışını düzelt\n\nDetay burada", workingDir: "/w" });
-    expect(task.title).toBe("Login akışını düzelt");
+describe("EngineRepository: task queue", () => {
+  it("derives the title from the first line of the prompt and opens it as pending", () => {
+    const task = repo().create({ prompt: "Fix the login flow\n\nDetails here", workingDir: "/w" });
+    expect(task.title).toBe("Fix the login flow");
     expect(task.status).toBe("pending");
     expect(task.executionMode).toBe("auto");
     expect(task.kind).toBe("task");
   });
 
-  it("claimNext önceliği, eşitlikte yaşı gözetir", () => {
+  it("claimNext respects priority, then age on a tie", () => {
     const r = repo();
-    r.create({ prompt: "eski", workingDir: "/w" });
-    const urgent = r.create({ prompt: "acil", workingDir: "/w", priority: 5 });
+    r.create({ prompt: "older", workingDir: "/w" });
+    const urgent = r.create({ prompt: "urgent", workingDir: "/w", priority: 5 });
     expect(r.claimNext()?.id).toBe(urgent.id);
   });
 
-  it("claimNext koşan görevleri atlar (eşzamanlı slot sahiplenmesi)", () => {
+  it("claimNext skips running tasks (concurrent slot claiming)", () => {
     const r = repo();
     const first = r.create({ prompt: "A", workingDir: "/w" });
     const second = r.create({ prompt: "B", workingDir: "/w" });
@@ -32,30 +32,30 @@ describe("EngineRepository: görev kuyruğu", () => {
     expect(r.claimNext([first.id, second.id])).toBeNull();
   });
 
-  it("operator-chat görevleri kuyruğa alınmaz", () => {
+  it("never queues operator-chat tasks", () => {
     const r = repo();
-    const parent = r.create({ prompt: "ana", workingDir: "/w" });
+    const parent = r.create({ prompt: "main", workingDir: "/w" });
     r.complete(parent.id, completion());
-    r.create({ prompt: "soru", workingDir: "/w", kind: "operator-chat", parentTaskId: parent.id });
+    r.create({ prompt: "question", workingDir: "/w", kind: "operator-chat", parentTaskId: parent.id });
     expect(r.claimNext()).toBeNull();
     expect(r.listByStatus("pending")).toHaveLength(0);
   });
 
-  it("markRunning startedAt yazar, complete teslimat özetini kaydeder", () => {
+  it("markRunning writes startedAt and complete records the delivery summary", () => {
     const r = repo();
     const task = r.create({ prompt: "T", workingDir: "/w" });
     r.markRunning(task.id);
     expect(r.getById(task.id)?.startedAt).toBeTypeOf("string");
 
-    r.complete(task.id, { ...completion(), delivery: "bitti", changedFiles: 3 });
+    r.complete(task.id, { ...completion(), delivery: "done", changedFiles: 3 });
     const done = r.getById(task.id);
     expect(done?.status).toBe("done");
-    expect(done?.delivery).toBe("bitti");
+    expect(done?.delivery).toBe("done");
     expect(done?.changedFiles).toBe(3);
     expect(done?.completedAt).toBeTypeOf("string");
   });
 
-  it("çalışan görev silinemez, bekleyen silinir", () => {
+  it("does not delete a running task but does delete a pending one", () => {
     const r = repo();
     const running = r.create({ prompt: "A", workingDir: "/w" });
     r.markRunning(running.id);
@@ -66,25 +66,25 @@ describe("EngineRepository: görev kuyruğu", () => {
     expect(r.getById(pending.id)).toBeNull();
   });
 
-  it("yalnızca bekleyen görev düzenlenir ve hedef değişince plan geçersizleşir", () => {
+  it("edits only a pending task and invalidates the plan when the goal changes", () => {
     const r = repo();
-    const task = r.create({ prompt: "eski hedef", workingDir: "/w" });
+    const task = r.create({ prompt: "old goal", workingDir: "/w" });
     r.markAwaitingApproval(task.id, "hash-1");
     expect(r.getById(task.id)?.planHash).toBe("hash-1");
 
-    // approval durumundaki görev düzenlenemez.
-    expect(r.updatePending(task.id, { prompt: "yeni" })).toBe(false);
+    // A task in the approval state cannot be edited.
+    expect(r.updatePending(task.id, { prompt: "new" })).toBe(false);
 
-    const editable = r.create({ prompt: "ilk", workingDir: "/w" });
-    r.startRound(editable.id, 1, "plan", "özet");
-    expect(r.updatePending(editable.id, { prompt: "yeni hedef" })).toBe(true);
+    const editable = r.create({ prompt: "first", workingDir: "/w" });
+    r.startRound(editable.id, 1, "plan", "summary");
+    expect(r.updatePending(editable.id, { prompt: "new goal" })).toBe(true);
 
     const updated = r.getById(editable.id);
-    expect(updated?.title).toBe("yeni hedef");
+    expect(updated?.title).toBe("new goal");
     expect(updated?.planHash).toBeNull();
   });
 
-  it("queueSnapshot failed ve blocked görevleri aynı kovada toplar", () => {
+  it("queueSnapshot collects failed and blocked tasks in the same bucket", () => {
     const r = repo();
     const failed = r.create({ prompt: "F", workingDir: "/w" });
     const blocked = r.create({ prompt: "B", workingDir: "/w" });
@@ -94,31 +94,31 @@ describe("EngineRepository: görev kuyruğu", () => {
     expect(r.queueSnapshot().failed).toHaveLength(2);
   });
 
-  it("replayTarget çalışan görevi tamamlananların önüne koyar", () => {
+  it("replayTarget puts a running task ahead of completed ones", () => {
     const r = repo();
-    const older = r.create({ prompt: "eski", workingDir: "/w" });
+    const older = r.create({ prompt: "older", workingDir: "/w" });
     r.complete(older.id, completion());
-    const active = r.create({ prompt: "aktif", workingDir: "/w" });
+    const active = r.create({ prompt: "active", workingDir: "/w" });
     r.markRunning(active.id);
 
     expect(r.replayTarget()?.id).toBe(active.id);
   });
 });
 
-describe("EngineRepository: olay geçmişi", () => {
-  it("olayları seq sırasıyla saklar ve son numarayı bildirir", () => {
+describe("EngineRepository: event history", () => {
+  it("stores events in seq order and reports the last number", () => {
     const r = repo();
     const task = r.create({ prompt: "T", workingDir: "/w" });
-    r.appendEvent({ seq: 1, taskId: task.id, type: "log", payload: { level: "info", message: "başladı" }, ts: "t1" });
-    r.appendEvent({ seq: 2, taskId: task.id, type: "log", payload: { level: "info", message: "bitti" }, ts: "t2" });
+    r.appendEvent({ seq: 1, taskId: task.id, type: "log", payload: { level: "info", message: "started" }, ts: "t1" });
+    r.appendEvent({ seq: 2, taskId: task.id, type: "log", payload: { level: "info", message: "finished" }, ts: "t2" });
 
     const events = r.eventsFor(task.id);
     expect(events.map((e) => e.seq)).toEqual([1, 2]);
-    expect(events[0]?.payload).toEqual({ level: "info", message: "başladı" });
+    expect(events[0]?.payload).toEqual({ level: "info", message: "started" });
     expect(r.lastEventSeq()).toBe(2);
   });
 
-  it("aynı seq yeniden yazılınca çoğaltmaz (replay tekilleştirmesi)", () => {
+  it("does not duplicate when the same seq is written again (replay de-duplication)", () => {
     const r = repo();
     const task = r.create({ prompt: "T", workingDir: "/w" });
     const event = {
@@ -133,16 +133,16 @@ describe("EngineRepository: olay geçmişi", () => {
     expect(r.eventsFor(task.id)).toHaveLength(1);
   });
 
-  it("boş geçmişte lastEventSeq sıfırdır", () => {
+  it("reports lastEventSeq as zero for an empty history", () => {
     expect(repo().lastEventSeq()).toBe(0);
   });
 });
 
-describe("EngineRepository: tur, atama, sohbet ve sayaçlar", () => {
-  it("atamayı kaydeder ve aynı id yeniden yazılınca günceller", () => {
+describe("EngineRepository: rounds, assignments, conversation and counters", () => {
+  it("records an assignment and updates it when the same id is written again", () => {
     const r = repo();
     const task = r.create({ prompt: "T", workingDir: "/w" });
-    r.startRound(task.id, 1, "implement", "plan özeti");
+    r.startRound(task.id, 1, "implement", "plan summary");
 
     const assignment = {
       id: "a1",
@@ -151,29 +151,29 @@ describe("EngineRepository: tur, atama, sohbet ve sayaçlar", () => {
       adapter: "claude" as const,
       kind: "implement" as const,
       role: "executor" as const,
-      instruction: "yaz",
+      instruction: "write it",
       dependsOn: [],
       skills: ["api-design"],
     };
     r.recordAssignment(task.id, 1, assignment, { status: "failed", output: "", verdict: null, durationMs: 10 });
-    r.recordAssignment(task.id, 1, assignment, { status: "completed", output: "tamam", verdict: "PASS", durationMs: 20 });
+    r.recordAssignment(task.id, 1, assignment, { status: "completed", output: "done", verdict: "PASS", durationMs: 20 });
 
     const rows = r.assignmentsFor(task.id);
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ status: "completed", verdict: "PASS", output: "tamam", durationMs: 20 });
+    expect(rows[0]).toMatchObject({ status: "completed", verdict: "PASS", output: "done", durationMs: 20 });
     expect(rows[0]?.skills).toEqual(["api-design"]);
   });
 
-  it("operatör sohbetini kronolojik tutar", () => {
+  it("keeps the operator conversation in chronological order", () => {
     const r = repo();
     const task = r.create({ prompt: "T", workingDir: "/w" });
-    r.appendConversation(task.id, "user", "neden böyle yaptın");
-    r.appendConversation(task.id, "operator", "şu yüzden");
+    r.appendConversation(task.id, "user", "why did you do it this way");
+    r.appendConversation(task.id, "operator", "for this reason");
 
     expect(r.conversationFor(task.id).map((c) => c.role)).toEqual(["user", "operator"]);
   });
 
-  it("günlük çağrı sayacı gün değişince sıfırlanır", () => {
+  it("resets the daily call counter when the day changes", () => {
     const r = repo();
     r.setCallsToday(12, "2026-08-01");
     expect(r.callsToday("2026-08-01")).toBe(12);

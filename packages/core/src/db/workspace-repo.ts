@@ -23,7 +23,7 @@ function toWorkspace(row: WorkspaceRow): Workspace {
   };
 }
 
-/** Workspace CRUD: yerel SQLite üzerinden (PRD §14). */
+/** Workspace CRUD over the local SQLite database. */
 export class WorkspaceRepository {
   constructor(private readonly db: DB) {}
 

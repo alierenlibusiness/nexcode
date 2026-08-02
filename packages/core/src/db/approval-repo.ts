@@ -34,7 +34,7 @@ function toRecord(row: ApprovalRow): ApprovalRecord {
   };
 }
 
-/** Onay isteklerini SQLite'da yönetir (PRD §6.8, §14). */
+/** Manages approval requests in SQLite. */
 export class ApprovalRepository {
   constructor(private readonly db: DB) {}
 

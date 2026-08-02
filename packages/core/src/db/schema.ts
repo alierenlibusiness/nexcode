@@ -1,8 +1,8 @@
 /**
- * Yerel-öncelikli SQLite şeması (PRD §14).
+ * Local-first SQLite schema.
  *
- * Tüm tablolar `IF NOT EXISTS` ile idempotent oluşturulur; sütun eklemeleri
- * `connection.ts` içindeki sürümlü, ileri-only migration'larla yapılır.
+ * Every table is created idempotently with `IF NOT EXISTS`; column additions go through the
+ * versioned, forward-only migrations in `connection.ts`.
  */
 export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS workspaces (
@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS agents (
   autonomy_level  TEXT NOT NULL
 );
 
--- Görev kuyruğu. Motor durumları: pending · approval · running · done · failed · blocked.
+-- Task queue. Engine states: pending · approval · running · done · failed · blocked.
 CREATE TABLE IF NOT EXISTS tasks (
   id             TEXT PRIMARY KEY,
   agent_id       TEXT REFERENCES agents(id) ON DELETE SET NULL,
@@ -87,7 +87,7 @@ CREATE TABLE IF NOT EXISTS agent_settings (
   workspace_id          TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
   role                  TEXT NOT NULL,
   connection_preference TEXT NOT NULL DEFAULT 'cli_first',
-  -- Kullanıcının agent için seçtiği model (NULL = agent varsayılanı, PRD §7/§8 + §9.5):
+  -- The model the user picked for the agent (NULL means the agent default):
   model_provider        TEXT,
   model_id              TEXT,
   PRIMARY KEY (workspace_id, role)
@@ -110,10 +110,10 @@ CREATE TABLE IF NOT EXISTS skills (
   created_at  TEXT NOT NULL
 );
 
--- ── Orkestrasyon motoru ─────────────────────────────────────────────────────
+-- ── Orchestration engine ────────────────────────────────────────────────────
 
--- Kalıcı olay geçmişi. Sayfa açılışındaki replay bu tablodan beslenir; \`seq\`
--- canlı akışla ortak olduğundan tamponlanan olaylar tekilleştirilebilir.
+-- Persistent event history. The replay on page load is fed from this table; because \`seq\`
+-- is shared with the live stream, buffered events can be de-duplicated.
 CREATE TABLE IF NOT EXISTS task_events (
   seq        INTEGER PRIMARY KEY,
   task_id    TEXT,
@@ -122,7 +122,7 @@ CREATE TABLE IF NOT EXISTS task_events (
   ts         TEXT NOT NULL
 );
 
--- Tur ve atama kaydı: Ekip Akışı zaman çizelgesi ve teslimat özeti bunları okur.
+-- Round and assignment records: the Team Flow timeline and the delivery summary read these.
 CREATE TABLE IF NOT EXISTS task_rounds (
   task_id     TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
   round       INTEGER NOT NULL,
@@ -152,7 +152,7 @@ CREATE TABLE IF NOT EXISTS task_assignments (
   PRIMARY KEY (task_id, id)
 );
 
--- Tamamlanmış görev hakkındaki salt-okunur operatör sohbeti.
+-- Read-only operator conversation about a completed task.
 CREATE TABLE IF NOT EXISTS task_conversation (
   id         TEXT PRIMARY KEY,
   task_id    TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
@@ -161,7 +161,7 @@ CREATE TABLE IF NOT EXISTS task_conversation (
   created_at TEXT NOT NULL
 );
 
--- Görev öncesi sürümleme. \`kind\` = pre | redo; redo, geri almanın geri alınmasını sağlar.
+-- Pre-task versioning. \`kind\` = pre | redo; redo is what makes an undo itself undoable.
 CREATE TABLE IF NOT EXISTS checkpoints (
   id          TEXT PRIMARY KEY,
   task_id     TEXT NOT NULL,
@@ -171,8 +171,8 @@ CREATE TABLE IF NOT EXISTS checkpoints (
   file_count  INTEGER NOT NULL DEFAULT 0
 );
 
--- İçeriği güvenle saklanamayan dosyalarda (ikili, hassas, sınır aşan) content NULL olur
--- ve geri yüklemede o dosyaya dokunulmaz.
+-- For files whose content cannot be stored safely (binary, sensitive, past the limits)
+-- content is NULL, and restore leaves that file untouched.
 CREATE TABLE IF NOT EXISTS checkpoint_files (
   checkpoint_id TEXT NOT NULL REFERENCES checkpoints(id) ON DELETE CASCADE,
   path          TEXT NOT NULL,
@@ -186,13 +186,13 @@ CREATE TABLE IF NOT EXISTS schedules (
   updated_at TEXT NOT NULL
 );
 
--- Motor durumu ve sayaçlar (tek satır anahtar/değer).
+-- Engine state and counters (single row key/value).
 CREATE TABLE IF NOT EXISTS engine_state (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
 
--- Sürümlü CLI sağlık önbelleği; sözleşme sürümü değişince kayıtlar geçersizleşir.
+-- Versioned CLI health cache; records are invalidated when the contract version changes.
 CREATE TABLE IF NOT EXISTS cli_health (
   agent_id         TEXT PRIMARY KEY,
   status           TEXT NOT NULL,
