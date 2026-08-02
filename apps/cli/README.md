@@ -6,20 +6,20 @@ Claude Code, Codex CLI, Gemini CLI, OpenCode and Antigravity, coordinated by a s
 operator agent that plans, delegates, reviews and ships. On your machine, using the
 subscriptions you already pay for.
 
-## Try it without installing
-
-```bash
-npx nexcode doctor
-```
-
-This scans your machine for installed coding CLIs, checks whether they are ready, and tells
-you exactly what is missing.
-
 ## Install
 
 ```bash
 npm install -g nexcode
 ```
+
+Or run it without installing:
+
+```bash
+npx nexcode doctor
+```
+
+`doctor` scans your machine for installed coding CLIs, checks whether they are ready, and
+tells you exactly what is missing. Start there.
 
 ## Use it
 
@@ -112,6 +112,10 @@ it, so an external client cannot trigger autonomous execution on its own.
 ## Requirements
 
 Node.js 22 or newer, and at least one supported coding CLI installed and signed in.
+
+The only native dependency is `better-sqlite3`, which ships prebuilt binaries for common
+platforms. On an uncommon platform npm falls back to compiling it, which needs a C++
+toolchain.
 
 ## Desktop app
 
