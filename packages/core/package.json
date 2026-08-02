@@ -4,19 +4,8 @@
   "license": "MIT",
   "type": "commonjs",
   "description": "Operator-led multi-agent orchestration core for coding CLIs.",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/alierenlibusiness/nexcode.git",
-    "directory": "packages/core"
-  },
-  "files": [
-    "dist/",
-    "README.md",
-    "LICENSE"
-  ],
-  "publishConfig": {
-    "access": "public"
-  },
+  "// private": "Çekirdek npm'e ayrıca yayımlanmaz; `nexcode` paketinin içine bundle edilir. Böylece kullanıcı tek, scope'suz bir paket kurar ve sürüm eşleşmesi sorunu doğmaz.",
+  "private": true,
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
