@@ -3,32 +3,33 @@ import type { EngineEventBus } from "./events";
 import type { EngineTask, TaskOutcome } from "./engine";
 
 /**
- * Kuyruk süpervizörü.
+ * The queue supervisor.
  *
- * Motorun kendisi tek bir görevi yürütür. Süpervizör ise kuyruğu okur, `maxConcurrentTasks`
- * kadar worker slotu doldurur ve toplu durumu yayınlar. Görev yürütmenin nasıl yapıldığı
- * (izole ağaç kurulumu, motor örneği, teslimat, temizlik) `runTask` port'una aittir; bu sınıf
- * yalnızca eşzamanlılık politikasını bilir.
+ * The engine itself runs a single task. The supervisor reads the queue, fills up to
+ * `maxConcurrentTasks` worker slots and publishes the aggregate status. How a task is
+ * executed (isolated tree setup, engine instance, delivery, cleanup) belongs to the
+ * `runTask` port; this class only knows the concurrency policy.
  *
- * Değişmezler:
+ * Invariants:
  *
- * 1. **Aynı görev iki slota düşmez.** `claimNext` çalışan id'leri alır ve onları atlar.
- * 2. **Bir slotun hatası diğerlerini düşürmez.** Slot hatası yakalanır, olay olarak yayılır
- *    ve slot serbest bırakılır.
- * 3. **Paralellik izolasyon ister.** `maxConcurrentTasks > 1` yalnızca `worktree.mode: "task"`
- *    iken anlamlıdır; `normalizeConfig` bunu zaten 1'e düşürür, süpervizör de savunmacı davranır.
- * 4. **`stop()` işi yarıda kesmez.** Yeni görev alınmaz ve uçuştaki görevler beklenir.
+ * 1. **The same task never lands in two slots.** `claimNext` receives the running ids and skips them.
+ * 2. **A failure in one slot does not bring down the others.** A slot error is caught, emitted
+ *    as an event, and the slot is released.
+ * 3. **Parallelism requires isolation.** `maxConcurrentTasks > 1` only makes sense while
+ *    `worktree.mode: "task"`; `normalizeConfig` already drops it to 1 and the supervisor is
+ *    defensive about it too.
+ * 4. **`stop()` does not interrupt work.** No new task is claimed and in-flight tasks are awaited.
  */
 
 export interface SupervisorPorts {
   config: () => NexcodeConfig;
   events: EngineEventBus;
   /**
-   * Kuyruktan sıradaki bekleyen görevi sahiplenir. `activeIds` halihazırda koşan görevlerdir
-   * ve atlanmalıdır. Uygun görev yoksa `null` döner.
+   * Claims the next waiting task from the queue. `activeIds` are the tasks already running
+   * and must be skipped. Returns `null` when there is no suitable task.
    */
   claimNext: (activeIds: readonly string[]) => Promise<EngineTask | null>;
-  /** Tek bir görevi uçtan uca yürütür (izolasyon kurulumu ve temizliği dahil). */
+  /** Runs a single task end to end (including isolation setup and cleanup). */
   runTask: (task: EngineTask) => Promise<TaskOutcome>;
   sleep?: (ms: number) => Promise<void>;
   now?: () => Date;
@@ -36,9 +37,9 @@ export interface SupervisorPorts {
 
 export interface SupervisorStatus {
   running: boolean;
-  /** Şu an yürütülen görev id'leri. */
+  /** Ids of the tasks currently executing. */
   activeIds: string[];
-  /** Yapılandırmadan gelen etkin slot sayısı. */
+  /** Effective slot count coming from the configuration. */
   concurrency: number;
   freeSlots: number;
 }
@@ -67,7 +68,7 @@ export class EngineSupervisor {
     };
   }
 
-  /** Kuyruk döngüsünü başlatır. Zaten çalışıyorsa hiçbir şey yapmaz. */
+  /** Starts the queue loop. Does nothing when it is already running. */
   start(): void {
     if (this.running) return;
     this.running = true;
@@ -76,10 +77,10 @@ export class EngineSupervisor {
   }
 
   /**
-   * Yeni görev almayı durdurur ve uçuştaki görevlerin bitmesini bekler.
+   * Stops claiming new tasks and waits for the in-flight ones to finish.
    *
-   * Çalışan agent süreçleri yarıda kesilmez: yarım kalan iş, yarım kalan dosya değişikliği
-   * demektir. Kullanıcı gerçekten iptal istiyorsa bu ayrı bir eylemdir.
+   * Running agent processes are not interrupted: half-finished work means half-finished file
+   * changes. If the user really wants to cancel, that is a separate action.
    */
   async stop(): Promise<void> {
     if (!this.running) return;
@@ -91,14 +92,14 @@ export class EngineSupervisor {
     this.emitStatus();
   }
 
-  /** Bekleme aralığını erkenden keser (yeni görev eklendiğinde çağrılır). */
+  /** Cuts the wait interval short (called when a new task is added). */
   wake(): void {
     this.wakeUp?.();
   }
 
   private concurrency(): number {
     const cfg = this.ports.config();
-    // İzolasyon olmadan paralellik çalışma ağacını bozar; savunmacı olarak 1'e düşürülür.
+    // Without isolation, parallelism corrupts the working tree; defensively drop it to 1.
     return cfg.worktree.mode === "task" ? Math.max(1, cfg.maxConcurrentTasks) : 1;
   }
 
@@ -117,7 +118,7 @@ export class EngineSupervisor {
 
       if (!this.running) break;
 
-      // İş dağıttıysak hemen tekrar bak: kuyrukta devamı olabilir ve slot boşalmış olabilir.
+      // If we dispatched work, look again immediately: the queue may have more and a slot may have freed up.
       if (dispatched) {
         await sleep(0);
         continue;
@@ -135,7 +136,7 @@ export class EngineSupervisor {
     void slot.finally(() => {
       this.active.delete(task.id);
       this.emitStatus();
-      // Slot boşaldı: döngü beklemedeyse hemen yeni görev alsın.
+      // A slot freed up: if the loop is waiting, let it claim a new task right away.
       this.wake();
     });
   }
@@ -144,17 +145,17 @@ export class EngineSupervisor {
     try {
       await this.ports.runTask(task);
     } catch (error) {
-      // Bir slotun çökmesi diğer slotları ve kuyruğu düşürmez.
+      // One slot crashing does not bring down the other slots or the queue.
       this.ports.events.emit(
         "log",
         task.id,
-        { level: "error", message: "Görev yürütülemedi", detail: String(error) },
+        { level: "error", message: "The task could not be executed", detail: String(error) },
         this.ports.now,
       );
     }
   }
 
-  /** `pollSeconds` kadar bekler; `wake()` çağrılırsa erken döner. */
+  /** Waits `pollSeconds`; returns early when `wake()` is called. */
   private async sleepUntilWake(sleep: (ms: number) => Promise<void>, ms: number): Promise<void> {
     let woken = false;
     const wakeSignal = new Promise<void>((resolve) => {
@@ -173,10 +174,11 @@ export class EngineSupervisor {
   }
 
   /**
-   * Toplu slot durumunu yayınlar.
+   * Publishes the aggregate slot status.
    *
-   * `currentTaskId` tekil kalır (ilk aktif görev), böylece tek görev varsayan arayüzler
-   * değişmeden çalışır; `activeTaskIds` ve `concurrency` eşzamanlı görünüm için eklenir.
+   * `currentTaskId` stays singular (the first active task) so interfaces that assume a
+   * single task keep working; `activeTaskIds` and `concurrency` are added for the
+   * concurrent view.
    */
   private emitStatus(): void {
     const status = this.status();

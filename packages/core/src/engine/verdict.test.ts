@@ -8,102 +8,102 @@ import {
 } from "./verdict";
 
 describe("parseVerdict", () => {
-  it("son satırdaki kararı okur", () => {
-    expect(parseVerdict("Bulgular:\n- Yok\n\nVERDICT: PASS")).toBe("PASS");
+  it("reads the verdict from the last line", () => {
+    expect(parseVerdict("Findings:\n- None\n\nVERDICT: PASS")).toBe("PASS");
     expect(parseVerdict("VERDICT: FAIL")).toBe("FAIL");
   });
 
-  it("sondaki boş satırları yok sayar", () => {
+  it("ignores trailing blank lines", () => {
     expect(parseVerdict("VERDICT: PASS\n\n   \n")).toBe("PASS");
   });
 
-  it("karardan sonra metin varsa belirsiz sayar", () => {
-    expect(parseVerdict("VERDICT: PASS\nUmarım yardımcı olmuştur.")).toBeNull();
+  it("treats a verdict followed by text as undecided", () => {
+    expect(parseVerdict("VERDICT: PASS\nHope that helps.")).toBeNull();
   });
 
-  it("metin içine gömülü kararı kabul etmez", () => {
-    expect(parseVerdict("Bence VERDICT: PASS olmalı ama emin değilim.")).toBeNull();
+  it("does not accept a verdict embedded in prose", () => {
+    expect(parseVerdict("I think VERDICT: PASS but I am not sure.")).toBeNull();
   });
 
-  it("karar yoksa null döner: sessizce PASS varsaymaz", () => {
-    expect(parseVerdict("Her şey iyi görünüyor.")).toBeNull();
+  it("returns null when there is no verdict: it never silently assumes PASS", () => {
+    expect(parseVerdict("Everything looks fine.")).toBeNull();
     expect(parseVerdict("")).toBeNull();
   });
 
-  it("Türkçe karşılığı tolere eder", () => {
+  it("tolerates the Turkish equivalent, for the tr role prompts", () => {
     expect(parseVerdict("KARAR: GEÇTİ")).toBe("PASS");
     expect(parseVerdict("KARAR: KALDI")).toBe("FAIL");
   });
 });
 
 describe("parseWorkerStatus", () => {
-  it("teslimat raporunun durumunu okur", () => {
-    expect(parseWorkerStatus("STATUS: COMPLETED\nÖZET: ...")).toBe("COMPLETED");
-    expect(parseWorkerStatus("STATUS: BLOCKED\nBLOCKED: yetki yok")).toBe("BLOCKED");
+  it("reads the status of the delivery report", () => {
+    expect(parseWorkerStatus("STATUS: COMPLETED\nSUMMARY: ...")).toBe("COMPLETED");
+    expect(parseWorkerStatus("STATUS: BLOCKED\nBLOCKED: no permission")).toBe("BLOCKED");
     expect(parseWorkerStatus("DURUM: TAMAMLANDI")).toBe("COMPLETED");
   });
 
-  it("durum yoksa null döner", () => {
-    expect(parseWorkerStatus("Bitirdim sayılır.")).toBeNull();
+  it("returns null when there is no status", () => {
+    expect(parseWorkerStatus("More or less finished.")).toBeNull();
   });
 });
 
 describe("extractBlockingFindings", () => {
-  it("yalnızca CRITICAL ve HIGH bulguları toplar", () => {
+  it("collects only the CRITICAL and HIGH findings", () => {
     const review = [
-      "BULGULAR:",
-      "- [CRITICAL] src/auth.ts: token doğrulanmıyor",
-      "- [HIGH] src/db.ts: SQL injection riski",
-      "- [MEDIUM] src/ui.tsx: erişilebilirlik etiketi eksik",
-      "- [LOW] README: yazım hatası",
+      "FINDINGS:",
+      "- [CRITICAL] src/auth.ts: the token is not validated",
+      "- [HIGH] src/db.ts: SQL injection risk",
+      "- [MEDIUM] src/ui.tsx: missing accessibility label",
+      "- [LOW] README: typo",
       "VERDICT: FAIL",
     ].join("\n");
     expect(extractBlockingFindings(review)).toEqual([
-      "src/auth.ts: token doğrulanmıyor",
-      "src/db.ts: SQL injection riski",
+      "src/auth.ts: the token is not validated",
+      "src/db.ts: SQL injection risk",
     ]);
   });
 
-  it("bulgu yoksa boş dizi döner", () => {
-    expect(extractBlockingFindings("BULGULAR:\n- Yok\nVERDICT: PASS")).toEqual([]);
+  it("returns an empty array when there is no finding", () => {
+    expect(extractBlockingFindings("FINDINGS:\n- None\nVERDICT: PASS")).toEqual([]);
   });
 });
 
 describe("shouldFastPathDeliver", () => {
   const settled = { allAssignmentsSettled: true, latestVerdict: "PASS" as const, hasFailure: false };
 
-  it("tur bittiğinde ve taze PASS varsa ikinci operatör çağrısını atlar", () => {
+  it("skips the second operator call when the round settled with a fresh PASS", () => {
     expect(shouldFastPathDeliver(settled, true)).toBe(true);
   });
 
-  it("passFastPath kapalıysa eski değerlendirme yolunu zorlar", () => {
+  it("forces the older evaluation path while passFastPath is off", () => {
     expect(shouldFastPathDeliver(settled, false)).toBe(false);
   });
 
-  it("tamamlanmamış atama varsa hızlı yol kullanılmaz", () => {
+  it("does not use the fast path when an assignment is unfinished", () => {
     expect(shouldFastPathDeliver({ ...settled, allAssignmentsSettled: false }, true)).toBe(false);
   });
 
-  it("başarısız atama varsa hızlı yol kullanılmaz", () => {
+  it("does not use the fast path when an assignment failed", () => {
     expect(shouldFastPathDeliver({ ...settled, hasFailure: true }, true)).toBe(false);
   });
 
-  it("FAIL veya karar yoksa hızlı yol kullanılmaz", () => {
+  it("does not use the fast path on FAIL or without a verdict", () => {
     expect(shouldFastPathDeliver({ ...settled, latestVerdict: "FAIL" }, true)).toBe(false);
     expect(shouldFastPathDeliver({ ...settled, latestVerdict: null }, true)).toBe(false);
   });
 });
 
 describe("shouldDropRedundantReview", () => {
-  it("taze PASS varken aynı teslimata yeni inceleme açılmaz", () => {
+  it("opens no new review for the same delivery while a fresh PASS exists", () => {
     expect(shouldDropRedundantReview("PASS", false)).toBe(true);
   });
 
-  it("teslimat değiştiyse yeniden inceleme meşrudur", () => {
+  it("allows a re-review once the delivery changed", () => {
     expect(shouldDropRedundantReview("PASS", true)).toBe(false);
   });
 
-  it("FAIL sonrası inceleme düşürülmez", () => {
+  it("does not drop a review after FAIL", () => {
     expect(shouldDropRedundantReview("FAIL", false)).toBe(false);
   });
 });

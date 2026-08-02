@@ -1,31 +1,31 @@
 import type { DiffHunk, DiffLine, FileAction, FileChangeEvent, FileChangeSummary } from "./events";
 
 /**
- * Canlı satır diff'i: Canlı Kod yüzeyini besler.
+ * Live line diff: feeds the Live Code surface.
  *
- * Değişmezler:
- * - Hassas dosya içeriği (`.env`, credential, özel anahtar) **hiçbir zaman** olay
- *   payload'ına girmez; yalnızca dosyanın değiştiği bilgisi yayılır.
- * - Binary ve sınır aşan dosyalar özetlenir, içerikleri gösterilmez.
- * - `.git`, `node_modules` ve runtime klasörleri hiç taranmaz.
+ * Invariants:
+ * - Sensitive file content (`.env`, credentials, private keys) **never** enters an event
+ *   payload; only the fact that the file changed is published.
+ * - Binary files and files past the limits are summarised without showing their content.
+ * - `.git`, `node_modules` and runtime folders are never scanned.
  */
 
 export const LIVE_DIFF_LIMITS = {
-  /** Dosya başına okunacak azami bayt. */
+  /** Maximum bytes read per file. */
   maxFileBytes: 256 * 1024,
-  /** Dosya başına karşılaştırılacak azami satır. */
+  /** Maximum lines compared per file. */
   maxFileLines: 5000,
-  /** Görev başlangıcında saklanacak azami toplam bayt. */
+  /** Maximum total bytes stored at task start. */
   maxBaselineBytes: 24 * 1024 * 1024,
-  /** Görev başlangıcında saklanacak azami dosya sayısı. */
+  /** Maximum number of files stored at task start. */
   maxBaselineFiles: 2000,
-  /** Bir olayda gösterilecek azami satır. */
+  /** Maximum lines rendered in a single event. */
   maxRenderedLines: 1000,
-  /** Hunk başına bağlam satırı. */
+  /** Context lines per hunk. */
   contextLines: 3,
 } as const;
 
-/** Tarama dışı bırakılan klasörler. */
+/** Folders excluded from the scan. */
 export const IGNORED_DIRECTORIES: readonly string[] = [
   ".git",
   "node_modules",
@@ -50,18 +50,18 @@ const SENSITIVE_PATTERNS: readonly RegExp[] = [
   /(^|[\\/])\.ssh[\\/]/i,
 ];
 
-/** Bu dosyanın içeriği olay payload'ına alınmaz. */
+/** The content of this file is never taken into an event payload. */
 export function isSensitivePath(path: string): boolean {
   return SENSITIVE_PATTERNS.some((pattern) => pattern.test(path));
 }
 
-/** Bu yol taranmalı mı (yok sayılan klasörlerin altında değil mi). */
+/** Whether this path should be scanned (not under an ignored folder). */
 export function isScannable(relativePath: string): boolean {
   const segments = relativePath.split(/[\\/]/);
   return !segments.some((segment) => IGNORED_DIRECTORIES.includes(segment));
 }
 
-/** İçerik ikili mi: NUL baytı veya yüksek oranda basılamayan karakter. */
+/** Whether the content is binary: a NUL byte or a high ratio of unprintable characters. */
 export function isBinaryContent(content: string): boolean {
   if (content.includes("\0")) return true;
   const sample = content.slice(0, 8000);
@@ -81,9 +81,9 @@ function splitLines(content: string): string[] {
 }
 
 /**
- * Satır bazlı fark. Ortak baş ve son kırpılır; kalan bölge küçükse LCS ile hizalanır,
- * büyükse tamamı "silindi + eklendi" olarak raporlanır (canlı görünüm için yeterli
- * doğrulukta ve sınırlı maliyette).
+ * Line based diff. The common prefix and suffix are trimmed; if the remaining region is
+ * small it is aligned with LCS, and if it is large the whole region is reported as
+ * "removed plus added" (accurate enough for the live view at a bounded cost).
  */
 export function diffLines(before: readonly string[], after: readonly string[]): DiffLine[] {
   let prefix = 0;
@@ -141,7 +141,7 @@ function lcsDiff(before: readonly string[], after: readonly string[]): LcsOp[] {
   if (n === 0) return after.map((text) => ({ kind: "added" as const, text }));
   if (m === 0) return before.map((text) => ({ kind: "removed" as const, text }));
 
-  // (n+1) x (m+1) LCS uzunluk tablosu: sınırlar diffLines tarafından uygulanır.
+  // (n+1) x (m+1) LCS length table: the bounds are enforced by diffLines.
   const table: number[][] = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0));
   for (let i = n - 1; i >= 0; i--) {
     const row = table[i];
@@ -173,7 +173,7 @@ function lcsDiff(before: readonly string[], after: readonly string[]): LcsOp[] {
   return ops;
 }
 
-/** Fark satırlarını Git benzeri hunk'lara böler (bağlam satırlarıyla). */
+/** Splits diff lines into git-like hunks (with context lines). */
 export function buildHunks(lines: readonly DiffLine[], contextLines = LIVE_DIFF_LIMITS.contextLines): DiffHunk[] {
   const changed = lines
     .map((line, index) => (line.kind === "context" ? -1 : index))
@@ -210,12 +210,12 @@ export function buildHunks(lines: readonly DiffLine[], contextLines = LIVE_DIFF_
 }
 
 export interface FileSnapshot {
-  /** Görev başlangıcındaki içerik; okunamadıysa null. */
+  /** Content at task start; null when it could not be read. */
   content: string | null;
   bytes: number;
 }
 
-/** Bir dosyanın görev başlangıcına göre özetini üretir. */
+/** Produces the summary of a file relative to the start of the task. */
 export function summarizeFile(
   path: string,
   action: FileAction,
@@ -258,7 +258,7 @@ export function summarizeFile(
   return { ...base, added, removed, previewStatus: "ok", hunks };
 }
 
-/** Olay başına gösterilen satır sınırını uygular. */
+/** Applies the per-event rendered line limit. */
 function capHunks(hunks: readonly DiffHunk[]): DiffHunk[] {
   const out: DiffHunk[] = [];
   let budget: number = LIVE_DIFF_LIMITS.maxRenderedLines;
@@ -275,7 +275,7 @@ function capHunks(hunks: readonly DiffHunk[]): DiffHunk[] {
   return out;
 }
 
-/** Dosya özetlerinden olay gövdesini kurar. */
+/** Builds the event body from the file summaries. */
 export function buildFileChangeEvent(taskId: string, files: readonly FileChangeSummary[]): FileChangeEvent {
   const counts: Record<FileAction, number> = { created: 0, modified: 0, deleted: 0 };
   let added = 0;
@@ -289,15 +289,15 @@ export function buildFileChangeEvent(taskId: string, files: readonly FileChangeS
 }
 
 export interface WorkspaceReader {
-  /** Taranabilir dosyaların köke göre yollarını döner. */
+  /** Returns the root-relative paths of the scannable files. */
   listFiles: (root: string) => Promise<string[]>;
-  /** Dosya içeriği; okunamıyorsa null. */
+  /** File content; null when it cannot be read. */
   readFile: (root: string, relativePath: string) => Promise<{ content: string | null; bytes: number } | null>;
 }
 
 /**
- * Görev başlangıcını yakalar ve sonraki taramalarda oluşturulan / değiştirilen /
- * silinen dosyaları üretir.
+ * Captures the start of the task and, on later scans, produces the created, modified and
+ * deleted files.
  */
 export class LiveDiffTracker {
   private baseline = new Map<string, FileSnapshot>();
@@ -307,7 +307,7 @@ export class LiveDiffTracker {
     private readonly root: string,
   ) {}
 
-  /** Görev başlangıcındaki içeriği sınırlar dahilinde saklar. */
+  /** Stores the content at task start, within the limits. */
   async capture(): Promise<void> {
     this.baseline.clear();
     let totalBytes = 0;
@@ -327,7 +327,7 @@ export class LiveDiffTracker {
     }
   }
 
-  /** Başlangıca göre mevcut değişiklikleri üretir. */
+  /** Produces the current changes relative to the baseline. */
   async scan(): Promise<FileChangeSummary[]> {
     const current = new Set((await this.reader.listFiles(this.root)).filter(isScannable));
     const summaries: FileChangeSummary[] = [];

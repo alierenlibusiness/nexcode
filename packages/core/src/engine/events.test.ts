@@ -4,7 +4,7 @@ import { EngineEventBus, mergeReplay, type EngineEvent } from "./events";
 const clock = () => new Date("2026-07-25T12:00:00.000Z");
 
 describe("EngineEventBus", () => {
-  it("monoton artan sıra numarası üretir", () => {
+  it("produces a monotonically increasing sequence number", () => {
     const bus = new EngineEventBus();
     const first = bus.emit("log", null, { level: "info", message: "a" }, clock);
     const second = bus.emit("log", null, { level: "info", message: "b" }, clock);
@@ -13,25 +13,25 @@ describe("EngineEventBus", () => {
     expect(bus.lastSeq).toBe(2);
   });
 
-  it("yeniden başlatmada geçmişin devamından numaralar", () => {
+  it("continues numbering from the history after a restart", () => {
     const bus = new EngineEventBus(41);
     expect(bus.emit("log", null, { level: "info", message: "x" }, clock).seq).toBe(42);
   });
 
-  it("aboneleri bilgilendirir ve abonelik iptalini destekler", () => {
+  it("notifies subscribers and supports unsubscribing", () => {
     const bus = new EngineEventBus();
     const listener = vi.fn();
     const unsubscribe = bus.subscribe(listener);
 
-    bus.emit("log", null, { level: "warn", message: "dikkat" }, clock);
+    bus.emit("log", null, { level: "warn", message: "careful" }, clock);
     expect(listener).toHaveBeenCalledTimes(1);
 
     unsubscribe();
-    bus.emit("log", null, { level: "warn", message: "yine" }, clock);
+    bus.emit("log", null, { level: "warn", message: "again" }, clock);
     expect(listener).toHaveBeenCalledTimes(1);
   });
 
-  it("olay gövdesini tip sözleşmesine uygun kurar", () => {
+  it("builds the event body according to the type contract", () => {
     const bus = new EngineEventBus();
     const event = bus.emit(
       "message",
@@ -43,7 +43,7 @@ describe("EngineEventBus", () => {
         to: "backend",
         assignmentKind: "implement",
         role: "executor",
-        summary: "Endpoint ekle",
+        summary: "Add the endpoint",
         round: 1,
       },
       clock,
@@ -59,22 +59,22 @@ describe("mergeReplay", () => {
     return { type: "log", seq, ts: "", taskId: null, payload: { level: "info", message: `#${String(seq)}` } };
   }
 
-  it("geçmişte bulunan canlı olayları tekilleştirir", () => {
+  it("de-duplicates live events that are already in the history", () => {
     const merged = mergeReplay([log(1), log(2), log(3)], [log(2), log(3), log(4)]);
     expect(merged.map((e) => e.seq)).toEqual([1, 2, 3, 4]);
   });
 
-  it("tamponlanan olayları sıra numarasına göre uygular", () => {
+  it("applies buffered events in sequence order", () => {
     const merged = mergeReplay([log(1)], [log(5), log(3)]);
     expect(merged.map((e) => e.seq)).toEqual([1, 3, 5]);
   });
 
-  it("canlı olay yoksa geçmişi bozmaz", () => {
+  it("does not disturb the history when there is no live event", () => {
     expect(mergeReplay([log(1), log(2)], []).map((e) => e.seq)).toEqual([1, 2]);
   });
 
-  it("yeni canlı diff'i daha eski replay verisiyle geri almaz", () => {
-    // Geçmişte 1..3 var; canlı akışta 4 geldi. Sonuç 4 ile bitmelidir.
+  it("does not roll back a newer live diff with older replay data", () => {
+    // The history has 1..3; 4 arrived on the live stream. The result must end with 4.
     const merged = mergeReplay([log(1), log(2), log(3)], [log(4)]);
     expect(merged[merged.length - 1]?.seq).toBe(4);
   });

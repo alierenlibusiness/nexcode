@@ -1,13 +1,13 @@
 import type { AssignmentKind, CliAdapter, ExecutionMode, OrchestrationRole } from "../config/schema";
 
 /**
- * Motor olay sözleşmesi: dört görsel yüzey (Komuta Merkezi, Pano, Canlı Kod, Ekip Akışı)
- * ve kalıcı olay geçmişi bu tiplere bağlıdır.
+ * The engine event contract: the four visual surfaces (Command Center, Board, Live Code,
+ * Team Flow) and the persistent event history depend on these types.
  *
- * Sözleşme kuralları:
- * - Olay adları ve payload alanları eklemeli (additive) değişir; mevcut alanlar kaldırılmaz.
- * - Her olay `seq` taşır; replay sırasında gelen canlı olaylar bu numarayla tekilleştirilir.
- * - Hassas içerik (`.env`, credential, özel anahtar) hiçbir payload'a girmez.
+ * Contract rules:
+ * - Event names and payload fields change additively; existing fields are never removed.
+ * - Every event carries a `seq`; live events arriving during replay are de-duplicated by it.
+ * - Sensitive content (`.env`, credentials, private keys) never enters a payload.
  */
 
 export type EngineEventType =
@@ -20,12 +20,12 @@ export type EngineEventType =
   | "filechange"
   | "schedules";
 
-/** Motorun genel durumu. */
+/** Overall state of the engine. */
 export interface EngineStatus {
   running: boolean;
   /**
-   * Çalışan görevin id'si; boştaysa null. Eşzamanlı yürütmede bu, `activeTaskIds`
-   * listesinin ilkidir ve tek görevli arayüzler için tekil kalır.
+   * Id of the running task; null when idle. Under concurrent execution this is the first
+   * entry of `activeTaskIds` and stays singular for single-task interfaces.
    */
   currentTaskId: string | null;
   currentAgentId: string | null;
@@ -35,9 +35,9 @@ export interface EngineStatus {
   callsToday: number;
   dailyCallBudget: number;
   approvalMode: "auto" | "ask";
-  /** Aynı anda koşan tüm görevler (tek görevli kurulumda tek elemanlı ya da boş). */
+  /** Every task running at once (single element or empty in a single-task setup). */
   activeTaskIds: string[];
-  /** Yapılandırmadan gelen etkin slot sayısı. */
+  /** Effective slot count coming from the configuration. */
   concurrency: number;
 }
 
@@ -55,24 +55,24 @@ export interface TaskSummary {
   workingDir: string;
   createdAt: string;
   scheduleId: string | null;
-  /** Görev sonucunda değişen dosya sayısı (Pano kartında "Kodu gör" için). */
+  /** Number of files changed by the task (used by "View code" on the Board card). */
   changedFiles: number;
 }
 
-/** Bir CLI/API sürecinin yaşam döngüsü: terminal kartları ve ekip haritası bunu tüketir. */
+/** Lifecycle of a CLI or API process: the terminal cards and the team map consume this. */
 export interface ActivityEvent {
   assignmentId: string;
   agentId: string;
   agentName: string;
   adapter: CliAdapter | undefined;
   phase: "started" | "progress" | "stdout" | "stderr" | "timeout" | "stalled" | "finished";
-  /** Kısa canlı çıktı parçası (ham terminal görünümü için). */
+  /** Short live output fragment (for the raw terminal view). */
   chunk?: string;
   exitCode?: number;
   durationMs?: number;
 }
 
-/** Operatör ↔ uzman veri akışı: Ekip Akışı sahnesindeki hatlar bu olaydan doğar. */
+/** Operator to specialist data flow: the lines in the Team Flow scene come from this event. */
 export interface MessageEvent {
   assignmentId: string;
   kind: "delegation" | "result" | "failure" | "blocked";
@@ -90,7 +90,7 @@ export interface LogEvent {
   detail?: string;
 }
 
-/** Görevin nihai teslimatı. */
+/** The final delivery of a task. */
 export interface ResultEvent {
   taskId: string;
   outcome: "done" | "failed" | "blocked";
@@ -106,18 +106,18 @@ export interface ResultEvent {
 
 export type FileAction = "created" | "modified" | "deleted";
 
-/** Bir dosyanın görev başlangıcına göre durumu. */
+/** State of a file relative to the start of the task. */
 export interface FileChangeSummary {
   path: string;
   action: FileAction;
   added: number;
   removed: number;
-  /** İçerik gösterilebiliyor mu; gösterilemiyorsa nedeni. */
+  /** Whether the content can be shown, and why not when it cannot. */
   previewStatus: "ok" | "binary" | "too-large" | "redacted" | "unreadable";
   hunks: DiffHunk[];
 }
 
-/** Git benzeri değişiklik bloğu. */
+/** A git-like change block. */
 export interface DiffHunk {
   oldStart: number;
   oldLines: number;
@@ -149,7 +149,7 @@ export interface ScheduleSummary {
   triggerLabel: string;
 }
 
-/** Ayrık birleşim: tüketiciler `type` üzerinden daraltır. */
+/** Discriminated union: consumers narrow on `type`. */
 export type EngineEvent =
   | { type: "status"; seq: number; ts: string; taskId: string | null; payload: EngineStatus }
   | { type: "queue"; seq: number; ts: string; taskId: null; payload: QueueSnapshot }
@@ -163,9 +163,9 @@ export type EngineEvent =
 export type EngineEventListener = (event: EngineEvent) => void;
 
 /**
- * Bağımlılıksız olay yayıcı. Monoton artan `seq` üretir; kalıcı geçmiş ve canlı akış
- * aynı numarayı paylaşır, böylece sayfa açılışındaki replay sırasında gelen canlı olaylar
- * tekilleştirilebilir.
+ * A dependency free event emitter. It produces a monotonically increasing `seq`; the
+ * persistent history and the live stream share the same number, so live events arriving
+ * during the replay on page load can be de-duplicated.
  */
 export class EngineEventBus {
   private listeners = new Set<EngineEventListener>();
@@ -175,7 +175,7 @@ export class EngineEventBus {
     this.seq = startSeq;
   }
 
-  /** Son üretilen sıra numarası: yeniden başlatmada geçmişin devamı için. */
+  /** The last sequence number produced: lets the history continue across a restart. */
   get lastSeq(): number {
     return this.seq;
   }
@@ -204,8 +204,9 @@ export class EngineEventBus {
 }
 
 /**
- * Kalıcı geçmiş ile canlı akışı birleştirir: geçmişte zaten bulunan olaylar atlanır,
- * kalanlar sıra numarasına göre uygulanır. Sayfa açılışındaki replay sözleşmesidir.
+ * Merges the persistent history with the live stream: events already present in the history
+ * are skipped and the rest are applied in sequence order. This is the replay contract used
+ * on page load.
  */
 export function mergeReplay(history: readonly EngineEvent[], buffered: readonly EngineEvent[]): EngineEvent[] {
   const seen = new Set(history.map((event) => event.seq));

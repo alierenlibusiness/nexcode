@@ -6,8 +6,8 @@ import { EngineEventBus, type EngineEvent } from "./events";
 import type { EngineTask, TaskOutcome } from "./engine";
 
 /**
- * Süpervizör yalnızca eşzamanlılık politikasını bilir: slot doldurma, sahiplenme ve
- * durdurma. Görevin nasıl yürütüldüğü `runTask` port'una aittir.
+ * The supervisor only knows the concurrency policy: filling slots, claiming and stopping.
+ * How a task is executed belongs to the `runTask` port.
  */
 
 function config(over: Partial<NexcodeConfig> = {}): NexcodeConfig {
@@ -19,7 +19,7 @@ function config(over: Partial<NexcodeConfig> = {}): NexcodeConfig {
   });
 }
 
-/** İzolasyon açık ve N slotlu yapılandırma (normalizasyon aksi halde 1'e düşürür). */
+/** Configuration with isolation on and N slots (normalisation drops it to 1 otherwise). */
 function concurrent(slots: number): NexcodeConfig {
   return config({ maxConcurrentTasks: slots, worktree: { ...FALLBACK_CONFIG.worktree, mode: "task" } });
 }
@@ -28,7 +28,7 @@ function outcome(taskId: string): TaskOutcome {
   return {
     taskId,
     outcome: "done",
-    final: "bitti",
+    final: "done",
     verification: "",
     remainingRisk: "",
     rounds: 1,
@@ -42,9 +42,9 @@ function outcome(taskId: string): TaskOutcome {
 
 interface HarnessOptions {
   cfg?: NexcodeConfig;
-  /** Kuyruğa konacak görev id'leri. */
+  /** Task ids to place in the queue. */
   queue?: string[];
-  /** Bu id'lerde runTask hata fırlatır. */
+  /** runTask throws for these ids. */
   throwing?: string[];
 }
 
@@ -58,7 +58,7 @@ function harness(options: HarnessOptions = {}) {
   const started: string[] = [];
   const finished: string[] = [];
   const claimSkips: string[][] = [];
-  /** Görev id'sine göre "işi bitir" tetikleyicisi: eşzamanlılık deterministik ölçülür. */
+  /** A "finish the work" trigger per task id, so concurrency is measured deterministically. */
   const release = new Map<string, () => void>();
   let peakInFlight = 0;
   let inFlight = 0;
@@ -73,7 +73,7 @@ function harness(options: HarnessOptions = {}) {
       queue.splice(queue.indexOf(next), 1);
       return Promise.resolve<EngineTask>({
         id: next,
-        prompt: `görev ${next}`,
+        prompt: `task ${next}`,
         executionMode: "auto",
         workingDir: "C:/p",
       });
@@ -87,7 +87,7 @@ function harness(options: HarnessOptions = {}) {
 
       inFlight--;
       finished.push(task.id);
-      if (options.throwing?.includes(task.id) === true) throw new Error(`patladı: ${task.id}`);
+      if (options.throwing?.includes(task.id) === true) throw new Error(`blew up: ${task.id}`);
       return outcome(task.id);
     },
     sleep: () => Promise.resolve(),
@@ -96,7 +96,7 @@ function harness(options: HarnessOptions = {}) {
 
   const supervisor = new EngineSupervisor(ports);
 
-  /** Bir görevin yürütmesini tamamlar ve olay döngüsünün ilerlemesine izin verir. */
+  /** Completes the execution of a task and lets the event loop move forward. */
   async function finish(id: string): Promise<void> {
     release.get(id)?.();
     release.delete(id);
@@ -106,13 +106,13 @@ function harness(options: HarnessOptions = {}) {
   return { supervisor, started, finished, claimSkips, events, finish, peak: () => peakInFlight, queue };
 }
 
-/** Mikro görev kuyruğunun boşalmasını bekler. */
+/** Waits for the microtask queue to drain. */
 async function tick(times = 6): Promise<void> {
   for (let i = 0; i < times; i++) await Promise.resolve();
 }
 
-describe("EngineSupervisor: slot yönetimi", () => {
-  it("tek slotta görevleri sırayla koşar", async () => {
+describe("EngineSupervisor: slot management", () => {
+  it("runs tasks sequentially in a single slot", async () => {
     const h = harness({ queue: ["a", "b"] });
     h.supervisor.start();
     await tick();
@@ -128,7 +128,7 @@ describe("EngineSupervisor: slot yönetimi", () => {
     await h.supervisor.stop();
   });
 
-  it("izolasyon açıkken slot sayısı kadar görevi paralel koşar", async () => {
+  it("runs as many tasks in parallel as there are slots while isolation is on", async () => {
     const h = harness({ cfg: concurrent(3), queue: ["a", "b", "c", "d"] });
     h.supervisor.start();
     await tick();
@@ -137,7 +137,7 @@ describe("EngineSupervisor: slot yönetimi", () => {
     expect(h.supervisor.status().activeIds).toEqual(["a", "b", "c"]);
     expect(h.supervisor.status().freeSlots).toBe(0);
 
-    // Bir slot boşalınca sıradaki görev hemen alınır.
+    // As soon as a slot frees up the next task is claimed.
     await h.finish("a");
     expect(h.started).toEqual(["a", "b", "c", "d"]);
     expect(h.peak()).toBe(3);
@@ -146,8 +146,8 @@ describe("EngineSupervisor: slot yönetimi", () => {
     await h.supervisor.stop();
   });
 
-  it("izolasyon kapalıyken paralellik istense de tek slota düşer", async () => {
-    // normalizeConfig zaten 1'e düşürür; süpervizör de savunmacı davranır.
+  it("drops to a single slot when isolation is off, even if parallelism is requested", async () => {
+    // normalizeConfig already drops it to 1; the supervisor is defensive too.
     const h = harness({ cfg: config({ maxConcurrentTasks: 4 }), queue: ["a", "b", "c"] });
     h.supervisor.start();
     await tick();
@@ -162,12 +162,12 @@ describe("EngineSupervisor: slot yönetimi", () => {
     await h.supervisor.stop();
   });
 
-  it("aynı görevi iki slota vermez: koşan id'ler sahiplenmede atlanır", async () => {
+  it("never gives the same task to two slots: running ids are skipped when claiming", async () => {
     const h = harness({ cfg: concurrent(2), queue: ["a", "b"] });
     h.supervisor.start();
     await tick();
 
-    // İkinci sahiplenme çağrısı ilk görevi zaten aktif olarak bildirir.
+    // The second claim call already reports the first task as active.
     expect(h.claimSkips.some((skips) => skips.includes("a"))).toBe(true);
     expect(new Set(h.started).size).toBe(h.started.length);
 
@@ -176,7 +176,7 @@ describe("EngineSupervisor: slot yönetimi", () => {
     await h.supervisor.stop();
   });
 
-  it("kuyruk boşken slot tüketmez", async () => {
+  it("consumes no slot while the queue is empty", async () => {
     const h = harness({ cfg: concurrent(2) });
     h.supervisor.start();
     await tick();
@@ -187,26 +187,28 @@ describe("EngineSupervisor: slot yönetimi", () => {
   });
 });
 
-describe("EngineSupervisor: dayanıklılık", () => {
-  it("bir slotun hatası diğer slotları ve kuyruğu düşürmez", async () => {
-    const h = harness({ cfg: concurrent(2), queue: ["kotu", "iyi", "sonraki"], throwing: ["kotu"] });
+describe("EngineSupervisor: resilience", () => {
+  it("does not let one slot failure bring down the other slots or the queue", async () => {
+    const h = harness({ cfg: concurrent(2), queue: ["bad", "good", "next"], throwing: ["bad"] });
     h.supervisor.start();
     await tick();
 
-    expect(h.started).toEqual(["kotu", "iyi"]);
+    expect(h.started).toEqual(["bad", "good"]);
 
-    await h.finish("kotu");
-    // Hata yakalandı, olay olarak yayıldı ve slot serbest bırakıldı.
-    expect(h.events.some((e) => e.type === "log" && e.payload.message === "Görev yürütülemedi")).toBe(true);
-    expect(h.started).toContain("sonraki");
+    await h.finish("bad");
+    // The error was caught, emitted as an event, and the slot was released.
+    expect(
+      h.events.some((e) => e.type === "log" && e.payload.message === "The task could not be executed"),
+    ).toBe(true);
+    expect(h.started).toContain("next");
     expect(h.supervisor.isRunning).toBe(true);
 
-    await h.finish("iyi");
-    await h.finish("sonraki");
+    await h.finish("good");
+    await h.finish("next");
     await h.supervisor.stop();
   });
 
-  it("stop uçuştaki görevi yarıda kesmez, bitmesini bekler", async () => {
+  it("does not interrupt an in-flight task on stop; it waits for it to finish", async () => {
     const h = harness({ queue: ["a"] });
     h.supervisor.start();
     await tick();
@@ -218,7 +220,7 @@ describe("EngineSupervisor: dayanıklılık", () => {
     });
 
     await tick();
-    // Görev hâlâ koşuyor: stop beklemede.
+    // The task is still running: stop is waiting.
     expect(stopped).toBe(false);
     expect(h.finished).toEqual([]);
 
@@ -230,7 +232,7 @@ describe("EngineSupervisor: dayanıklılık", () => {
     expect(h.supervisor.isRunning).toBe(false);
   });
 
-  it("durdurulduktan sonra kuyruktan yeni görev almaz", async () => {
+  it("claims no new task from the queue after being stopped", async () => {
     const h = harness({ queue: ["a", "b"] });
     h.supervisor.start();
     await tick();
@@ -243,7 +245,7 @@ describe("EngineSupervisor: dayanıklılık", () => {
     expect(h.queue).toEqual(["b"]);
   });
 
-  it("iki kez start çağrılması ikinci bir döngü açmaz", async () => {
+  it("does not open a second loop when start is called twice", async () => {
     const h = harness({ queue: ["a"] });
     h.supervisor.start();
     h.supervisor.start();
@@ -254,14 +256,14 @@ describe("EngineSupervisor: dayanıklılık", () => {
     await h.supervisor.stop();
   });
 
-  it("çalışmayan süpervizörde stop güvenle döner", async () => {
+  it("returns safely from stop on a supervisor that is not running", async () => {
     const h = harness();
     await expect(h.supervisor.stop()).resolves.toBeUndefined();
   });
 });
 
-describe("EngineSupervisor: durum yayını", () => {
-  it("aktif görevleri ve slot sayısını status olayında bildirir", async () => {
+describe("EngineSupervisor: status publishing", () => {
+  it("reports the active tasks and the slot count in the status event", async () => {
     const h = harness({ cfg: concurrent(2), queue: ["a", "b"] });
     h.supervisor.start();
     await tick();
@@ -269,7 +271,7 @@ describe("EngineSupervisor: durum yayını", () => {
     const status = h.events.filter((e) => e.type === "status");
     const last = status[status.length - 1];
     expect(last?.payload).toMatchObject({ activeTaskIds: ["a", "b"], concurrency: 2, running: true });
-    // Tek görev varsayan arayüzler için tekil alan korunur.
+    // The singular field is preserved for interfaces that assume a single task.
     expect(last?.payload).toMatchObject({ currentTaskId: "a" });
 
     await h.finish("a");
@@ -277,7 +279,7 @@ describe("EngineSupervisor: durum yayını", () => {
     await h.supervisor.stop();
   });
 
-  it("boşta status boş liste bildirir", async () => {
+  it("reports an empty list in the status while idle", async () => {
     const h = harness();
     h.supervisor.start();
     await tick();
