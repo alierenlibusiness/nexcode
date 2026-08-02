@@ -10,17 +10,16 @@ import { getProvider } from "./registry";
 import { computeCost } from "./cost";
 
 /**
- * OpenAI-uyumlu Chat Completions API adapter'ı. OpenAI'nin yanı sıra DeepSeek ve
- * MiniMax aynı sözleşmeyi (`/chat/completions`) sunduğu için tek adapter üçünü de
- * karşılar: yalnızca `id`, `baseUrl` ve pricing tablosu (provider üzerinden) değişir
- * (PRD §6.3 provider-agnostic gateway, §8.2/8.5).
+ * OpenAI-compatible Chat Completions API adapter. DeepSeek and MiniMax expose the same
+ * `/chat/completions` contract as OpenAI, so a single adapter serves all three: only the
+ * `id`, the `baseUrl` and the pricing table (looked up through the provider) differ.
  */
 export interface OpenAICompatibleOptions {
-  /** Pricing/log için sağlayıcı kimliği: "openai" | "deepseek" | "minimax". */
+  /** Provider identifier for pricing and logs: "openai" | "deepseek" | "minimax". */
   provider: string;
   apiKey: string;
   baseUrl: string;
-  /** Görsel (multimodal) destekliyor mu (OpenAI GPT-5.x: evet; DeepSeek/MiniMax: hayır). */
+  /** Whether vision (multimodal) is supported (OpenAI GPT-5.x: yes; DeepSeek/MiniMax: no). */
   vision?: boolean;
   fetchFn?: typeof fetch;
 }
@@ -30,7 +29,7 @@ interface ChatCompletionResponse {
   usage?: { prompt_tokens: number; completion_tokens: number };
 }
 
-/** Sağlayıcı için OpenAI-uyumlu base URL (registry'den; bilinmiyorsa OpenAI). */
+/** OpenAI-compatible base URL for a provider (from the registry; OpenAI when unknown). */
 export function defaultBaseUrl(provider: string): string {
   return getProvider(provider)?.baseUrl ?? "https://api.openai.com/v1";
 }

@@ -5,15 +5,15 @@ import type { CompletionRequest } from "../types";
 
 const req: CompletionRequest = {
   model: "claude-opus-4-8",
-  system: "Sen CEO agent'ısın.",
-  messages: [{ role: "user", content: "Plan yap" }],
+  system: "You are the CEO agent.",
+  messages: [{ role: "user", content: "Make a plan" }],
 };
 
-describe("ClaudeCodeAdapter (CLI modu)", () => {
-  it("JSON çıktıyı parse eder ve doğru argümanlarla çağırır", async () => {
+describe("ClaudeCodeAdapter (CLI mode)", () => {
+  it("parses the JSON output and calls with the right arguments", async () => {
     const runner = vi.fn<CliRunner>(async () => ({
       stdout: JSON.stringify({
-        result: "İşte plan",
+        result: "Here is the plan",
         usage: { input_tokens: 20, output_tokens: 8 },
         total_cost_usd: 0.01,
       }),
@@ -23,7 +23,7 @@ describe("ClaudeCodeAdapter (CLI modu)", () => {
     const adapter = new ClaudeCodeAdapter({ runner });
 
     const result = await adapter.complete(req);
-    expect(result.text).toBe("İşte plan");
+    expect(result.text).toBe("Here is the plan");
     expect(result.usage).toEqual({ inputTokens: 20, outputTokens: 8 });
     expect(adapter.connectionMode).toBe("cli");
 
@@ -31,20 +31,20 @@ describe("ClaudeCodeAdapter (CLI modu)", () => {
     expect(binary).toBe("claude");
     expect(args).toEqual(["-p", "--output-format", "json", "--model", "claude-opus-4-8"]);
     expect(input).toContain("[system]");
-    expect(input).toContain("Plan yap");
+    expect(input).toContain("Make a plan");
   });
 
-  it("sıfır-olmayan exit kodunda hata fırlatır", async () => {
+  it("throws on a non-zero exit code", async () => {
     const runner = vi.fn<CliRunner>(async () => ({
       stdout: "",
-      stderr: "kota doldu",
+      stderr: "quota exhausted",
       exitCode: 1,
     }));
     const adapter = new ClaudeCodeAdapter({ runner });
-    await expect(adapter.complete(req)).rejects.toThrow(/kota doldu/);
+    await expect(adapter.complete(req)).rejects.toThrow(/quota exhausted/);
   });
 
-  it("CLI maliyeti abonelik havuzuna yazılır (estimateCost usd=0)", () => {
+  it("charges CLI cost to the subscription pool (estimateCost usd=0)", () => {
     const adapter = new ClaudeCodeAdapter();
     expect(adapter.estimateCost(req).usd).toBe(0);
   });

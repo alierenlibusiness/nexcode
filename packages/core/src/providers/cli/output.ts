@@ -2,31 +2,32 @@ import type { CliAdapter } from "../../config/schema";
 import type { JsonObject, JsonValue } from "../../json";
 
 /**
- * CLI çıktısı normalizasyonu.
+ * CLI output normalisation.
  *
- * Her CLI kendi zarfını döndürür. Claude Code `--output-format json` ile çalıştığında
- * asıl yanıtı `result` alanının içine koyar ve etrafına oturum, kullanım ve maliyet
- * bilgisi sarar. Bu zarf ayıklanmazsa motor onu operatör kararı sanır ve her görev
- * "şema uyuşmazlığı" ile düşer.
+ * Every CLI returns its own envelope. When Claude Code runs with `--output-format json`
+ * it places the actual answer inside the `result` field and wraps session, usage and cost
+ * information around it. If that envelope is not stripped, the engine mistakes it for an
+ * operator decision and every task fails with a "schema mismatch".
  *
- * Zarf ayıklama aynı zamanda gerçek maliyeti de kazandırır: CLI'ın bildirdiği tutar,
- * tahmin yapmadan `cost_logs` kaydına yazılabilir.
+ * Stripping the envelope also recovers the real cost: the amount the CLI reports can be
+ * written into the `cost_logs` record without estimating.
  */
 
 export interface NormalizedCliOutput {
-  /** Operatör/uzman protokolüne verilecek asıl metin. */
+  /** The actual text handed to the operator/specialist protocol. */
   text: string;
-  /** CLI'ın bildirdiği gerçek maliyet; bilinmiyorsa 0. */
+  /** The real cost reported by the CLI; 0 when unknown. */
   usdCost: number;
-  /** CLI işi hata olarak bitirdiyse okunabilir sebep. */
+  /** Readable reason when the CLI finished the work as an error. */
   error: string | null;
 }
 
 /**
- * Ham stdout'u adapter'a göre asıl metne indirger.
+ * Reduces raw stdout to the actual text according to the adapter.
  *
- * Zarf beklenen biçimde değilse ham metin olduğu gibi döndürülür: bir CLI sürümü çıktı
- * biçimini değiştirdiğinde sistem sessizce boş yanıt üretmek yerine çalışmayı sürdürür.
+ * When the envelope is not in the expected shape the raw text is returned as is: if a CLI
+ * version changes its output format, the system keeps working instead of silently
+ * producing an empty answer.
  */
 export function normalizeCliOutput(adapter: CliAdapter | undefined, stdout: string): NormalizedCliOutput {
   const raw = stdout.trim();
@@ -37,15 +38,15 @@ export function normalizeCliOutput(adapter: CliAdapter | undefined, stdout: stri
 }
 
 /**
- * Claude Code JSON zarfı.
+ * The Claude Code JSON envelope.
  *
- * Şekil: `{ type: "result", subtype, is_error, result: "<metin>", total_cost_usd, usage… }`
+ * Shape: `{ type: "result", subtype, is_error, result: "<text>", total_cost_usd, usage… }`
  */
 function unwrapClaude(raw: string): NormalizedCliOutput {
   const envelope = parseObject(raw);
   if (envelope === null) return { text: raw, usdCost: 0, error: null };
 
-  // `result` yoksa bu bir zarf değildir; metnin kendisi JSON olabilir.
+  // Without `result` this is not an envelope; the text itself may just be JSON.
   const result = envelope.result;
   if (typeof result !== "string") return { text: raw, usdCost: 0, error: null };
 
@@ -56,7 +57,7 @@ function unwrapClaude(raw: string): NormalizedCliOutput {
   return {
     text: result,
     usdCost,
-    error: failed ? (apiError ?? firstLine(result) ?? "CLI hata döndürdü") : null,
+    error: failed ? (apiError ?? firstLine(result) ?? "The CLI returned an error") : null,
   };
 }
 

@@ -6,46 +6,46 @@ import { runMcpCommand } from "./commands/mcp";
 import { runConsentCommand } from "./commands/consent";
 
 /**
- * NEXCODE komut satırı.
+ * NEXCODE command line interface.
  *
- * Masaüstü paneli olmadan da tam orkestrasyon: görev kuyrukla, motoru çalıştır, durumu gör,
- * riskli planları onayla ve NEXCODE'u başka bir agent'a MCP aracı olarak sun.
+ * Full orchestration without the desktop panel: queue a task, run the engine, inspect
+ * status, approve risky plans and expose NEXCODE to another agent as an MCP tool.
  *
- * Panel ve CLI aynı veritabanını paylaşabilir (`NEXCODE_HOME`), böylece terminalden
- * kuyruklanan görev panelde de görünür.
+ * The panel and the CLI can share the same database (`NEXCODE_HOME`), so a task queued
+ * from the terminal also shows up in the panel.
  */
 
 const USAGE = `
-NEXCODE, kurulu kodlama CLI'larını tek bir operatör yönetiminde ekip olarak çalıştırır.
+NEXCODE runs the coding CLIs you already have as one operator-led team.
 
-KULLANIM
-  nexcode <komut> [seçenekler]
+USAGE
+  nexcode <command> [options]
 
-KOMUTLAR
-  task <hedef>        Kuyruğa yeni bir görev ekler
-  run                 Motoru başlatır ve kuyruğu işler
-  status              Kuyruğu ve motor durumunu gösterir
-  approvals           Onay bekleyen riskli planları listeler ve karara bağlar
-  doctor              Kurulu CLI'ları, yapılandırmayı ve hazırlığı denetler
-  consent             Otonom çalışma onayını gösterir ve verir (motor için zorunlu)
-  mcp                 NEXCODE'u MCP sunucusu olarak açar (stdio)
-  version             Sürümü yazar
+COMMANDS
+  task <goal>         Add a new task to the queue
+  run                 Start the engine and work through the queue
+  status              Show the queue and the engine status
+  approvals           List risky plans awaiting approval and decide on them
+  doctor              Check installed CLIs, configuration and readiness
+  consent             Show and grant autonomous execution consent (required by the engine)
+  mcp                 Expose NEXCODE as an MCP server (stdio)
+  version             Print the version
 
-SEÇENEKLER
-  --mode <auto|fast|balanced|deep>   Yürütme derinliği (varsayılan: auto)
-  --dir <yol>                        Çalışma klasörü (varsayılan: bulunduğun klasör)
-  --once                             run: kuyruk boşalınca çık
-  --approve <id> | --reject <id>     approvals: kararı uygular
-  --accept | --revoke                consent: onayı verir ya da geri alır
-  --json                             Çıktıyı JSON olarak yazar
+OPTIONS
+  --mode <auto|fast|balanced|deep>   Execution depth (default: auto)
+  --dir <path>                       Working directory (default: current directory)
+  --once                             run: exit once the queue drains
+  --approve <id> | --reject <id>     approvals: apply the decision
+  --accept | --revoke                consent: grant or revoke consent
+  --json                             Print output as JSON
 
-ORTAM
-  NEXCODE_HOME   Veri kökü (varsayılan: ~/.nexcode)
+ENVIRONMENT
+  NEXCODE_HOME   Data root (default: ~/.nexcode)
 
-ÖRNEKLER
+EXAMPLES
   npx nexcode doctor
   npx nexcode consent --accept
-  npx nexcode task "avatar yükleme akışını ekle ve testlerini yaz" --mode balanced
+  npx nexcode task "add the avatar upload flow and write its tests" --mode balanced
   npx nexcode run --once
 `;
 
@@ -55,7 +55,7 @@ export interface ParsedArgs {
   flags: Record<string, string | boolean>;
 }
 
-/** `--key value`, `--key=value` ve `--flag` biçimlerini ayrıştırır. */
+/** Parses the `--key value`, `--key=value` and `--flag` forms. */
 export function parseArgs(argv: readonly string[]): ParsedArgs {
   const positional: string[] = [];
   const flags: Record<string, string | boolean> = {};
@@ -75,7 +75,7 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
     }
 
     const next = argv[i + 1];
-    // Sonraki değer bir bayrak değilse bu bayrağın değeridir.
+    // If the next value is not a flag, it is this flag's value.
     if (next !== undefined && !next.startsWith("--")) {
       flags[body] = next;
       i++;
@@ -100,7 +100,7 @@ async function main(): Promise<number> {
     return 0;
   }
 
-  // MCP stdio taşıması kendi bağlamını kurar ve standart çıktıyı protokole ayırır.
+  // The MCP stdio transport sets up its own context and reserves stdout for the protocol.
   if (command === "mcp") return await runMcpCommand();
 
   switch (command) {
@@ -117,7 +117,7 @@ async function main(): Promise<number> {
     case "consent":
       return runConsentCommand(flags);
     default:
-      process.stderr.write(`Bilinmeyen komut: ${command}\n${USAGE}\n`);
+      process.stderr.write(`Unknown command: ${command}\n${USAGE}\n`);
       return 1;
   }
 }
@@ -132,15 +132,15 @@ function readVersion(): string {
   }
 }
 
-// Yalnızca doğrudan çalıştırıldığında komut yürütülür; modül olarak import edildiğinde
-// (testler, gömülü kullanım) hiçbir yan etki oluşmaz.
+// The command only runs when executed directly; importing this as a module
+// (tests, embedded use) has no side effects.
 if (require.main === module) {
   main()
     .then((code) => {
       process.exitCode = code;
     })
     .catch((error: unknown) => {
-      process.stderr.write(`Hata: ${String(error)}\n`);
+      process.stderr.write(`Error: ${String(error)}\n`);
       process.exitCode = 1;
     });
 }

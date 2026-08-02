@@ -1,5 +1,5 @@
-// Node-only provider katmanı (node:child_process'e bağlı): yalnızca Electron main
-// process'te kullanılır. Renderer bu alt yola (`@nexcode/core/providers`) erişmemelidir.
+// Node-only provider layer (depends on node:child_process): used only in the Electron main
+// process. The renderer must not reach into this subpath (`@nexcode/core/providers`).
 export * from "./cli/runner";
 export * from "./cli/output";
 export * from "./cli/claude-code";

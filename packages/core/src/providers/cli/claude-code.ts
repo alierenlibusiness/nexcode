@@ -8,9 +8,9 @@ import type {
 import { type CliRunner, spawnRunner, buildTaggedPrompt, CliParseError } from "./runner";
 
 export interface ClaudeCodeAdapterOptions {
-  /** CLI binary yolu (varsayılan "claude"). */
+  /** CLI binary path (defaults to "claude"). */
   binaryPath?: string;
-  /** Test/özelleştirme için enjekte edilebilir çalıştırıcı (varsayılan: gerçek spawn). */
+  /** Injectable runner for tests and customisation (defaults to a real spawn). */
   runner?: CliRunner;
 }
 
@@ -22,10 +22,10 @@ interface ClaudeCliJson {
 }
 
 /**
- * Claude Code CLI adapter'ı: abonelik (CLI) modu (PRD §6.3, §9.1).
- * `claude -p --output-format json` ile headless çalışır; prompt stdin'den verilir.
- * Maliyet abonelik havuzundan tüketilir (per-token API faturası değil): `estimateCost`
- * öngörülen abonelik maliyetini 0 döner, gerçek maliyet CLI çıktısındaki cost ile gelir.
+ * Claude Code CLI adapter: subscription (CLI) mode.
+ * Runs headless through `claude -p --output-format json`; the prompt is passed on stdin.
+ * Cost is drawn from the subscription pool rather than a per-token API bill, so
+ * `estimateCost` returns 0 and the real cost arrives with the cost field in the CLI output.
  */
 export class ClaudeCodeAdapter implements AIProviderAdapter {
   readonly id = "claude-code";
@@ -45,7 +45,7 @@ export class ClaudeCodeAdapter implements AIProviderAdapter {
 
     if (result.exitCode !== 0) {
       throw new Error(
-        `Claude Code CLI çıkış ${String(result.exitCode)}: ${result.stderr || result.stdout}`,
+        `Claude Code CLI exited with ${String(result.exitCode)}: ${result.stderr || result.stdout}`,
       );
     }
 
@@ -54,13 +54,13 @@ export class ClaudeCodeAdapter implements AIProviderAdapter {
       parsed = JSON.parse(result.stdout) as ClaudeCliJson;
     } catch {
       throw new CliParseError(
-        `Claude Code CLI çıktısı parse edilemedi: ${result.stdout.slice(0, 200)}`,
+        `Claude Code CLI output could not be parsed: ${result.stdout.slice(0, 200)}`,
         "anthropic",
       );
     }
 
     if (parsed.is_error) {
-      throw new Error(`Claude Code CLI hata döndürdü: ${parsed.result ?? "bilinmeyen"}`);
+      throw new Error(`Claude Code CLI returned an error: ${parsed.result ?? "unknown"}`);
     }
 
     return {
@@ -74,7 +74,7 @@ export class ClaudeCodeAdapter implements AIProviderAdapter {
   }
 
   estimateCost(_req: CompletionRequest, usage?: TokenUsage): CostEstimate {
-    // CLI abonelik modu: maliyet token-bazlı faturaya değil, abonelik havuzuna yazılır.
+    // CLI subscription mode: cost is charged to the subscription pool, not a per-token bill.
     return {
       usd: 0,
       inputTokens: usage?.inputTokens ?? 0,

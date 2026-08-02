@@ -1,27 +1,28 @@
 import type { ExecutionMode, NexcodeConfig } from "../config/schema";
 
 /**
- * Yürütme politikası: bir görevin hız/kalite bütçesini belirler.
+ * Execution policy: sets the speed and quality budget of a task.
  *
- * Küçük iş gereksiz rollere bölünmez, çok bileşenli veya riskli iş tek uzmana yığılmaz.
- * `auto` görevi inceleyip diğer üç moddan birine çözümlenir; kullanıcı açıkça mod seçtiyse
- * sezgisel çalıştırılmaz.
+ * Small work is not split across unnecessary roles, and multi-component or risky work is not
+ * piled onto a single specialist. `auto` inspects the task and resolves to one of the other
+ * three modes; the heuristic does not run when the user chose a mode explicitly.
  */
 export interface RoundPolicy {
   mode: Exclude<ExecutionMode, "auto">;
   maxRounds: number;
   maxDelegationsPerRound: number;
   /**
-   * İlk planda uygulama işi varsa bağımsız inceleme zorunlu mu.
-   * `fast` küçük görevlerde tek executor ile yetinir.
+   * Whether an independent review is mandatory when the first plan contains implementation work.
+   * `fast` settles for a single executor on small tasks.
    */
   requireReview: boolean;
   /**
-   * Ayrı bir planlama delegasyonu açılsın mı. `balanced` planlamayı ilk turun zincirine
-   * gömer (`plan → implement → review`); `deep` ayrı planlama turunu korur.
+   * Whether a separate planning delegation is opened. `balanced` folds planning into the
+   * chain of the first round (`plan -> implement -> review`); `deep` keeps a separate
+   * planning round.
    */
   separatePlanning: boolean;
-  /** Operatöre verilecek ekip/tur durumu context bütçesi (karakter). */
+  /** Context budget (in characters) of the team and round state given to the operator. */
   contextCharBudget: number;
 }
 
@@ -34,7 +35,7 @@ const BASE_POLICIES: Readonly<Record<Exclude<ExecutionMode, "auto">, Omit<RoundP
     separatePlanning: false,
   },
   balanced: {
-    // Tamamlanmış işi tekrar denetleten pahalı turları önlemek için üç turla sınırlı.
+    // Capped at three rounds to avoid expensive rounds that re-audit finished work.
     mode: "balanced",
     maxRounds: 3,
     maxDelegationsPerRound: 6,
@@ -50,7 +51,7 @@ const BASE_POLICIES: Readonly<Record<Exclude<ExecutionMode, "auto">, Omit<RoundP
   },
 };
 
-/** Context bütçesinin moda göre oranı: derin mod tam bütçeyi kullanır. */
+/** Ratio of the context budget per mode: deep mode uses the full budget. */
 const CONTEXT_RATIO: Readonly<Record<Exclude<ExecutionMode, "auto">, number>> = {
   fast: 0.35,
   balanced: 0.7,
@@ -58,11 +59,14 @@ const CONTEXT_RATIO: Readonly<Record<Exclude<ExecutionMode, "auto">, number>> = 
 };
 
 /**
- * `auto` modda görevi inceleyip somut bir moda çözümler.
+ * In `auto` mode, inspects the task and resolves it to a concrete mode.
  *
- * - `deep`  : çok bileşenli, mimari etkili, riskli ya da uzun spec içeren işler.
- * - `fast`  : tek dosyalık, küçük ve düşük riskli düzeltmeler.
- * - `balanced`: diğer her şey (varsayılan).
+ * - `deep`    : multi-component, architecturally significant, risky or long-spec work.
+ * - `fast`    : small, low risk, single file fixes.
+ * - `balanced`: everything else (the default).
+ *
+ * The signal lists carry both English and Turkish wording so the heuristic works for users
+ * who write their task in either language.
  */
 const DEEP_SIGNALS = [
   "refactor",
@@ -111,8 +115,8 @@ export function resolveExecutionMode(mode: ExecutionMode, prompt: string): Exclu
 }
 
 /**
- * Çözümlenmiş mod ve kullanıcı yapılandırmasından tur politikasını üretir.
- * Config'teki operatör limitleri **tavan**dır: mod politikası bunları aşamaz.
+ * Builds the round policy from the resolved mode and the user configuration.
+ * The operator limits in the config are a **ceiling**: the mode policy cannot exceed them.
  */
 export function roundPolicyFor(mode: ExecutionMode, prompt: string, config: NexcodeConfig): RoundPolicy {
   const resolved = resolveExecutionMode(mode, prompt);
@@ -125,7 +129,7 @@ export function roundPolicyFor(mode: ExecutionMode, prompt: string, config: Nexc
   };
 }
 
-/** Tur sınırına ulaşıldı mı: ulaşıldıysa motor kısmi teslimata geçer. */
+/** Whether the round limit is reached: if so the engine moves to partial delivery. */
 export function isFinalRound(round: number, policy: RoundPolicy): boolean {
   return round >= policy.maxRounds;
 }

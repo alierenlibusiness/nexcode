@@ -1,6 +1,6 @@
 import type { ConnectionMode } from "../domain/agent";
 
-/** AI sağlayıcı soyutlaması (PRD §6.3). Faz 1 non-streaming `complete` kullanır. */
+/** AI provider abstraction. Uses a non-streaming `complete` call. */
 
 export interface CompletionImage {
   mimeType: string;

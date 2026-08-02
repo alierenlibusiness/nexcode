@@ -2,44 +2,46 @@ import { z } from "zod";
 import { ASSIGNMENT_KINDS } from "../config/schema";
 
 /**
- * Operatör karar protokolü.
+ * The operator decision protocol.
  *
- * Operatör her çağrıda **yalnızca** bu şemaya uyan tek bir JSON nesnesi üretir: Markdown,
- * kod bloğu, önsöz, sonsöz veya yorum yoktur. Parse yalnızca protokol hatalarında ve
- * `operator.protocolRetries` kadar tekrarlanır: model çıktısı sessizce yorumlanmaz.
+ * On every call the operator produces **only** a single JSON object matching this schema:
+ * no Markdown, no code block, no preamble, no epilogue, no commentary. Parsing is retried
+ * only on protocol errors and only `operator.protocolRetries` times: model output is never
+ * silently reinterpreted.
  *
- * Ayrıştırma tarafı yine de bağışlayıcıdır (kod çiti, çevre metin): katı prompt + toleranslı
- * parser, tek bir biçim kaymasının turu çöpe atmasını engeller.
+ * The parsing side is still forgiving (code fences, surrounding prose): a strict prompt plus
+ * a tolerant parser keeps a single formatting slip from throwing away the round.
  */
 
 const assignmentSchema = z.object({
-  /** Kısa, anlamlı ve tur içinde benzersiz kimlik. */
+  /** Short, meaningful identifier, unique within the round. */
   id: z.string().min(1).max(64),
-  /** Katalogdaki etkin ve sağlıklı bir agent'ın id'si. */
+  /** Id of an enabled and healthy agent from the catalog. */
   agentId: z.string().min(1),
   kind: z.enum(ASSIGNMENT_KINDS),
   /**
-   * Bağlam, kesin kapsam, beklenen teslimat, sınırlar ve doğrulama ölçütü.
-   * Uzmanın ana hedefi yeniden tahmin etmesi beklenmez.
+   * Context, exact scope, expected deliverable, boundaries and verification criteria.
+   * The specialist is not expected to guess the main goal again.
    */
   instruction: z.string().min(1),
-  /** Bu işin beklediği atama kimlikleri (aynı turdaki zincirleme). */
+  /** Assignment ids this work waits for (chaining within the same round). */
   dependsOn: z.array(z.string()).default([]),
-  /** Motorun sunduğu kısa listeden seçilmiş beceri adları. */
+  /** Skill names chosen from the shortlist the engine offers. */
   skills: z.array(z.string()).default([]),
 });
 
 export type OperatorAssignment = z.infer<typeof assignmentSchema>;
 
 /**
- * Delegasyon gövdesi. `plan` (ilk tur) ve `continue` (sonraki turlar) aynı alanları taşır;
- * ayrık birleşim tek literal ayırıcı gerektirdiği için iki varyant olarak tanımlanır.
+ * The delegation body. `plan` (first round) and `continue` (later rounds) carry the same
+ * fields; they are defined as two variants because a discriminated union needs a single
+ * literal discriminator.
  */
 const delegateFields = {
-  /** Gözlemlenebilir, göreve özgü kabul kriterleri. */
+  /** Observable, task specific acceptance criteria. */
   acceptanceCriteria: z.array(z.string()).default([]),
   assignments: z.array(assignmentSchema).min(1),
-  /** Kullanıcıya görünen kısa plan açıklaması; riskli işlem varsa burada açıkça belirtilir. */
+  /** Short plan description shown to the user; a risky operation is stated explicitly here. */
   planSummary: z.string().default(""),
 };
 
@@ -48,19 +50,19 @@ const continueSchema = z.object({ status: z.literal("continue"), ...delegateFiel
 
 const completeSchema = z.object({
   status: z.literal("complete"),
-  /** Kullanıcı açısından sonuç; ham log ve iç koordinasyon ayrıntısı içermez. */
+  /** The result from the user's point of view; no raw logs or internal coordination detail. */
   final: z.string().min(1),
-  /** Yapılan önemli doğrulama. */
+  /** The important verification that was performed. */
   verification: z.string().default(""),
-  /** Teslimatı engellemeyen ama bilinmesi gereken kalan kısıt. */
+  /** A remaining constraint that does not block delivery but should be known. */
   remainingRisk: z.string().default(""),
 });
 
 const blockedSchema = z.object({
   status: z.literal("blocked"),
-  /** Somut engel ve kanıtı. */
+  /** The concrete blocker and its evidence. */
   blocked: z.string().min(1),
-  /** Devam etmek için gereken bilgi, yetki veya dış durum. */
+  /** Information, permission or external state needed to continue. */
   needed: z.string().default(""),
 });
 
@@ -81,8 +83,9 @@ export type ParseResult =
   | { ok: false; error: string };
 
 /**
- * Metinden ilk dengeli JSON nesnesini çıkarır. Sırayla: doğrudan parse → kod çitlerini
- * soyma → ilk `{` ile eşleşen `}` arası dengeli tarama (string ve kaçış farkındalığıyla).
+ * Extracts the first balanced JSON object from text. In order: direct parse, stripping code
+ * fences, then a balanced scan from the first `{` to its matching `}` (aware of strings and
+ * escapes).
  */
 export function extractJsonObject(text: string): string | null {
   const trimmed = text.trim();
@@ -122,46 +125,46 @@ export function extractJsonObject(text: string): string | null {
   return null;
 }
 
-/** Operatör çıktısını karar nesnesine çevirir; başarısızlıkta düzeltilebilir bir hata metni verir. */
+/** Turns operator output into a decision object; on failure it returns a repairable error text. */
 export function parseOperatorDecision(text: string): ParseResult {
   const raw = extractJsonObject(text);
   if (raw === null) {
-    return { ok: false, error: "Çıktıda JSON nesnesi bulunamadı. Yalnızca tek bir JSON nesnesi üret." };
+    return { ok: false, error: "No JSON object was found in the output. Produce a single JSON object only." };
   }
 
   let json: unknown;
   try {
     json = JSON.parse(raw);
   } catch (error) {
-    return { ok: false, error: `JSON ayrıştırılamadı: ${error instanceof Error ? error.message : String(error)}` };
+    return { ok: false, error: `JSON could not be parsed: ${error instanceof Error ? error.message : String(error)}` };
   }
 
   const parsed = operatorDecisionSchema.safeParse(json);
   if (!parsed.success) {
     const issues = parsed.error.issues
       .slice(0, 5)
-      .map((issue) => `${issue.path.join(".") || "(kök)"}: ${issue.message}`)
+      .map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`)
       .join("; ");
-    return { ok: false, error: `Şema uyuşmazlığı; ${issues}` };
+    return { ok: false, error: `Schema mismatch; ${issues}` };
   }
 
   return { ok: true, decision: parsed.data };
 }
 
-/** Karar delegasyon üretiyor mu (plan ya da continue). */
+/** Whether the decision produces delegations (plan or continue). */
 export function isDelegateDecision(decision: OperatorDecision): decision is DelegateDecision {
   return decision.status === "plan" || decision.status === "continue";
 }
 
 /**
- * Protokol hatası sonrası operatöre gönderilecek düzeltme talimatı.
- * Yeni bir plan turu harcamaz; yalnızca biçimi düzelttirir.
+ * The repair instruction sent to the operator after a protocol error.
+ * It does not spend a new planning round; it only asks for the format to be corrected.
  */
 export function protocolRepairInstruction(error: string): string {
   return [
-    "Önceki çıktın protokole uymuyordu ve kullanılamadı.",
-    `Hata: ${error}`,
-    "Bu sefer SADECE tek bir JSON nesnesi üret. Markdown, kod bloğu, açıklama veya",
-    "başka hiçbir metin ekleme. Şemayı birebir uygula.",
+    "Your previous output did not follow the protocol and could not be used.",
+    `Error: ${error}`,
+    "This time produce ONLY a single JSON object. Do not add Markdown, a code block, an",
+    "explanation or any other text. Follow the schema exactly.",
   ].join("\n");
 }

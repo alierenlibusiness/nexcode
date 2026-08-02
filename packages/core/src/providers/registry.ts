@@ -2,16 +2,17 @@ import type { ConnectionMode } from "../domain/agent";
 import type { ModelPricing } from "./pricing";
 
 /**
- * Sağlayıcı/model kayıt defteri: TEK kaynak (PRD §5 sağlayıcı bağımsızlığı, §9.2).
- * Yeni bir AI eklemek = buraya bir kayıt eklemek (kod değil, veri). Kullanıcı her agent
- * için bu listeden model seçer; UI bu registry'yi numaralandırır.
+ * Provider and model registry: the SINGLE source of truth for provider independence.
+ * Adding a new AI means adding a record here (data, not code). The user picks a model per
+ * agent from this list, and the UI enumerates this registry.
  *
- * Yeni OpenAI-uyumlu sağlayıcı (Kimi, GLM, Qwen, Cohere…) eklemek için: `kind:
- * "openai-compatible"`, `baseUrl` ve `models` ver: adapter mevcut OpenAICompatibleAdapter'dır.
+ * To add a new OpenAI-compatible provider (Kimi, GLM, Qwen, Cohere…): give `kind:
+ * "openai-compatible"`, a `baseUrl` and `models`; the adapter is the existing
+ * OpenAICompatibleAdapter.
  */
 export type ProviderKind = "anthropic" | "openai-compatible" | "google";
 
-/** Bir sağlayıcının abonelik CLI'sı (varsa): PRD §9.2. */
+/** The subscription CLI of a provider, when it has one. */
 export type CliKind = "claude-code" | "codex" | "antigravity";
 
 export interface ProviderModel {
@@ -25,11 +26,11 @@ export interface ProviderInfo {
   id: string;
   label: string;
   kind: ProviderKind;
-  /** openai-compatible & google için API base URL. */
+  /** API base URL for openai-compatible and google. */
   baseUrl?: string;
-  /** Abonelik CLI'sı varsa türü (yoksa yalnızca API). */
+  /** The kind of subscription CLI, when there is one (otherwise API only). */
   cli?: CliKind;
-  /** Bu sağlayıcının görsel (multimodal) yeteneği var mı (model-bazlı override edilebilir). */
+  /** Whether this provider has vision (multimodal) capability; can be overridden per model. */
   vision?: boolean;
   models: readonly ProviderModel[];
 }
@@ -88,7 +89,7 @@ export const PROVIDER_REGISTRY: Readonly<Record<string, ProviderInfo>> = {
       { modelId: "minimax-m3", label: "MiniMax M3", pricing: { inputPerMTok: 0.3, outputPerMTok: 1.2 } },
     ],
   },
-  // ── Genişletilebilirlik örneği: yeni OpenAI-uyumlu sağlayıcılar (kullanıcı isteği) ──
+  // ── Extensibility example: additional OpenAI-compatible providers ──
   kimi: {
     id: "kimi",
     label: "Kimi (Moonshot)",
@@ -118,17 +119,17 @@ export function getModelInfo(provider: string, modelId: string): ProviderModel |
   return PROVIDER_REGISTRY[provider]?.models.find((m) => m.modelId === modelId);
 }
 
-/** UI için: tüm sağlayıcılar (kararlı sırada). */
+/** For the UI: every provider, in a stable order. */
 export function listProviders(): readonly ProviderInfo[] {
   return Object.values(PROVIDER_REGISTRY);
 }
 
-/** Bir sağlayıcının abonelik CLI'sı var mı (PRD §9.2). */
+/** Whether a provider has a subscription CLI. */
 export function providerCliKind(provider: string): CliKind | undefined {
   return PROVIDER_REGISTRY[provider]?.cli;
 }
 
-/** Bir model+sağlayıcı kombosunun görsel desteği (model override > sağlayıcı varsayılanı). */
+/** Vision support of a model and provider combination (model override > provider default). */
 export function supportsVision(provider: string, modelId: string): boolean {
   const info = PROVIDER_REGISTRY[provider];
   if (!info) return false;
@@ -136,12 +137,12 @@ export function supportsVision(provider: string, modelId: string): boolean {
   return model?.vision ?? info.vision ?? false;
 }
 
-/** Bir ModelRef'in registry'de geçerli olup olmadığı. */
+/** Whether a ModelRef is valid in the registry. */
 export function isKnownModel(provider: string, modelId: string): boolean {
   return getModelInfo(provider, modelId) !== undefined;
 }
 
-/** Faz 1/2 ModelRef üretimi için kısayol (varsayılan bağlantı modu API). */
+/** Shorthand for building a ModelRef (the default connection mode is API). */
 export function modelRef(
   provider: string,
   modelId: string,

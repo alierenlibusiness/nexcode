@@ -1,14 +1,14 @@
 import type { CompletionRequest, CostEstimate, TokenUsage } from "./types";
 import type { ModelPricing } from "./pricing";
 
-/** Rough token tahmini (~4 karakter/token): gerçek usage yoksa kullanılır. */
+/** Rough token estimate (~4 characters per token): used when real usage is unavailable. */
 export function estimateTokens(req: CompletionRequest): number {
   const chars =
     (req.system?.length ?? 0) + req.messages.reduce((sum, m) => sum + m.content.length, 0);
   return Math.ceil(chars / 4);
 }
 
-/** Pricing + (gerçek ya da tahmini) usage'dan USD maliyeti hesaplar. */
+/** Computes the USD cost from pricing plus real or estimated usage. */
 export function computeCost(
   pricing: ModelPricing,
   req: CompletionRequest,

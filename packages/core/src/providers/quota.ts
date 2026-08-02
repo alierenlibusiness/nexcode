@@ -1,17 +1,18 @@
 import { providerCliKind } from "./registry";
 
 /**
- * Abonelik kotası takibi (PRD §9.3/§9.4). CLI abonelikleri 5 saatlik kayan pencerede
- * token bütçesi paylaşır; CEO+Backend AYNI Claude Code havuzunu tüketir → kota havuz
- * bazında izlenir, agent bazında değil. Kota dolunca factory API moduna geçer (§9.4).
+ * Subscription quota tracking. CLI subscriptions share a token budget over a 5 hour
+ * sliding window; CEO and Backend consume the SAME Claude Code pool, so the quota is
+ * tracked per pool rather than per agent. When the quota runs out the factory switches to
+ * API mode.
  *
- * Saf, in-process; saat enjekte edilebilir (test). Dağıtık/kalıcı kota yalnızca
- * opsiyonel bulut katmanında gerekir.
+ * Pure and in-process; the clock is injectable for tests. A distributed or persistent
+ * quota is only needed in the optional cloud layer.
  */
 export interface QuotaWindow {
-  /** Kayan pencere süresi (ms). Varsayılan 5 saat. */
+  /** Sliding window duration in ms. Defaults to 5 hours. */
   windowMs: number;
-  /** Pencere içi maksimum token bütçesi. */
+  /** Maximum token budget within the window. */
   maxTokens: number;
 }
 
@@ -28,42 +29,42 @@ export class QuotaTracker {
 
   constructor(private readonly now: () => number = () => Date.now()) {}
 
-  /** Bir havuz için kota penceresi tanımlar (yoksa o havuz sınırsız sayılır). */
+  /** Defines the quota window for a pool (a pool without one counts as unlimited). */
   configure(poolId: string, window: QuotaWindow): void {
     this.windows.set(poolId, window);
   }
 
-  /** Havuza token kullanımı ekler. */
+  /** Adds token usage to the pool. */
   record(poolId: string, tokens: number, at: number = this.now()): void {
     const list = this.events.get(poolId) ?? [];
     list.push({ at, tokens });
     this.events.set(poolId, list);
   }
 
-  /** Geçerli kayan penceredeki toplam token kullanımı. */
+  /** Total token usage in the current sliding window. */
   usage(poolId: string, at: number = this.now()): number {
     const window = this.windows.get(poolId);
     const windowMs = window?.windowMs ?? FIVE_HOURS_MS;
     const cutoff = at - windowMs;
     const list = this.events.get(poolId);
     if (!list) return 0;
-    // Pencere dışı eski olayları buda (bellek sınırlama).
+    // Prune old events outside the window (bounds memory).
     const live = list.filter((e) => e.at > cutoff);
     this.events.set(poolId, live);
     return live.reduce((sum, e) => sum + e.tokens, 0);
   }
 
-  /** Havuz kotası hâlâ uygun mu (PRD §9.4: false ise API'ye geçilir). */
+  /** Whether the pool quota is still available; when false the caller switches to the API. */
   isAvailable(poolId: string, at: number = this.now()): boolean {
     const window = this.windows.get(poolId);
-    if (!window) return true; // kota tanımsız → sınırsız varsay
+    if (!window) return true; // no quota defined, assume unlimited
     return this.usage(poolId, at) < window.maxTokens;
   }
 }
 
 /**
- * Bir sağlayıcının abonelik havuzu kimliği. Aynı CLI'yı paylaşan roller (CEO+Backend →
- * Claude Code) aynı havuzu tüketir, dolayısıyla pool = CLI türü (PRD §9.3).
+ * The subscription pool identifier of a provider. Roles that share the same CLI (CEO and
+ * Backend both use Claude Code) consume the same pool, so pool equals CLI kind.
  */
 export function poolIdForProvider(provider: string): string | undefined {
   return providerCliKind(provider);

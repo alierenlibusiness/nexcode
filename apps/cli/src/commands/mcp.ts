@@ -4,13 +4,13 @@ import { McpServer, createLineHandler, type McpServerHost, type McpTaskView } fr
 import type { Task } from "@nexcode/core";
 
 /**
- * NEXCODE'u MCP sunucusu olarak açar (stdio taşıması).
+ * Exposes NEXCODE as an MCP server (stdio transport).
  *
- * Başka bir kodlama agent'ı (Claude Code, Codex, Gemini, OpenCode) kendi akışının içinden
- * NEXCODE'a görev kuyruklayabilir, durum sorabilir ve onayları çözebilir.
+ * Another coding agent (Claude Code, Codex, Gemini, OpenCode) can queue a task into
+ * NEXCODE from inside its own flow, query status and resolve approvals.
  *
- * Kritik: standart çıktı **yalnızca** protokol içindir. Hiçbir log stdout'a yazılmaz; aksi
- * halde istemcinin JSON ayrıştırması bozulur.
+ * Critical: stdout is **only** for the protocol. No log is written to stdout, otherwise
+ * the client's JSON parsing breaks.
  */
 export async function runMcpCommand(): Promise<number> {
   const ctx = createContext();
@@ -24,7 +24,7 @@ export async function runMcpCommand(): Promise<number> {
         workingDir: input.workingDir ?? ctx.workingDir,
         ...(input.executionMode !== undefined ? { executionMode: input.executionMode } : {}),
       });
-      // Motor çalışıyorsa bekleme aralığını kes; duruyorsa görev kuyrukta bekler.
+      // If the engine is running, cut the wait interval short; if stopped, the task waits in the queue.
       ctx.engine.wake();
       return Promise.resolve(toView(task));
     },
@@ -53,8 +53,8 @@ export async function runMcpCommand(): Promise<number> {
     },
 
     setEngineRunning: async (running) => {
-      // Bu araç yalnızca `mcpServer.allowEngineControl` açıkken çağrılabilir; kapısı
-      // protokol katmanındadır ve katalogdan da gizlenir.
+      // This tool can only be called while `mcpServer.allowEngineControl` is on; its gate
+      // lives in the protocol layer and it is also hidden from the catalogue.
       if (running) {
         ctx.engine.start();
       } else {
@@ -73,7 +73,7 @@ export async function runMcpCommand(): Promise<number> {
   const rl = createInterface({ input: process.stdin, crlfDelay: Infinity });
 
   await new Promise<void>((resolve) => {
-    // Satırlar sırayla işlenir: istemci ardışık istek gönderdiğinde yanıt sırası korunur.
+    // Lines are processed in order: when the client sends consecutive requests, response order is preserved.
     let chain: Promise<void> = Promise.resolve();
     rl.on("line", (line) => {
       chain = chain.then(() => handle(line));

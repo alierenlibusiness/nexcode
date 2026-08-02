@@ -1,8 +1,8 @@
 /**
- * Agent bağlantı modu tercihi (PRD §9.5).
- * - `api_only`  : Sadece API anahtarı
- * - `cli_only`  : Sadece CLI abonelik
- * - `cli_first` : CLI öncelikli, kota dolunca API'ye geç (varsayılan)
+ * Agent connection mode preference.
+ * - `api_only`  : API key only
+ * - `cli_only`  : CLI subscription only
+ * - `cli_first` : CLI first, switching to the API once the quota runs out (default)
  */
 export type ConnectionPreference = "api_only" | "cli_only" | "cli_first";
 

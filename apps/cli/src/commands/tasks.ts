@@ -1,20 +1,20 @@
 import { createContext } from "../context";
 import { EXECUTION_MODES, type ExecutionMode, type EngineEvent } from "@nexcode/core";
 
-/** Görev kuyruğu komutları: task, run, status, approvals. */
+/** Task queue commands: task, run, status, approvals. */
 
 type Flags = Record<string, string | boolean>;
 
 export function runTaskCommand(positional: readonly string[], flags: Flags): number {
   const prompt = positional.join(" ").trim();
   if (prompt === "") {
-    process.stderr.write('Görev metni gerekli. Örnek: nexcode task "testleri düzelt"\n');
+    process.stderr.write('Task text is required. Example: nexcode task "fix the tests"\n');
     return 1;
   }
 
   const mode = readMode(flags);
   if (mode === null) {
-    process.stderr.write(`Geçersiz mod. Seçenekler: ${EXECUTION_MODES.join(", ")}\n`);
+    process.stderr.write(`Invalid mode. Options: ${EXECUTION_MODES.join(", ")}\n`);
     return 1;
   }
 
@@ -28,8 +28,8 @@ export function runTaskCommand(positional: readonly string[], flags: Flags): num
   }
 
   process.stdout.write(
-    `Görev kuyruğa alındı.\n  id    : ${task.id}\n  başlık: ${task.title}\n  mod   : ${task.executionMode}\n` +
-      `  klasör: ${task.workingDir}\n\nÇalıştırmak için: nexcode run\n`,
+    `Task queued.\n  id    : ${task.id}\n  title : ${task.title}\n  mode  : ${task.executionMode}\n` +
+      `  folder: ${task.workingDir}\n\nTo run it: nexcode run\n`,
   );
   return 0;
 }
@@ -45,15 +45,15 @@ export function runStatusCommand(flags: Flags): number {
   }
 
   process.stdout.write(
-    `Motor : ${status.running ? "çalışıyor" : "durdu"}  (${String(status.activeIds.length)}/${String(status.concurrency)} slot)\n` +
-      `Veri  : ${ctx.dataDir}\n\n`,
+    `Engine: ${status.running ? "running" : "stopped"}  (${String(status.activeIds.length)}/${String(status.concurrency)} slots)\n` +
+      `Data  : ${ctx.dataDir}\n\n`,
   );
 
   const sections: Array<[string, typeof queue.pending]> = [
-    ["Bekliyor", queue.pending],
-    ["Onay bekliyor", queue.approval],
-    ["Tamamlandı", queue.done],
-    ["Başarısız", queue.failed],
+    ["Waiting", queue.pending],
+    ["Awaiting approval", queue.approval],
+    ["Completed", queue.done],
+    ["Failed", queue.failed],
   ];
 
   for (const [label, tasks] of sections) {
@@ -65,7 +65,7 @@ export function runStatusCommand(flags: Flags): number {
     for (const task of tasks.slice(0, 10)) {
       process.stdout.write(`  ${task.id.slice(0, 8)}  ${truncate(task.prompt, 64)}\n`);
     }
-    if (tasks.length > 10) process.stdout.write(`  ... ${String(tasks.length - 10)} tane daha\n`);
+    if (tasks.length > 10) process.stdout.write(`  ... ${String(tasks.length - 10)} more\n`);
   }
   return 0;
 }
@@ -77,26 +77,26 @@ export async function runRunCommand(flags: Flags): Promise<number> {
   const config = ctx.configRepo.load();
   if (config.autonomousConsentAcceptedAt === null) {
     process.stderr.write(
-      "Otonom çalışma onayı alınmadan motor başlatılamaz.\n" +
-        "Panelden onayla ya da yapılandırmada `autonomousConsentAcceptedAt` alanını ayarla.\n",
+      "The engine cannot start without autonomous execution consent.\n" +
+        "Accept it from the panel or set the `autonomousConsentAcceptedAt` field in the configuration.\n",
     );
     return 1;
   }
 
   if (once && ctx.tasks.queueSnapshot().pending.length === 0) {
-    process.stdout.write("Kuyruk boş.\n");
+    process.stdout.write("The queue is empty.\n");
     return 0;
   }
 
-  process.stdout.write("Motor başlatıldı. Durdurmak için Ctrl+C.\n\n");
+  process.stdout.write("Engine started. Press Ctrl+C to stop.\n\n");
   ctx.engine.start();
 
-  // Ctrl+C uçuştaki görevi yarıda kesmez; biten işten sonra temiz çıkılır.
+  // Ctrl+C does not interrupt an in-flight task; the exit is clean once the work finishes.
   let stopping = false;
   const stop = async (): Promise<void> => {
     if (stopping) return;
     stopping = true;
-    process.stdout.write("\nDurduruluyor (uçuştaki görev bitirilecek)...\n");
+    process.stdout.write("\nStopping (the in-flight task will be finished)...\n");
     await ctx.engine.stop();
     process.exitCode = 0;
   };
@@ -106,7 +106,7 @@ export async function runRunCommand(flags: Flags): Promise<number> {
   if (once) {
     await waitForDrain(ctx);
     await ctx.engine.stop();
-    process.stdout.write("\nKuyruk boşaldı.\n");
+    process.stdout.write("\nThe queue has drained.\n");
   } else {
     await new Promise<void>(() => undefined);
   }
@@ -123,11 +123,11 @@ export function runApprovalsCommand(flags: Flags): number {
   if (target !== undefined) {
     const record = ctx.approvals.getById(target);
     if (record === null) {
-      process.stderr.write(`Onay bulunamadı: ${target}\n`);
+      process.stderr.write(`Approval not found: ${target}\n`);
       return 1;
     }
     ctx.approvals.resolve(target, approve !== undefined ? "approved" : "rejected", "cli");
-    process.stdout.write(`Onay ${approve !== undefined ? "kabul edildi" : "reddedildi"}: ${target}\n`);
+    process.stdout.write(`Approval ${approve !== undefined ? "accepted" : "rejected"}: ${target}\n`);
     return 0;
   }
 
@@ -138,19 +138,19 @@ export function runApprovalsCommand(flags: Flags): number {
   }
 
   if (pending.length === 0) {
-    process.stdout.write("Onay bekleyen plan yok.\n");
+    process.stdout.write("No plans are awaiting approval.\n");
     return 0;
   }
 
-  process.stdout.write(`Onay bekleyen ${String(pending.length)} plan:\n\n`);
+  process.stdout.write(`${String(pending.length)} plans awaiting approval:\n\n`);
   for (const record of pending) {
-    process.stdout.write(`  ${record.id}\n    tür  : ${record.actionType}\n    görev: ${record.taskId}\n\n`);
+    process.stdout.write(`  ${record.id}\n    type: ${record.actionType}\n    task: ${record.taskId}\n\n`);
   }
-  process.stdout.write("Karar: nexcode approvals --approve <id>  |  --reject <id>\n");
+  process.stdout.write("Decide with: nexcode approvals --approve <id>  |  --reject <id>\n");
   return 0;
 }
 
-/** Kuyruk boşalana ve tüm slotlar bitene kadar bekler. */
+/** Waits until the queue drains and every slot is finished. */
 function waitForDrain(ctx: ReturnType<typeof createContext>): Promise<void> {
   return new Promise<void>((resolve) => {
     const timer = setInterval(() => {
@@ -164,7 +164,7 @@ function waitForDrain(ctx: ReturnType<typeof createContext>): Promise<void> {
   });
 }
 
-/** Motor olaylarını okunur tek satırlara indirger; ham stdout akışı basılmaz. */
+/** Reduces engine events to readable single lines; the raw stdout stream is not printed. */
 function printEvent(event: EngineEvent): void {
   if (event.type === "log") {
     const detail = event.payload.detail === undefined ? "" : `: ${truncate(event.payload.detail, 120)}`;
@@ -187,14 +187,14 @@ function printEvent(event: EngineEvent): void {
   if (event.type === "result") {
     process.stdout.write(`\n[${event.payload.outcome}] ${truncate(event.payload.final, 400)}\n`);
     if (event.payload.verification !== "") {
-      process.stdout.write(`  doğrulama: ${truncate(event.payload.verification, 200)}\n`);
+      process.stdout.write(`  verification: ${truncate(event.payload.verification, 200)}\n`);
     }
     if (event.payload.remainingRisk !== "") {
-      process.stdout.write(`  kalan risk: ${truncate(event.payload.remainingRisk, 200)}\n`);
+      process.stdout.write(`  remaining risk: ${truncate(event.payload.remainingRisk, 200)}\n`);
     }
     process.stdout.write(
-      `  tur ${String(event.payload.rounds)} · delegasyon ${String(event.payload.delegations)} · ` +
-        `dosya ${String(event.payload.files.length)}\n\n`,
+      `  rounds ${String(event.payload.rounds)} · delegations ${String(event.payload.delegations)} · ` +
+        `files ${String(event.payload.files.length)}\n\n`,
     );
   }
 }

@@ -8,18 +8,18 @@ import type {
 import { type CliRunner, spawnRunner, buildTaggedPrompt, CliParseError } from "./runner";
 
 export interface CodexCliAdapterOptions {
-  /** CLI binary yolu (varsayılan "codex"). */
+  /** CLI binary path (defaults to "codex"). */
   binaryPath?: string;
   runner?: CliRunner;
 }
 
 /**
- * Codex CLI adapter'ı: OpenAI abonelik (ChatGPT Plus/Pro) modu, Frontend Agent için
- * (PRD §8.2, §9.2). `codex exec --json` headless çalışır ve JSONL olay akışı üretir;
- * son agent mesajı + usage'ı toleranslı şekilde toplarız.
+ * Codex CLI adapter: OpenAI subscription (ChatGPT Plus/Pro) mode, used by the Frontend
+ * Agent. `codex exec --json` runs headless and produces a JSONL event stream; the last
+ * agent message and the usage figures are collected tolerantly.
  *
- * NOT (R3): JSONL şeması Codex sürümleriyle değişebilir. Parse hatasında `CliParseError`
- * fırlatılır; factory bunu yakalayıp agent'ı API moduna geçirir.
+ * Note: the JSONL schema can change between Codex versions. A parse failure throws
+ * `CliParseError`; the factory catches it and moves the agent into API mode.
  */
 export class CodexCliAdapter implements AIProviderAdapter {
   readonly id = "codex";
@@ -38,14 +38,14 @@ export class CodexCliAdapter implements AIProviderAdapter {
     const result = await this.runner(this.binary, args, buildTaggedPrompt(req));
 
     if (result.exitCode !== 0) {
-      throw new Error(`Codex CLI çıkış ${String(result.exitCode)}: ${result.stderr || result.stdout}`);
+      throw new Error(`Codex CLI exited with ${String(result.exitCode)}: ${result.stderr || result.stdout}`);
     }
 
     return parseCodexJsonl(result.stdout);
   }
 
   estimateCost(_req: CompletionRequest, usage?: TokenUsage): CostEstimate {
-    // CLI abonelik modu: maliyet abonelik havuzuna yazılır, token-bazlı faturaya değil.
+    // CLI subscription mode: cost is charged to the subscription pool, not a per-token bill.
     return { usd: 0, inputTokens: usage?.inputTokens ?? 0, outputTokens: usage?.outputTokens ?? 0 };
   }
 
@@ -64,7 +64,7 @@ interface CodexEvent {
   usage?: { input_tokens?: number; output_tokens?: number };
 }
 
-/** Codex `exec --json` JSONL çıktısını parse eder (saf fonksiyon: sözleşme testiyle sabitlenir). */
+/** Parses Codex `exec --json` JSONL output (pure function, pinned by a contract test). */
 export function parseCodexJsonl(stdout: string): CompletionResult {
   let text = "";
   let inputTokens = 0;
@@ -78,7 +78,7 @@ export function parseCodexJsonl(stdout: string): CompletionResult {
     try {
       evt = JSON.parse(trimmed) as CodexEvent;
     } catch {
-      continue; // JSON olmayan satırları (log vb.) atla
+      continue; // Skip non-JSON lines (logs and similar)
     }
     sawEvent = true;
     if (evt.item?.type === "agent_message" && typeof evt.item.text === "string") {
@@ -91,7 +91,7 @@ export function parseCodexJsonl(stdout: string): CompletionResult {
   }
 
   if (!sawEvent) {
-    throw new CliParseError(`Codex CLI JSONL parse edilemedi: ${stdout.slice(0, 200)}`, "openai");
+    throw new CliParseError(`Codex CLI JSONL could not be parsed: ${stdout.slice(0, 200)}`, "openai");
   }
 
   return { text, usage: { inputTokens, outputTokens }, stopReason: null };

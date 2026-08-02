@@ -6,23 +6,23 @@ import { CLI_ADAPTER_SPECS, type CliAdapterSpec } from "./adapters";
 import { logger } from "../../logger";
 
 /**
- * CLI keşfi.
+ * CLI discovery.
  *
- * PATH'in yanında npm, pnpm, Yarn, Bun, Volta, Scoop, WinGet, Chocolatey, Homebrew ve
- * yaygın Unix konumları taranır: kullanıcı CLI'ını hangi paket yöneticisiyle kurduysa
- * bulunur, PATH'e elle eklemesi gerekmez.
+ * Alongside PATH, npm, pnpm, Yarn, Bun, Volta, Scoop, WinGet, Chocolatey, Homebrew and the
+ * common Unix locations are scanned: whichever package manager the user installed their
+ * CLI with, it is found, and they do not have to add it to PATH by hand.
  *
- * Kullanıcının sildiği otomatik adapter'lar `discoveryIgnoredAdapters` listesindedir ve
- * sonraki taramada geri oluşturulmaz.
+ * Automatic adapters the user deleted are kept in the `discoveryIgnoredAdapters` list and
+ * are not recreated on the next scan.
  */
 
 const WINDOWS_EXTENSIONS = ["", ".cmd", ".exe", ".bat", ".ps1"] as const;
 
 /**
- * Yolları **hedef platformun** ayracıyla birleştirir.
+ * Joins paths with the separator of the **target platform**.
  *
- * `node:path.join` çalışılan makinenin ayracını kullanır; bu fonksiyon `platform`
- * parametresi alarak taşınabilir ve test edilebilir kalır.
+ * `node:path.join` uses the separator of the machine it runs on; taking a `platform`
+ * parameter keeps this function portable and testable.
  */
 function joinPath(platform: NodeJS.Platform, ...segments: string[]): string {
   const separator = platform === "win32" ? "\\" : "/";
@@ -32,12 +32,12 @@ function joinPath(platform: NodeJS.Platform, ...segments: string[]): string {
     .join(separator);
 }
 
-/** PATH ayracı da hedef platforma bağlıdır. */
+/** The PATH separator also depends on the target platform. */
 function pathDelimiter(platform: NodeJS.Platform): string {
   return platform === "win32" ? ";" : ":";
 }
 
-/** Paket yöneticisi ve kurulum konumları (var olmayanlar sessizce atlanır). */
+/** Package manager and installation locations (missing ones are skipped silently). */
 export function candidateDirectories(env: NodeJS.ProcessEnv = process.env, platform = process.platform): string[] {
   const home = env.HOME ?? env.USERPROFILE ?? homedir();
   const dirs: string[] = (env.PATH ?? env.Path ?? "").split(pathDelimiter(platform)).filter((dir) => dir !== "");
@@ -80,12 +80,12 @@ export function candidateDirectories(env: NodeJS.ProcessEnv = process.env, platf
 
 export interface DiscoveredCli {
   adapter: CliAdapter;
-  /** Çalıştırılacak komut: mutlak yol ya da PATH'te bulunan ad. */
+  /** The command to execute: an absolute path or a name found on PATH. */
   command: string;
   version: string | null;
 }
 
-/** Bir komutu aday dizinlerde arar; bulunamazsa PATH çözümlemesine (where/which) düşer. */
+/** Looks for a command in the candidate directories; falls back to PATH resolution (where/which). */
 export function locateBinary(
   binaries: readonly string[],
   env: NodeJS.ProcessEnv = process.env,
@@ -109,7 +109,7 @@ export function locateBinary(
       const first = result.stdout?.split(/\r?\n/).find((line) => line.trim() !== "");
       if (result.status === 0 && first !== undefined) return first.trim();
     } catch {
-      // Sonraki adaya geç.
+      // Move on to the next candidate.
     }
   }
   return null;
@@ -130,7 +130,7 @@ function readVersion(command: string, spec: CliAdapterSpec): string | null {
   }
 }
 
-/** Kurulu CLI'ları tarar. */
+/** Scans the installed CLIs. */
 export function discoverClis(env: NodeJS.ProcessEnv = process.env, platform = process.platform): DiscoveredCli[] {
   const found: DiscoveredCli[] = [];
   for (const spec of Object.values(CLI_ADAPTER_SPECS)) {
@@ -146,19 +146,20 @@ export interface SyncResult {
   agents: Record<string, AgentProfile>;
   added: string[];
   removed: string[];
-  /** Komutu keşiften doldurulan yerleşik profiller. */
+  /** Built-in profiles whose command was filled in from discovery. */
   linked: string[];
 }
 
 /**
- * Keşfedilen CLI'ları agent profillerine yansıtır.
+ * Reflects the discovered CLIs into the agent profiles.
  *
- * - Kullanıcının gizlediği adapter'lar geri eklenmez.
- * - Yerleşik alan agent'ları (`discovered: false`) asla silinmez ya da üzerine yazılmaz.
- * - Artık kurulu olmayan, otomatik oluşturulmuş profiller kaldırılır.
- * - **Yerleşik profillerin eksik `cmd` alanı doldurulur.** Paketle gelen altı agent yalnızca
- *   hangi adapter'ı kullanacağını bildirir; komut yolu makineye göre değiştiği için config'e
- *   yazılamaz. Doldurulmazsa bu profiller "komut tanımlı değil" diyerek her görevde düşer.
+ * - Adapters the user hid are not added back.
+ * - Built-in domain agents (`discovered: false`) are never deleted or overwritten.
+ * - Automatically created profiles that are no longer installed are removed.
+ * - **The missing `cmd` field of built-in profiles is filled in.** The six bundled agents
+ *   only declare which adapter they use; the command path cannot be written into the config
+ *   because it differs per machine. Without this, those profiles fail on every task saying
+ *   "no command defined".
  */
 export function syncDiscoveredAgents(config: NexcodeConfig, found: readonly DiscoveredCli[]): SyncResult {
   const ignored = new Set(config.discoveryIgnoredAdapters);
@@ -184,7 +185,7 @@ export function syncDiscoveredAgents(config: NexcodeConfig, found: readonly Disc
     const existing = agents[id];
 
     if (existing !== undefined) {
-      // Kullanıcı düzenlemelerini koru; yalnızca komut yolunu tazele.
+      // Preserve the user's edits; refresh only the command path.
       agents[id] = { ...existing, cmd: cli.command };
       continue;
     }
@@ -206,7 +207,7 @@ export function syncDiscoveredAgents(config: NexcodeConfig, found: readonly Disc
     added.push(id);
   }
 
-  // Yerleşik profillerin komut yolunu keşiften tamamla.
+  // Complete the command path of the built-in profiles from discovery.
   for (const [id, profile] of Object.entries(agents)) {
     if (profile.discovered) continue;
     if (profile.cmd !== undefined && profile.cmd !== "") continue;

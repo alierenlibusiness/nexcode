@@ -2,41 +2,41 @@ import { describe, expect, it } from "vitest";
 import { extractJsonObject, isDelegateDecision, parseOperatorDecision } from "./protocol";
 
 describe("extractJsonObject", () => {
-  it("düz JSON nesnesini olduğu gibi alır", () => {
+  it("takes a plain JSON object as it is", () => {
     expect(extractJsonObject('  {"a":1}  ')).toBe('{"a":1}');
   });
 
-  it("kod çitlerini soyar", () => {
+  it("strips code fences", () => {
     expect(extractJsonObject('```json\n{"a":1}\n```')).toBe('{"a":1}');
     expect(extractJsonObject('```\n{"a":1}\n```')).toBe('{"a":1}');
   });
 
-  it("çevre metin içindeki ilk dengeli nesneyi bulur", () => {
-    const text = 'İşte planım:\n{"status":"plan","nested":{"x":1}}\nUmarım uygundur.';
+  it("finds the first balanced object inside surrounding prose", () => {
+    const text = 'Here is my plan:\n{"status":"plan","nested":{"x":1}}\nHope that works.';
     expect(extractJsonObject(text)).toBe('{"status":"plan","nested":{"x":1}}');
   });
 
-  it("string içindeki süslü parantezleri saymaz", () => {
-    const text = '{"instruction":"şunu yaz: } ve {","id":"a"}';
+  it("does not count braces inside a string", () => {
+    const text = '{"instruction":"write this: } and {","id":"a"}';
     expect(extractJsonObject(text)).toBe(text);
   });
 
-  it("kaçışlı tırnakları doğru ele alır", () => {
-    const text = '{"instruction":"dedi ki \\"bitti}\\" ","id":"a"}';
+  it("handles escaped quotes correctly", () => {
+    const text = '{"instruction":"they said \\"done}\\" ","id":"a"}';
     expect(extractJsonObject(text)).toBe(text);
   });
 
-  it("nesne yoksa null döner", () => {
-    expect(extractJsonObject("hiç JSON yok")).toBeNull();
+  it("returns null when there is no object", () => {
+    expect(extractJsonObject("no JSON at all")).toBeNull();
   });
 });
 
 describe("parseOperatorDecision", () => {
-  it("plan kararını ayrıştırır ve varsayılanları doldurur", () => {
+  it("parses a plan decision and fills in the defaults", () => {
     const result = parseOperatorDecision(
       JSON.stringify({
         status: "plan",
-        assignments: [{ id: "a1", agentId: "backend", kind: "implement", instruction: "Endpoint ekle" }],
+        assignments: [{ id: "a1", agentId: "backend", kind: "implement", instruction: "Add the endpoint" }],
       }),
     );
     expect(result.ok).toBe(true);
@@ -48,54 +48,54 @@ describe("parseOperatorDecision", () => {
     expect(result.decision.acceptanceCriteria).toEqual([]);
   });
 
-  it("continue kararını da delegasyon sayar", () => {
+  it("counts a continue decision as a delegation too", () => {
     const result = parseOperatorDecision(
       JSON.stringify({
         status: "continue",
-        assignments: [{ id: "fix", agentId: "backend", kind: "implement", instruction: "Bulguları düzelt" }],
+        assignments: [{ id: "fix", agentId: "backend", kind: "implement", instruction: "Fix the findings" }],
       }),
     );
     expect(result.ok && isDelegateDecision(result.decision)).toBe(true);
   });
 
-  it("doğrudan yanıt (complete) kararını ayrıştırır", () => {
-    const result = parseOperatorDecision('{"status":"complete","final":"3 beceri etkin."}');
+  it("parses a direct answer (complete) decision", () => {
+    const result = parseOperatorDecision('{"status":"complete","final":"3 skills are enabled."}');
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.decision.status).toBe("complete");
     expect(isDelegateDecision(result.decision)).toBe(false);
   });
 
-  it("blocked kararını ayrıştırır", () => {
-    const result = parseOperatorDecision('{"status":"blocked","blocked":"Repo salt okunur"}');
+  it("parses a blocked decision", () => {
+    const result = parseOperatorDecision('{"status":"blocked","blocked":"The repo is read only"}');
     expect(result.ok && result.decision.status === "blocked").toBe(true);
   });
 
-  it("boş atama listesini reddeder", () => {
+  it("rejects an empty assignment list", () => {
     const result = parseOperatorDecision('{"status":"plan","assignments":[]}');
     expect(result.ok).toBe(false);
   });
 
-  it("bilinmeyen görev türünü reddeder", () => {
+  it("rejects an unknown kind of work", () => {
     const result = parseOperatorDecision(
       '{"status":"plan","assignments":[{"id":"a","agentId":"b","kind":"deploy","instruction":"x"}]}',
     );
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.error).toContain("Şema uyuşmazlığı");
+    expect(result.error).toContain("Schema mismatch");
   });
 
-  it("JSON olmayan çıktı için düzeltilebilir hata verir", () => {
-    const result = parseOperatorDecision("Tabii, hemen planlıyorum!");
+  it("returns a repairable error for non-JSON output", () => {
+    const result = parseOperatorDecision("Sure, planning right away!");
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.error).toContain("JSON nesnesi bulunamadı");
+    expect(result.error).toContain("No JSON object was found");
   });
 
-  it("bozuk JSON için ayrıştırma hatası verir", () => {
+  it("returns a parse error for malformed JSON", () => {
     const result = parseOperatorDecision('{"status":"plan", assignments: }');
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.error).toContain("JSON ayrıştırılamadı");
+    expect(result.error).toContain("JSON could not be parsed");
   });
 });

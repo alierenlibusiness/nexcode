@@ -4,7 +4,7 @@ import { FALLBACK_CONFIG } from "../../config/defaults";
 import { candidateDirectories, syncDiscoveredAgents, type DiscoveredCli } from "./discovery";
 
 describe("candidateDirectories", () => {
-  it("Windows'ta paket yöneticisi konumlarını tarar", () => {
+  it("scans the package manager locations on Windows", () => {
     const dirs = candidateDirectories(
       {
         PATH: "C:\\Windows\\system32",
@@ -27,7 +27,7 @@ describe("candidateDirectories", () => {
     expect(dirs).toContain("C:\\Windows\\system32");
   });
 
-  it("Unix'te Homebrew ve kullanıcı konumlarını tarar", () => {
+  it("scans Homebrew and the user locations on Unix", () => {
     const dirs = candidateDirectories({ PATH: "/usr/bin", HOME: "/home/ali" }, "linux");
     const joined = dirs.join("|");
     expect(joined).toContain("/opt/homebrew/bin");
@@ -37,7 +37,7 @@ describe("candidateDirectories", () => {
     expect(joined).toContain("/home/ali/.volta/bin");
   });
 
-  it("yinelenen dizinleri tekilleştirir", () => {
+  it("de-duplicates repeated directories", () => {
     const dirs = candidateDirectories({ PATH: "/usr/bin:/usr/bin:/usr/local/bin", HOME: "/home/ali" }, "linux");
     expect(dirs.filter((dir) => dir === "/usr/bin")).toHaveLength(1);
   });
@@ -49,7 +49,7 @@ describe("syncDiscoveredAgents", () => {
     { adapter: "opencode", command: "/usr/local/bin/opencode", version: "2.0" },
   ];
 
-  it("keşfedilen CLI'ları uzman profili olarak ekler", () => {
+  it("adds the discovered CLIs as specialist profiles", () => {
     const { agents, added } = syncDiscoveredAgents(FALLBACK_CONFIG, found);
     expect(added.sort()).toEqual(["cli-codex", "cli-opencode"]);
     expect(agents["cli-codex"]?.cmd).toBe("C:/npm/codex.cmd");
@@ -57,42 +57,42 @@ describe("syncDiscoveredAgents", () => {
     expect(agents["cli-codex"]?.connection).toBe("cli_only");
   });
 
-  it("yerleşik alan agent'larına dokunmaz", () => {
+  it("does not touch the built-in domain agents", () => {
     const { agents } = syncDiscoveredAgents(FALLBACK_CONFIG, found);
     expect(agents.ceo).toEqual(FALLBACK_CONFIG.agents.ceo);
     expect(agents.backend).toEqual(FALLBACK_CONFIG.agents.backend);
   });
 
-  it("kullanıcının gizlediği adapter'ı geri eklemez", () => {
+  it("does not add back an adapter the user hid", () => {
     const config = normalizeConfig({ ...FALLBACK_CONFIG, discoveryIgnoredAdapters: ["codex"] });
     const { agents, added } = syncDiscoveredAgents(config, found);
     expect(added).toEqual(["cli-opencode"]);
     expect(agents["cli-codex"]).toBeUndefined();
   });
 
-  it("mevcut profildeki kullanıcı düzenlemelerini korur, yalnızca komutu tazeler", () => {
+  it("preserves user edits in an existing profile and only refreshes the command", () => {
     const config = normalizeConfig({
       ...FALLBACK_CONFIG,
       agents: {
         ...FALLBACK_CONFIG.agents,
         "cli-codex": {
           id: "cli-codex",
-          name: "Benim Codex'im",
+          name: "My Codex",
           role: "reviewer",
           roleFile: "reviewer.md",
           discovered: true,
-          cmd: "eski/yol/codex",
+          cmd: "old/path/codex",
           adapter: "codex",
         },
       },
     });
     const { agents } = syncDiscoveredAgents(config, found);
-    expect(agents["cli-codex"]?.name).toBe("Benim Codex'im");
+    expect(agents["cli-codex"]?.name).toBe("My Codex");
     expect(agents["cli-codex"]?.role).toBe("reviewer");
     expect(agents["cli-codex"]?.cmd).toBe("C:/npm/codex.cmd");
   });
 
-  it("artık kurulu olmayan otomatik profili kaldırır", () => {
+  it("removes an automatic profile that is no longer installed", () => {
     const config = normalizeConfig({
       ...FALLBACK_CONFIG,
       agents: {
@@ -105,13 +105,13 @@ describe("syncDiscoveredAgents", () => {
     expect(agents["cli-gemini"]).toBeUndefined();
   });
 
-  it("hiç CLI bulunamazsa yerleşik agent'lar korunur", () => {
+  it("preserves the built-in agents when no CLI is found", () => {
     const { agents, added } = syncDiscoveredAgents(FALLBACK_CONFIG, []);
     expect(added).toEqual([]);
     expect(Object.keys(agents).sort()).toEqual(["backend", "ceo", "devops", "frontend", "qa", "security"]);
   });
 
-  it("sonuç normalize edilebilir kalır", () => {
+  it("leaves the result normalisable", () => {
     const { agents } = syncDiscoveredAgents(FALLBACK_CONFIG, found);
     expect(() => normalizeConfig({ ...FALLBACK_CONFIG, agents })).not.toThrow();
   });

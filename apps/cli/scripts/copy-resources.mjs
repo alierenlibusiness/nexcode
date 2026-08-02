@@ -3,11 +3,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
- * Paylaşılan `resources/` klasörünü CLI paketinin içine kopyalar.
+ * Copies the shared `resources/` folder into the CLI package.
  *
- * Yayımlanan tarball kendi kendine yeterli olmalıdır: rol promptları, beceri kataloğu ve
- * varsayılan yapılandırma olmadan `npx nexcode` çalışamaz. Depo içinde çalışırken de aynı
- * yol kullanıldığı için geliştirme ve yayın davranışı ayrışmaz.
+ * The published tarball has to be self contained: `npx nexcode` cannot run without the
+ * role prompts, the skill catalogue and the default configuration. The same path is used
+ * when running from the repository, so development and release behaviour do not diverge.
  */
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -15,17 +15,18 @@ const source = path.resolve(here, "..", "..", "..", "resources");
 const target = path.resolve(here, "..", "resources");
 
 if (!existsSync(source)) {
-  console.error(`Kaynak klasör bulunamadı: ${source}`);
+  console.error(`Source folder not found: ${source}`);
   process.exit(1);
 }
 
 rmSync(target, { recursive: true, force: true });
 cpSync(source, target, { recursive: true });
-console.log(`resources kopyalandi: ${target}`);
+console.log(`resources copied: ${target}`);
 
-// Lisans metni tarball'a paket klasöründen alınır; kök LICENSE otomatik dahil edilmez.
+// The license text is taken into the tarball from the package folder; the root LICENSE is
+// not included automatically.
 const license = path.resolve(here, "..", "..", "..", "LICENSE");
 if (existsSync(license)) {
   cpSync(license, path.resolve(here, "..", "LICENSE"));
-  console.log("LICENSE kopyalandi");
+  console.log("LICENSE copied");
 }

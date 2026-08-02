@@ -5,12 +5,12 @@ import type { CompletionRequest } from "../types";
 
 const req: CompletionRequest = {
   model: "gemini-3.5-flash",
-  system: "Sen DevOps agent'ısın.",
-  messages: [{ role: "user", content: "Dockerfile üret" }],
+  system: "You are the DevOps agent.",
+  messages: [{ role: "user", content: "Generate a Dockerfile" }],
 };
 
-describe("AntigravityCliAdapter (CLI modu)", () => {
-  it("JSON zarfını parse eder ve doğru argümanlarla çağırır", async () => {
+describe("AntigravityCliAdapter (CLI mode)", () => {
+  it("parses the JSON envelope and calls with the right arguments", async () => {
     const runner = vi.fn<CliRunner>(async () => ({
       stdout: JSON.stringify({ response: "FROM node:22", stats: { tokens: { input: 15, output: 6 } } }),
       stderr: "",
@@ -28,13 +28,13 @@ describe("AntigravityCliAdapter (CLI modu)", () => {
     expect(args).toContain("json");
   });
 
-  it("JSON olmayan düz metin çıktısını sonuç sayar (toleranslı)", () => {
-    const parsed = parseAntigravityOutput("sadece düz metin yanıt");
-    expect(parsed.text).toBe("sadece düz metin yanıt");
+  it("tolerantly treats non-JSON plain text output as the result", () => {
+    const parsed = parseAntigravityOutput("just a plain text answer");
+    expect(parsed.text).toBe("just a plain text answer");
     expect(parsed.usage).toEqual({ inputTokens: 0, outputTokens: 0 });
   });
 
-  it("CLI maliyeti abonelik havuzuna yazılır (usd=0)", () => {
+  it("charges CLI cost to the subscription pool (usd=0)", () => {
     const adapter = new AntigravityCliAdapter();
     expect(adapter.estimateCost(req).usd).toBe(0);
   });

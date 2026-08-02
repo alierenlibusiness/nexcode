@@ -10,7 +10,7 @@ import { computeCost } from "./cost";
 
 export interface AnthropicAdapterOptions {
   apiKey: string;
-  /** Test/özelleştirme için enjekte edilebilir fetch (varsayılan: global fetch). */
+  /** Injectable fetch for tests and customisation (defaults to the global fetch). */
   fetchFn?: typeof fetch;
   baseUrl?: string;
   anthropicVersion?: string;
@@ -22,7 +22,7 @@ interface AnthropicResponseBody {
   usage: { input_tokens: number; output_tokens: number };
 }
 
-/** Anthropic Messages API adapter'ı (API anahtarı modu, PRD §5.6, §8.1/8.3). */
+/** Anthropic Messages API adapter (API key mode). */
 export class AnthropicAdapter implements AIProviderAdapter {
   readonly id = "anthropic";
   readonly connectionMode = "api" as const;

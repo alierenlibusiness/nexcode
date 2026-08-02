@@ -11,11 +11,11 @@ import type { OperatorAssignment } from "./protocol";
 import type { RoundPolicy } from "./rounds";
 
 /**
- * Operatöre sunulan agent kataloğu ve atama yönlendirmesi.
+ * The agent catalog offered to the operator, and assignment routing.
  *
- * Rol seçimi yalnızca prompt metni değil, **izin verilen görev türüdür**. Operatör yanlış
- * eşleme üretse bile motor atamayı uygun role taşır; profildeki eski capability değerleri
- * bu sınırı genişletemez.
+ * A role is not just prompt text, it is the **kind of work that is allowed**. Even if the
+ * operator produces a wrong pairing, the engine moves the assignment to a suitable role;
+ * legacy capability values in a profile cannot widen that boundary.
  */
 
 export interface CatalogAgent {
@@ -24,22 +24,22 @@ export interface CatalogAgent {
   role: OrchestrationRole;
   domain: string | undefined;
   adapter: CliAdapter | undefined;
-  /** Operatöre bildirilen bağlayıcı sözleşme. */
+  /** The binding contract reported to the operator. */
   allowedKinds: readonly AssignmentKind[];
   healthy: boolean;
 }
 
 export interface CatalogInput {
   config: NexcodeConfig;
-  /** Sağlık kontrolü sonucu; kayıt yoksa agent sağlıklı sayılır (API-only agent'lar gibi). */
+  /** Health check result; without a record an agent counts as healthy (as API-only agents do). */
   health?: Readonly<Record<string, boolean>>;
-  /** Oturum boyunca karantinaya alınmış agent id'leri. */
+  /** Ids of agents quarantined for the session. */
   quarantined?: ReadonlySet<string>;
 }
 
 /**
- * Operatörün görebileceği agent kataloğu. Operatörün kendisi katalogda yer almaz:
- * kendine görev veremez.
+ * The agent catalog the operator can see. The operator itself is not in the catalog: it
+ * cannot assign work to itself.
  */
 export function buildCatalog({ config, health = {}, quarantined = new Set() }: CatalogInput): CatalogAgent[] {
   const operatorId = resolveOperatorId(config);
@@ -65,7 +65,7 @@ export function buildCatalog({ config, health = {}, quarantined = new Set() }: C
   return entries;
 }
 
-/** Operatör olarak çalışacak agent: açık seçim yoksa ilk etkin `operator` rolü. */
+/** The agent acting as operator: the first enabled `operator` role when no explicit choice exists. */
 export function resolveOperatorId(config: NexcodeConfig): string | null {
   const explicit = config.operator.agentId;
   const chosen = explicit === "" ? undefined : config.agents[explicit];
@@ -73,7 +73,7 @@ export function resolveOperatorId(config: NexcodeConfig): string | null {
   return stableProfiles(config).find((profile) => profile.enabled && profile.role === "operator")?.id ?? null;
 }
 
-/** Yerleşik alan agent'ları önce, keşfedilenler sonra: kararlı ve öngörülebilir sıra. */
+/** Built-in domain agents first, discovered ones after: a stable, predictable order. */
 function stableProfiles(config: NexcodeConfig): AgentProfile[] {
   return Object.values(config.agents).sort((a, b) => {
     if (a.discovered !== b.discovered) return a.discovered ? 1 : -1;
@@ -85,23 +85,23 @@ export interface NormalizedAssignment extends OperatorAssignment {
   role: OrchestrationRole;
   agentName: string;
   adapter: CliAdapter | undefined;
-  /** Motor tarafından değiştirildiyse nedeni (şeffaflık için loglanır). */
+  /** Why the engine changed it, when it did (logged for transparency). */
   repairedFrom?: string;
 }
 
 export interface NormalizeResult {
   assignments: NormalizedAssignment[];
-  /** Kullanıcıya ve loga yansıyan onarım/düşürme notları. */
+  /** Repair and drop notes surfaced to the user and the log. */
   warnings: string[];
 }
 
 /**
- * Operatörün ürettiği ham atamaları yürütülebilir hale getirir:
- * - Bilinmeyen/kapalı/sağlıksız agent'a verilen iş uygun bir agent'a taşınır.
- * - Rolün izin vermediği görev türü doğru role yönlendirilir.
- * - Yinelenen kimlikler benzersizleştirilir.
- * - Var olmayan `dependsOn` referansları düşürülür, döngüler kırılır.
- * - Tur başına delegasyon tavanı uygulanır.
+ * Makes the raw assignments produced by the operator executable:
+ * - Work given to an unknown, disabled or unhealthy agent is moved to a suitable agent.
+ * - A kind of work the role does not allow is routed to the right role.
+ * - Duplicate identifiers are made unique.
+ * - Non-existent `dependsOn` references are dropped and cycles are broken.
+ * - The per-round delegation cap is applied.
  */
 export function normalizeAssignments(
   raw: readonly OperatorAssignment[],
@@ -121,12 +121,12 @@ export function normalizeAssignments(
       const replacement = pickAgentForKind(catalog, assignment.kind);
       if (replacement === undefined) {
         warnings.push(
-          `"${assignment.id}" atlandı: "${assignment.agentId}" katalogda yok ve ${assignment.kind} işini alabilecek uygun agent bulunamadı.`,
+          `"${assignment.id}" was skipped: "${assignment.agentId}" is not in the catalog and no suitable agent can take ${assignment.kind} work.`,
         );
         continue;
       }
       repairedFrom = assignment.agentId;
-      warnings.push(`"${assignment.id}" → ${replacement.name}: "${assignment.agentId}" katalogda bulunamadı.`);
+      warnings.push(`"${assignment.id}" -> ${replacement.name}: "${assignment.agentId}" was not found in the catalog.`);
       agent = replacement;
     }
 
@@ -134,20 +134,20 @@ export function normalizeAssignments(
       const replacement = pickAgentForKind(catalog, assignment.kind);
       if (replacement === undefined) {
         warnings.push(
-          `"${assignment.id}" atlandı: ${assignment.kind} işini alabilecek ${roleForKind(assignment.kind)} rolünde agent yok.`,
+          `"${assignment.id}" was skipped: there is no agent in the ${roleForKind(assignment.kind)} role that can take ${assignment.kind} work.`,
         );
         continue;
       }
       repairedFrom = agent.id;
       warnings.push(
-        `"${assignment.id}" → ${replacement.name}: ${agent.name} (${agent.role}) ${assignment.kind} işini alamaz.`,
+        `"${assignment.id}" -> ${replacement.name}: ${agent.name} (${agent.role}) cannot take ${assignment.kind} work.`,
       );
       agent = replacement;
     }
 
     const id = uniqueId(assignment.id, usedIds);
     if (id !== assignment.id) {
-      warnings.push(`"${assignment.id}" kimliği yinelendiği için "${id}" olarak değiştirildi.`);
+      warnings.push(`The identifier "${assignment.id}" was duplicated and became "${id}".`);
     }
     usedIds.add(id);
 
@@ -165,7 +165,7 @@ export function normalizeAssignments(
 
   if (raw.length > policy.maxDelegationsPerRound) {
     warnings.push(
-      `Tur başına delegasyon tavanı (${String(policy.maxDelegationsPerRound)}) aşıldı; fazlası bir sonraki tura bırakıldı.`,
+      `The per-round delegation cap (${String(policy.maxDelegationsPerRound)}) was exceeded; the rest was left to the next round.`,
     );
   }
 
@@ -184,13 +184,13 @@ function uniqueId(base: string, used: ReadonlySet<string>): string {
   }
 }
 
-/** Var olmayan bağımlılıkları düşürür ve döngüleri kırar. */
+/** Drops non-existent dependencies and breaks cycles. */
 function pruneDependencies(assignments: NormalizedAssignment[], warnings: string[]): NormalizedAssignment[] {
   const ids = new Set(assignments.map((a) => a.id));
   const cleaned = assignments.map((assignment) => {
     const kept = assignment.dependsOn.filter((dep) => dep !== assignment.id && ids.has(dep));
     if (kept.length !== assignment.dependsOn.length) {
-      warnings.push(`"${assignment.id}" için çözümlenemeyen bağımlılıklar düşürüldü.`);
+      warnings.push(`Unresolvable dependencies were dropped for "${assignment.id}".`);
     }
     return { ...assignment, dependsOn: kept };
   });
@@ -198,7 +198,7 @@ function pruneDependencies(assignments: NormalizedAssignment[], warnings: string
   const cycle = findCycle(cleaned);
   if (cycle === null) return cleaned;
 
-  warnings.push(`Bağımlılık döngüsü kırıldı: ${cycle.join(" → ")}.`);
+  warnings.push(`A dependency cycle was broken: ${cycle.join(" -> ")}.`);
   const victim = cycle[cycle.length - 1];
   return cleaned.map((assignment) => (assignment.id === victim ? { ...assignment, dependsOn: [] } : assignment));
 }
@@ -232,8 +232,8 @@ function findCycle(assignments: readonly NormalizedAssignment[]): string[] | nul
 }
 
 /**
- * Bağımlılıkları koruyarak paralel çalıştırılabilir gruplar üretir (Kahn).
- * Aynı gruptaki işler eşzamanlı yürütülebilir: paralel varsayılan, sıralı istisnadır.
+ * Produces groups that can run in parallel while preserving dependencies (Kahn).
+ * Work in the same group can run concurrently: parallel is the default, sequential the exception.
  */
 export function parallelBatches(assignments: readonly NormalizedAssignment[]): NormalizedAssignment[][] {
   const remaining = new Map(assignments.map((a) => [a.id, a]));
@@ -243,7 +243,7 @@ export function parallelBatches(assignments: readonly NormalizedAssignment[]): N
   while (remaining.size > 0) {
     const ready = [...remaining.values()].filter((a) => a.dependsOn.every((dep) => settled.has(dep)));
     if (ready.length === 0) {
-      // Savunma katmanı: pruneDependencies sonrası buraya düşülmemeli.
+      // Defensive layer: this should be unreachable after pruneDependencies.
       batches.push([...remaining.values()]);
       break;
     }
@@ -257,14 +257,14 @@ export function parallelBatches(assignments: readonly NormalizedAssignment[]): N
 }
 
 /**
- * İlk turda hazır rol zincirini garanti eder.
+ * Guarantees the ready role chain in the first round.
  *
- * Dengeli veya derin modda katalogda planner, executor ve reviewer varsa üçü de İLK planda
- * kullanılır ve `plan → implement → review` olarak `dependsOn` ile zincirlenir. Operatörün
- * atladığı planner veya reviewer motor tarafından eklenir: hız optimizasyonu, kullanıcının
- * etkinleştirdiği rolleri devre dışı bırakamaz.
+ * In balanced or deep mode, when the catalog has a planner, an executor and a reviewer, all
+ * three are used in the FIRST plan and chained through `dependsOn` as
+ * `plan -> implement -> review`. A planner or reviewer the operator skipped is added by the
+ * engine: a speed optimisation must not disable the roles the user enabled.
  *
- * Plan/uygulama içermeyen araştırma ve salt inceleme görevlerine rol enjekte edilmez.
+ * No role is injected into research or review-only tasks that contain no plan or implementation.
  */
 export function enforceRoleChain(
   assignments: readonly NormalizedAssignment[],
@@ -281,7 +281,7 @@ export function enforceRoleChain(
   const result = [...assignments];
   const usedIds = new Set(result.map((a) => a.id));
 
-  // 1) Planlama: katalogda planner varsa ve operatör açmadıysa zincire eklenir.
+  // 1) Planning: added to the chain when the catalog has a planner and the operator skipped it.
   const planner = pickAgentForKind(catalog, "plan");
   const hasPlan = result.some((a) => a.kind === "plan");
   if (!hasPlan && planner !== undefined) {
@@ -295,8 +295,8 @@ export function enforceRoleChain(
       role: planner.role,
       kind: "plan",
       instruction: [
-        "Aşağıdaki uygulama işleri için salt okunur, uygulanabilir bir plan ve kabul kriterleri üret.",
-        "Dosya adı, fonksiyon veya komut yazmadan önce projede gerçekten var olduklarını doğrula.",
+        "Produce a read-only, actionable plan and acceptance criteria for the implementation work below.",
+        "Before writing a file name, function or command, verify that it really exists in the project.",
         "",
         ...implementations.map((a) => `- ${a.instruction}`),
       ].join("\n"),
@@ -310,10 +310,10 @@ export function enforceRoleChain(
         result[i] = { ...item, dependsOn: [...new Set([...item.dependsOn, planId])] };
       }
     }
-    warnings.push("Planlama adımı motor tarafından zincire eklendi (hazır planner rolü atlanmıştı).");
+    warnings.push("The planning step was added to the chain by the engine (an available planner role had been skipped).");
   }
 
-  // 2) Bağımsız inceleme: uygulama teslimatını denetler.
+  // 2) Independent review: audits the implementation delivery.
   const reviewer = pickAgentForKind(catalog, "review");
   const hasReview = result.some((a) => a.kind === "review");
   if (policy.requireReview && !hasReview && reviewer !== undefined) {
@@ -328,15 +328,15 @@ export function enforceRoleChain(
       role: reviewer.role,
       kind: "review",
       instruction: [
-        "Teslimatı kullanıcı hedefi ve kabul kriterlerine karşı bağımsız olarak doğrula.",
-        "Uygulayıcının raporunu kanıt sayma; değişen dosyaları ve test sonuçlarını kendin incele.",
-        "Çıktının son satırı tam olarak `VERDICT: PASS` veya `VERDICT: FAIL` olmalıdır.",
+        "Independently verify the delivery against the user goal and the acceptance criteria.",
+        "Do not treat the implementer's report as evidence; inspect the changed files and test results yourself.",
+        "The last line of your output must be exactly `VERDICT: PASS` or `VERDICT: FAIL`.",
       ].join("\n"),
       dependsOn: implementIds,
       skills: [],
       repairedFrom: "engine:role-chain",
     });
-    warnings.push("Bağımsız inceleme motor tarafından zincire eklendi.");
+    warnings.push("The independent review was added to the chain by the engine.");
   }
 
   return { assignments: result, warnings };

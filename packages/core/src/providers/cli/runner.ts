@@ -8,8 +8,8 @@ export interface CliRunResult {
 }
 
 /**
- * CLI çıktısı beklenen formatta parse edilemediğinde fırlatılır (PRD §6.3, R3).
- * Factory bunu yakalayıp agent'ı API moduna zarif geçirebilir.
+ * Thrown when CLI output cannot be parsed in the expected format.
+ * The factory can catch this and move the agent gracefully into API mode.
  */
 export class CliParseError extends Error {
   constructor(
@@ -21,7 +21,7 @@ export class CliParseError extends Error {
   }
 }
 
-/** Rol etiketli düz-metin prompt: CLI'lar tek prompt string'i alır (sistem + mesajlar). */
+/** Role-tagged plain text prompt: CLIs take a single prompt string (system plus messages). */
 export function buildTaggedPrompt(req: CompletionRequest): string {
   const parts: string[] = [];
   if (req.system) parts.push(`[system]\n${req.system}`);
@@ -31,7 +31,7 @@ export function buildTaggedPrompt(req: CompletionRequest): string {
   return parts.join("\n\n");
 }
 
-/** Bir CLI alt sürecini çalıştırıp stdout/stderr/exit toplar. */
+/** Runs a CLI child process and collects stdout, stderr and the exit code. */
 export type CliRunner = (
   binary: string,
   args: string[],
@@ -39,9 +39,9 @@ export type CliRunner = (
 ) => Promise<CliRunResult>;
 
 /**
- * Gerçek alt süreç çalıştırıcısı (child_process).
- * NOT: PRD §5.2/§9.1 node-pty'den bahseder; headless `--print` modu için pty
- * gerekmez, ileride interaktif ihtiyaçta runner node-pty ile değiştirilebilir.
+ * The real child process runner (child_process).
+ * Note: a pty is not required for the headless `--print` mode; if an interactive need
+ * comes up later, this runner can be swapped for a node-pty based one.
  */
 export const spawnRunner: CliRunner = (binary, args, input) =>
   new Promise<CliRunResult>((resolve, reject) => {

@@ -10,18 +10,18 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 const recorded = {
-  choices: [{ message: { content: "merhaba" }, finish_reason: "stop" }],
+  choices: [{ message: { content: "hello" }, finish_reason: "stop" }],
   usage: { prompt_tokens: 10, completion_tokens: 4 },
 };
 
 const req: CompletionRequest = {
   model: "gpt-5.5",
-  system: "Sistem talimatı.",
-  messages: [{ role: "user", content: "Selam" }],
+  system: "System instruction.",
+  messages: [{ role: "user", content: "Hi" }],
 };
 
-describe("OpenAICompatibleAdapter.complete (sözleşme testi)", () => {
-  it("kayıtlı yanıtı doğru parse eder", async () => {
+describe("OpenAICompatibleAdapter.complete (contract test)", () => {
+  it("parses the recorded response correctly", async () => {
     const fetchFn = vi.fn(async () => jsonResponse(recorded)) as unknown as typeof fetch;
     const adapter = new OpenAICompatibleAdapter({
       provider: "openai",
@@ -33,13 +33,13 @@ describe("OpenAICompatibleAdapter.complete (sözleşme testi)", () => {
 
     const result = await adapter.complete(req);
 
-    expect(result.text).toBe("merhaba");
+    expect(result.text).toBe("hello");
     expect(result.usage).toEqual({ inputTokens: 10, outputTokens: 4 });
     expect(result.stopReason).toBe("stop");
     expect(adapter.supportsVision()).toBe(true);
   });
 
-  it("system mesajını ilk message olarak Bearer auth ile gönderir", async () => {
+  it("sends the system message first and uses Bearer auth", async () => {
     const fetchFn = vi.fn(async () => jsonResponse(recorded)) as unknown as typeof fetch;
     const adapter = new OpenAICompatibleAdapter({
       provider: "deepseek",
@@ -54,11 +54,11 @@ describe("OpenAICompatibleAdapter.complete (sözleşme testi)", () => {
     const headers = (init?.headers ?? {}) as Record<string, string>;
     expect(headers["authorization"]).toBe("Bearer ds-key");
     const sent = JSON.parse(String(init?.body)) as { messages: { role: string; content: string }[] };
-    expect(sent.messages[0]).toEqual({ role: "system", content: "Sistem talimatı." });
-    expect(sent.messages[1]).toEqual({ role: "user", content: "Selam" });
+    expect(sent.messages[0]).toEqual({ role: "system", content: "System instruction." });
+    expect(sent.messages[1]).toEqual({ role: "user", content: "Hi" });
   });
 
-  it("hatalı status'ta sağlayıcı adıyla hata fırlatır", async () => {
+  it("throws with the provider name on a failure status", async () => {
     const fetchFn = vi.fn(async () =>
       jsonResponse({ error: "rate_limited" }, 429),
     ) as unknown as typeof fetch;
@@ -73,7 +73,7 @@ describe("OpenAICompatibleAdapter.complete (sözleşme testi)", () => {
 });
 
 describe("OpenAICompatibleAdapter.estimateCost", () => {
-  it("DeepSeek fiyatıyla maliyet hesaplar", () => {
+  it("computes the cost with DeepSeek pricing", () => {
     const adapter = new OpenAICompatibleAdapter({
       provider: "deepseek",
       apiKey: "k",

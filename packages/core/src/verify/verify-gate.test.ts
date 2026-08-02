@@ -4,7 +4,7 @@ import { normalizeConfig, type NexcodeConfig } from "../config/schema";
 import { FALLBACK_CONFIG } from "../config/defaults";
 
 interface FakeOptions {
-  /** Kırmızı dönecek komutlar. */
+  /** Commands that should come back red. */
   failing?: string[];
   timingOut?: string[];
   stdout?: Record<string, string>;
@@ -20,7 +20,7 @@ function fakePort(options: FakeOptions = {}) {
       return Promise.resolve({
         ok: !failed,
         stdout: options.stdout?.[command] ?? "",
-        stderr: failed ? `${command} düştü` : "",
+        stderr: failed ? `${command} failed` : "",
         timedOut,
       });
     },
@@ -33,7 +33,7 @@ function config(verify: Partial<NexcodeConfig["verify"]> = {}): NexcodeConfig {
 }
 
 describe("VerifyGate.run", () => {
-  it("komut yokken hiç süreç başlatmaz (opt-in)", async () => {
+  it("starts no process when there is no command (opt-in)", async () => {
     const { port, ran } = fakePort();
     const report = await new VerifyGate(port).run(config(), "/w");
 
@@ -42,7 +42,7 @@ describe("VerifyGate.run", () => {
     expect(ran).toHaveLength(0);
   });
 
-  it("tüm komutlar geçerse yeşil döner", async () => {
+  it("returns green when every command passes", async () => {
     const { port, ran } = fakePort();
     const report = await new VerifyGate(port).run(config({ commands: ["pnpm test", "pnpm lint"] }), "/w");
 
@@ -51,7 +51,7 @@ describe("VerifyGate.run", () => {
     expect(ran).toEqual(["pnpm test", "pnpm lint"]);
   });
 
-  it("ilk kırmızıda durur, kalan komutları çalıştırmaz", async () => {
+  it("stops at the first red command and does not run the rest", async () => {
     const { port, ran } = fakePort({ failing: ["pnpm typecheck"] });
     const report = await new VerifyGate(port).run(
       config({ commands: ["pnpm typecheck", "pnpm test", "pnpm lint"] }),
@@ -63,7 +63,7 @@ describe("VerifyGate.run", () => {
     expect(report.commands).toHaveLength(1);
   });
 
-  it("süre aşımını ayrı işaretler", async () => {
+  it("marks a timeout separately", async () => {
     const { port } = fakePort({ timingOut: ["pnpm e2e"] });
     const report = await new VerifyGate(port).run(config({ commands: ["pnpm e2e"] }), "/w");
 
@@ -71,7 +71,7 @@ describe("VerifyGate.run", () => {
     expect(report.ok).toBe(false);
   });
 
-  it("her koşumda deneme sayacını artırır, reset sıfırlar", async () => {
+  it("increments the attempt counter on every run and reset clears it", async () => {
     const { port } = fakePort({ failing: ["pnpm test"] });
     const gate = new VerifyGate(port);
     const cfg = config({ commands: ["pnpm test"] });
@@ -83,21 +83,21 @@ describe("VerifyGate.run", () => {
     expect((await gate.run(cfg, "/w")).attempt).toBe(1);
   });
 
-  it("uzun çıktıyı ortadan kırpar ve iki ucu da korur", async () => {
-    const output = `BAS${"x".repeat(5000)}SON hata burada`;
+  it("clips long output in the middle and keeps both ends", async () => {
+    const output = `HEAD${"x".repeat(5000)}TAIL the error is here`;
     const { port } = fakePort({ failing: ["pnpm test"], stdout: { "pnpm test": output } });
     const report = await new VerifyGate(port).run(config({ commands: ["pnpm test"], maxOutputChars: 400 }), "/w");
 
     const clipped = report.commands[0]?.output ?? "";
     expect(clipped.length).toBeLessThan(output.length);
-    expect(clipped.startsWith("BAS")).toBe(true);
-    expect(clipped).toContain("karakter atlandı");
-    expect(clipped).toContain("hata burada");
+    expect(clipped.startsWith("HEAD")).toBe(true);
+    expect(clipped).toContain("characters skipped");
+    expect(clipped).toContain("the error is here");
   });
 });
 
 describe("VerifyGate.isBlocking", () => {
-  it("yeşil kapı engellemez", async () => {
+  it("does not block on a green gate", async () => {
     const { port } = fakePort();
     const gate = new VerifyGate(port);
     const cfg = config({ commands: ["pnpm test"] });
@@ -105,22 +105,22 @@ describe("VerifyGate.isBlocking", () => {
     expect(gate.isBlocking(cfg, await gate.run(cfg, "/w"))).toBe(false);
   });
 
-  it("çalışmamış kapı engellemez", () => {
+  it("does not block for a gate that never ran", () => {
     const { port } = fakePort();
     expect(new VerifyGate(port).isBlocking(config(), IDLE_VERIFY_REPORT)).toBe(false);
   });
 
-  it("kırmızı kapı deneme hakkı bitene kadar engeller", async () => {
+  it("blocks on a red gate until the attempts run out", async () => {
     const { port } = fakePort({ failing: ["pnpm test"] });
     const gate = new VerifyGate(port);
     const cfg = config({ commands: ["pnpm test"], maxAttempts: 2 });
 
     expect(gate.isBlocking(cfg, await gate.run(cfg, "/w"))).toBe(true);
-    // İkinci deneme hakkı tüketir: iş çöpe atılmaz, uyarıyla teslim edilir.
+    // The second attempt exhausts the budget: the work is delivered with a warning, not discarded.
     expect(gate.isBlocking(cfg, await gate.run(cfg, "/w"))).toBe(false);
   });
 
-  it("blockOnFailure kapalıyken kapı yalnızca rapor eder", async () => {
+  it("only reports while blockOnFailure is off", async () => {
     const { port } = fakePort({ failing: ["pnpm test"] });
     const gate = new VerifyGate(port);
     const cfg = config({ commands: ["pnpm test"], blockOnFailure: false });
@@ -132,7 +132,7 @@ describe("VerifyGate.isBlocking", () => {
 });
 
 describe("VerifyGate.allowsFastPath", () => {
-  it("kırmızı kapı kestirmeleri kapatır", async () => {
+  it("closes the shortcuts on a red gate", async () => {
     const { port } = fakePort({ failing: ["pnpm test"] });
     const gate = new VerifyGate(port);
     const cfg = config({ commands: ["pnpm test"] });
@@ -140,59 +140,59 @@ describe("VerifyGate.allowsFastPath", () => {
     expect(gate.allowsFastPath(await gate.run(cfg, "/w"))).toBe(false);
   });
 
-  it("kapı kapalıyken kestirmeler açık kalır", () => {
+  it("keeps the shortcuts open while the gate is off", () => {
     const { port } = fakePort();
     expect(new VerifyGate(port).allowsFastPath(IDLE_VERIFY_REPORT)).toBe(true);
   });
 });
 
-describe("kanıt ve özet metinleri", () => {
-  it("çalışmamış kapı için kanıt bloğu üretmez", () => {
+describe("evidence and summary text", () => {
+  it("produces no evidence block for a gate that never ran", () => {
     expect(verifyEvidence(IDLE_VERIFY_REPORT)).toBe("");
-    expect(verifySummary(IDLE_VERIFY_REPORT)).toContain("tanımlı değil");
+    expect(verifySummary(IDLE_VERIFY_REPORT)).toContain("No verification gate is defined");
   });
 
-  it("kırmızı kapıda düşen komutun çıktısını ve disiplin kuralını taşır", async () => {
-    const { port } = fakePort({ failing: ["pnpm test"], stdout: { "pnpm test": "2 test başarısız" } });
+  it("carries the failing command output and the discipline rule on a red gate", async () => {
+    const { port } = fakePort({ failing: ["pnpm test"], stdout: { "pnpm test": "2 tests failed" } });
     const gate = new VerifyGate(port);
     const report = await gate.run(config({ commands: ["pnpm test"] }), "/w");
 
     const evidence = verifyEvidence(report);
-    expect(evidence).toContain("Durum: KIRMIZI");
-    expect(evidence).toContain("pnpm test [DÜŞTÜ]");
-    expect(evidence).toContain("2 test başarısız");
-    expect(evidence).toContain("Kestirme teslimat yapma");
-    expect(verifySummary(report)).toContain("KIRMIZI: pnpm test");
+    expect(evidence).toContain("Status: RED");
+    expect(evidence).toContain("pnpm test [FAILED]");
+    expect(evidence).toContain("2 tests failed");
+    expect(evidence).toContain("Do not take a delivery shortcut");
+    expect(verifySummary(report)).toContain("RED: pnpm test");
   });
 
-  it("yeşil kapıda çıktı gövdesi gömülmez", async () => {
-    const { port } = fakePort({ stdout: { "pnpm test": "hepsi geçti, uzun çıktı" } });
+  it("does not embed the output body on a green gate", async () => {
+    const { port } = fakePort({ stdout: { "pnpm test": "all passed, long output" } });
     const gate = new VerifyGate(port);
     const report = await gate.run(config({ commands: ["pnpm test"] }), "/w");
 
     const evidence = verifyEvidence(report);
-    expect(evidence).toContain("Durum: YEŞİL");
-    expect(evidence).toContain("pnpm test [GEÇTİ]");
-    expect(evidence).not.toContain("uzun çıktı");
-    expect(verifySummary(report)).toContain("yeşil (1 komut)");
+    expect(evidence).toContain("Status: GREEN");
+    expect(evidence).toContain("pnpm test [PASSED]");
+    expect(evidence).not.toContain("long output");
+    expect(verifySummary(report)).toContain("green (1 commands)");
   });
 
-  it("süre aşımını özet ve kanıtta ayrı gösterir", async () => {
+  it("shows a timeout separately in the summary and the evidence", async () => {
     const { port } = fakePort({ timingOut: ["pnpm e2e"] });
     const gate = new VerifyGate(port);
     const report = await gate.run(config({ commands: ["pnpm e2e"] }), "/w");
 
-    expect(verifyEvidence(report)).toContain("[SÜRE AŞIMI]");
-    expect(verifySummary(report)).toContain("(süre aşımı)");
+    expect(verifyEvidence(report)).toContain("[TIMED OUT]");
+    expect(verifySummary(report)).toContain("(timed out)");
   });
 });
 
-describe("verify yapılandırma normalizasyonu", () => {
-  it("boş ve boşluklu komutları temizler", () => {
+describe("verify configuration normalisation", () => {
+  it("cleans empty and whitespace-only commands", () => {
     expect(config({ commands: ["  pnpm test  ", "", "   "] }).verify.commands).toEqual(["pnpm test"]);
   });
 
-  it("varsayılan olarak kapı kapalıdır", () => {
+  it("keeps the gate off by default", () => {
     const cfg = normalizeConfig(FALLBACK_CONFIG);
     expect(cfg.verify.commands).toEqual([]);
     expect(cfg.verify.blockOnFailure).toBe(true);

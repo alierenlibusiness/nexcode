@@ -2,13 +2,13 @@ import type { CliAdapter, OrchestrationRole } from "../../config/schema";
 import { ADAPTER_SILENCE_SECONDS } from "../../config/schema";
 
 /**
- * Bilinen CLI adapter'larının çalıştırma sözleşmesi.
+ * Execution contract of the known CLI adapters.
  *
- * Değişmezler:
- * - Tüm çağrılar **non-interactive ve otonom** olmalıdır; desteklenmeyen ya da eski
- *   bayraklar profillere sızmamalıdır.
- * - Sağlık kontrolü ile normal çalışma **aynı** prompt materyalizasyonunu kullanır;
- *   aksi halde sağlıklı bir CLI yanlışlıkla `failed` sayılır.
+ * Invariants:
+ * - Every invocation has to be **non-interactive and autonomous**; unsupported or
+ *   outdated flags must not leak into profiles.
+ * - The health check and normal execution use the **same** prompt materialisation;
+ *   otherwise a healthy CLI is wrongly counted as `failed`.
  */
 
 export type PromptMode = "stdin" | "arg" | "file";
@@ -16,21 +16,21 @@ export type PromptMode = "stdin" | "arg" | "file";
 export interface CliAdapterSpec {
   id: CliAdapter;
   label: string;
-  /** Aranacak komut adları (uzantısız). */
+  /** Command names to look for (without extension). */
   binaries: readonly string[];
   versionArgs: readonly string[];
-  /** Non-interactive otonom çalışma için varsayılan argümanlar. */
+  /** Default arguments for non-interactive autonomous execution. */
   defaultArgs: readonly string[];
-  /** Prompt'un sürece nasıl verildiği. */
+  /** How the prompt is handed to the process. */
   promptMode: PromptMode;
-  /** `{PROMPT}` / `{PROMPT_FILE}` yer tutucusu taşıyan ek argümanlar. */
+  /** Extra arguments carrying the `{PROMPT}` / `{PROMPT_FILE}` placeholder. */
   promptArgs: readonly string[];
-  /** Seçilen modeli CLI argümanına çevirir; boş model argüman üretmez. */
+  /** Converts the selected model into a CLI argument; an empty model produces no argument. */
   modelArgs: (model: string) => string[];
-  /** Keşifte bu CLI için önerilen orkestrasyon rolü. */
+  /** Orchestration role suggested for this CLI during discovery. */
   defaultRole: OrchestrationRole;
   silenceSeconds: number;
-  /** Otonom çalışma için gereken ortam değişkenleri. */
+  /** Environment variables required for autonomous execution. */
   env?: Readonly<Record<string, string>>;
 }
 
@@ -42,13 +42,13 @@ export const CLI_ADAPTER_SPECS: Readonly<Record<Exclude<CliAdapter, "custom">, C
     label: "Claude Code",
     binaries: ["claude", "claude-code"],
     versionArgs: ["--version"],
-    // `acceptEdits`: dosya düzenlemeleri sorulmadan uygulanır, tehlikeli kabuk komutları
-    // yine onay ister. `bypassPermissions` bilerek kullanılmaz; izolasyon ve onay kapısı
-    // bizim katmanımızın işi, CLI'ın tüm korumalarını kapatmanın değil.
+    // `acceptEdits`: file edits are applied without asking, while dangerous shell commands
+    // still require approval. `bypassPermissions` is deliberately not used; isolation and
+    // the approval gate are our layer's job, not a reason to disable all of the CLI's guards.
     defaultArgs: ["-p", "--output-format", "json", "--permission-mode", "acceptEdits"],
     promptMode: "stdin",
     promptArgs: [],
-    // Profilde açık `--model`/`-m` varsa yinelenmez; bu kontrol effectiveArgs'tadır.
+    // Not duplicated when the profile already carries an explicit `--model`/`-m`; that check lives in effectiveArgs.
     modelArgs: (model) => (model === "" ? [] : ["--model", model]),
     defaultRole: "executor",
     silenceSeconds: ADAPTER_SILENCE_SECONDS.claude,
@@ -58,8 +58,8 @@ export const CLI_ADAPTER_SPECS: Readonly<Record<Exclude<CliAdapter, "custom">, C
     label: "Codex CLI",
     binaries: ["codex"],
     versionArgs: ["--version"],
-    // `workspace-write`: model komutları çalışma klasörüne yazabilir, dışına çıkamaz.
-    // `danger-full-access` bilerek kullanılmaz.
+    // `workspace-write`: model commands can write inside the working directory but not outside it.
+    // `danger-full-access` is deliberately not used.
     defaultArgs: ["exec", "--skip-git-repo-check", "--sandbox", "workspace-write"],
     promptMode: "arg",
     promptArgs: ["{PROMPT}"],
@@ -75,7 +75,7 @@ export const CLI_ADAPTER_SPECS: Readonly<Record<Exclude<CliAdapter, "custom">, C
     defaultArgs: ["--yolo"],
     promptMode: "arg",
     promptArgs: ["-p", "{PROMPT}"],
-    // Gemini CLI kendi varsayılan modelini kullanır; katalog desteği yoktur.
+    // The Gemini CLI uses its own default model; there is no catalogue support.
     modelArgs: noModelArgs,
     defaultRole: "reviewer",
     silenceSeconds: ADAPTER_SILENCE_SECONDS.gemini,
@@ -112,7 +112,7 @@ export function specFor(adapter: CliAdapter | undefined): CliAdapterSpec | undef
   return CLI_ADAPTER_SPECS[adapter];
 }
 
-/** Profilde model argümanı zaten açıkça verilmiş mi (yinelenmeyi önler). */
+/** Whether the profile already passes an explicit model argument (prevents duplication). */
 export function hasExplicitModelArg(args: readonly string[]): boolean {
   return args.some((arg) => arg === "--model" || arg === "-m" || arg.startsWith("--model="));
 }
@@ -125,15 +125,15 @@ export interface EffectiveInvocation {
 }
 
 /**
- * Bir agent profilinden çalıştırılacak argümanları üretir.
+ * Builds the arguments to execute from an agent profile.
  *
- * Model önceliği: **agent override > CLI-geneli ayar > CLI varsayılanı**.
- * Profilde açık model argümanı varsa hiçbir şey eklenmez.
+ * Model precedence: **agent override > CLI-wide setting > CLI default**.
+ * Nothing is added when the profile carries an explicit model argument.
  */
 export function effectiveInvocation(input: {
   adapter: CliAdapter | undefined;
   profileArgs: readonly string[];
-  /** Agent override modeli (varsa). */
+  /** Agent override model, when present. */
   agentModel: string;
   /** `cliSettings[adapter].model`. */
   globalModel: string;
@@ -161,8 +161,8 @@ export function effectiveInvocation(input: {
 }
 
 /**
- * Prompt yer tutucularını gerçek değerlerle doldurur.
- * `{PROMPT_FILE}` kullanan adapter'lar için geçici dosya yolu verilir.
+ * Fills the prompt placeholders with real values.
+ * Adapters that use `{PROMPT_FILE}` are given a temporary file path.
  */
 export function materializePrompt(
   args: readonly string[],

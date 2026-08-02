@@ -11,18 +11,18 @@ import type { CliRunner } from "./cli/runner";
 import { getProvider, providerCliKind, supportsVision } from "./registry";
 
 export interface AdapterFactoryDeps {
-  /** Sağlayıcı API anahtarını OS keychain'den getirir (yoksa null). */
+  /** Fetches the provider API key from the OS keychain (null when absent). */
   getApiKey: (provider: string) => string | null;
-  /** CLI abonelik kotasının uygun olup olmadığı (PRD §9.4). Varsayılan: uygun. */
+  /** Whether the CLI subscription quota is available. Defaults to available. */
   isCliQuotaAvailable?: (provider: string) => boolean;
   cliRunner?: CliRunner;
   fetchFn?: typeof fetch;
 }
 
 /**
- * Bir agent'ın `ModelRef`'i ve kullanıcının `ConnectionPreference`'ına göre doğru
- * adapter'ı (API ya da CLI) üretir: "istersek API, istersek CLI" mantığının uygulandığı
- * tek nokta (PRD §6.3 provider-agnostic gateway, §9.3-§9.5).
+ * Builds the right adapter (API or CLI) from an agent's `ModelRef` and the user's
+ * `ConnectionPreference`: the single point where the "API when we want, CLI when we want"
+ * decision is applied.
  */
 export class AdapterFactory {
   constructor(private readonly deps: AdapterFactoryDeps) {}
@@ -34,7 +34,7 @@ export class AdapterFactory {
       case "cli_only":
         return this.buildCli(model);
       case "cli_first": {
-        // Sağlayıcının CLI'sı yoksa (DeepSeek/MiniMax) doğrudan API'ye düş.
+        // When the provider has no CLI (DeepSeek, MiniMax) fall straight through to the API.
         if (!this.hasCli(model.provider)) return this.buildApi(model);
         const quotaOk = this.deps.isCliQuotaAvailable?.(model.provider) ?? true;
         return quotaOk ? this.buildCli(model) : this.buildApi(model);
@@ -49,7 +49,7 @@ export class AdapterFactory {
   private buildApi(model: ModelRef): AIProviderAdapter {
     const provider = model.provider;
     const info = getProvider(provider);
-    if (!info) throw new Error(`Bilinmeyen sağlayıcı: ${provider} (registry'de yok)`);
+    if (!info) throw new Error(`Unknown provider: ${provider} (not in the registry)`);
     const fetchOpt = this.deps.fetchFn ? { fetchFn: this.deps.fetchFn } : {};
 
     switch (info.kind) {
@@ -72,7 +72,7 @@ export class AdapterFactory {
     const kind = providerCliKind(model.provider);
     if (!kind) {
       throw new Error(
-        `'${model.provider}' için abonelik CLI'sı yok: bu agent'ı API moduna alın (PRD §9.2).`,
+        `'${model.provider}' has no subscription CLI: switch this agent to API mode.`,
       );
     }
     const runnerOpt = this.deps.cliRunner ? { runner: this.deps.cliRunner } : {};
@@ -89,7 +89,7 @@ export class AdapterFactory {
   private requireKey(provider: string): string {
     const apiKey = this.deps.getApiKey(provider);
     if (!apiKey) {
-      throw new Error(`${provider} API anahtarı bulunamadı (OS keychain). Ayarlardan ekleyin.`);
+      throw new Error(`No ${provider} API key found in the OS keychain. Add one from settings.`);
     }
     return apiKey;
   }

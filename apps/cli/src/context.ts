@@ -14,10 +14,10 @@ import { EngineHost } from "@nexcode/core/host";
 import type { EngineEvent } from "@nexcode/core";
 
 /**
- * CLI çalışma bağlamı.
+ * CLI execution context.
  *
- * Veri kökü önceliği: `NEXCODE_HOME` > `~/.nexcode`. Masaüstü uygulaması kendi `userData`
- * klasörünü kullanır; ikisini aynı veritabanına bağlamak istersen `NEXCODE_HOME` ver.
+ * Data root precedence: `NEXCODE_HOME` > `~/.nexcode`. The desktop application uses its own
+ * `userData` folder; set `NEXCODE_HOME` to point both at the same database.
  */
 
 export interface CliContext {
@@ -38,10 +38,10 @@ export function resolveDataDir(): string {
 }
 
 /**
- * Paketle gelen rol, beceri ve varsayılan yapılandırma dosyalarının kökü.
+ * Root of the bundled role, skill and default configuration files.
  *
- * Yayımlanmış pakette `resources/` tarball'ın içindedir; depodan çalıştırıldığında proje
- * kökündeki klasör kullanılır.
+ * In the published package `resources/` lives inside the tarball; when running from the
+ * repository the folder at the project root is used instead.
  */
 export function resolveResourcesDir(): string {
   const packaged = path.join(__dirname, "..", "resources");
@@ -69,12 +69,12 @@ export function createContext(options: { onEvent?: (event: EngineEvent) => void 
     resourcesDir,
     broadcast: (event) => options.onEvent?.(event),
     requestApproval: ({ taskId, planSummary }) => {
-      // Panelsiz çalışmada riskli plan otomatik onaylanmaz: kuyruğa alınır ve görev bekler.
-      // `nexcode approvals` ile karar verilir.
+      // Without the panel a risky plan is never auto-approved: it is queued and the task waits.
+      // The decision is made with `nexcode approvals`.
       const record = approvals.create(taskId, "risky_plan");
       process.stderr.write(
-        `\nRiskli plan onay bekliyor (${record.id}).\n  ${planSummary.slice(0, 160)}\n` +
-          `  Karar vermek için: nexcode approvals\n\n`,
+        `\nRisky plan awaiting approval (${record.id}).\n  ${planSummary.slice(0, 160)}\n` +
+          `  To decide: nexcode approvals\n\n`,
       );
       return waitForApproval(approvals, record.id);
     },
@@ -98,7 +98,7 @@ function resolveWorkingDir(configRepo: ConfigRepository): string {
   return configured === "." || configured === "" ? process.cwd() : configured;
 }
 
-/** Onay kaydı çözülene kadar bekler; kullanıcı karar vermeden görev ilerlemez. */
+/** Waits until the approval record is resolved; the task does not progress until the user decides. */
 function waitForApproval(approvals: ApprovalRepository, id: string): Promise<boolean> {
   return new Promise<boolean>((resolve) => {
     const timer = setInterval(() => {

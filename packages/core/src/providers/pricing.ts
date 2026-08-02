@@ -1,9 +1,9 @@
 import { getModelInfo } from "./registry";
 
 /**
- * Model fiyatlandırması: $/1M token. TEK kaynak `registry.ts`'dir; bu modül yalnızca
- * fiyata erişim için ince bir yardımcıdır (PRD §9). Varsayım değerleri uygulama anında
- * gerçek liste fiyatıyla doğrulanmalı.
+ * Model pricing in $/1M tokens. The SINGLE source of truth is `registry.ts`; this module
+ * is only a thin helper for reading a price. The assumed values should be checked against
+ * the real list price at the time of use.
  */
 export interface ModelPricing {
   inputPerMTok: number;
@@ -12,12 +12,12 @@ export interface ModelPricing {
 
 const ZERO_PRICING: ModelPricing = { inputPerMTok: 0, outputPerMTok: 0 };
 
-/** Sağlayıcı + model için fiyat (bilinmiyorsa sıfır: maliyet 0 raporlanır, hata fırlatmaz). */
+/** Price for a provider and model (zero when unknown: cost is reported as 0, never thrown). */
 export function getPricing(provider: string, modelId: string): ModelPricing {
   return getModelInfo(provider, modelId)?.pricing ?? ZERO_PRICING;
 }
 
-/** Geriye dönük uyumluluk (Faz 1 çağrıları). */
+/** Backwards compatibility for earlier call sites. */
 export function getAnthropicPricing(modelId: string): ModelPricing {
   return getPricing("anthropic", modelId);
 }

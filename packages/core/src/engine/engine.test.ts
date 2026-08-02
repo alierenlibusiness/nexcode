@@ -5,8 +5,8 @@ import { Engine, isRiskyPlan, planHash, type EngineDeps, type InvokeInput, type 
 import { EngineEventBus, type EngineEvent } from "./events";
 
 /**
- * Motorun uçtan uca davranışı sahte agent süreçleriyle doğrulanır: rol zinciri,
- * PASS hızlı yolu, protokol tekrarı, kurtarma/devir/karantina, onay kapısı ve bütçeler.
+ * The end-to-end behaviour of the engine is verified with fake agent processes: role chain,
+ * PASS fast path, protocol retries, recovery/failover/quarantine, approval gate and budgets.
  */
 
 const CONSENT = "2026-07-25T00:00:00.000Z";
@@ -17,7 +17,7 @@ function makeConfig(over: Partial<NexcodeConfig> = {}): NexcodeConfig {
     autonomousConsentAcceptedAt: CONSENT,
     agents: {
       ...FALLBACK_CONFIG.agents,
-      // Katalogda planner bulunması için: yerleşik altılıda planner yoktur.
+      // So the catalog contains a planner: the built-in six have none.
       architect: {
         id: "architect",
         name: "Architect",
@@ -31,7 +31,7 @@ function makeConfig(over: Partial<NexcodeConfig> = {}): NexcodeConfig {
   });
 }
 
-/** Sahte agent: `responder` her çağrıya agent id + iş türüne göre yanıt üretir. */
+/** Fake agent: `responder` answers every call based on the agent id and the kind of work. */
 function harness(
   responder: (input: InvokeInput, callIndex: number) => InvokeResult | Promise<InvokeResult>,
   configOver: Partial<NexcodeConfig> = {},
@@ -72,38 +72,38 @@ function fail(failure: { message: string; stalled?: boolean; timedOut?: boolean 
   return { ok: false, failure, calls: 1, usdCost: 0.005 };
 }
 
-const task = { id: "t1", prompt: "Avatar yükleme özelliği ekle", executionMode: "balanced" as const, workingDir: "C:/p" };
+const task = { id: "t1", prompt: "Add the avatar upload feature", executionMode: "balanced" as const, workingDir: "C:/p" };
 
 const PLAN = JSON.stringify({
   status: "plan",
-  planSummary: "Backend endpoint + inceleme",
-  acceptanceCriteria: ["POST /avatar 201 döner"],
-  assignments: [{ id: "impl", agentId: "backend", kind: "implement", instruction: "Endpoint ekle" }],
+  planSummary: "Backend endpoint plus review",
+  acceptanceCriteria: ["POST /avatar returns 201"],
+  assignments: [{ id: "impl", agentId: "backend", kind: "implement", instruction: "Add the endpoint" }],
 });
 
-describe("Engine: mutlu yol", () => {
-  it("ilk turda plan → implement → review zincirini kurar ve PASS ile teslim eder", async () => {
+describe("Engine: happy path", () => {
+  it("builds the plan -> implement -> review chain in the first round and delivers on PASS", async () => {
     const { engine, calls } = harness((input) => {
       if (input.kind === "operator") return ok(PLAN);
-      if (input.kind === "plan") return ok("PLAN ÖZETİ: şemayı genişlet");
-      if (input.kind === "implement") return ok("STATUS: COMPLETED\nÖZET: endpoint eklendi");
-      return ok("DEĞERLENDİRME: iyi\nVERDICT: PASS");
+      if (input.kind === "plan") return ok("PLAN SUMMARY: extend the schema");
+      if (input.kind === "implement") return ok("STATUS: COMPLETED\nSUMMARY: endpoint added");
+      return ok("ASSESSMENT: good\nVERDICT: PASS");
     });
 
     const result = await engine.runTask(task);
 
     expect(result.outcome).toBe("done");
-    // Operatör 1 kez çağrıldı: PASS hızlı yolu ikinci değerlendirme çağrısını atladı.
+    // The operator was called once: the PASS fast path skipped the second evaluation call.
     expect(calls.filter((c) => c.kind === "operator")).toHaveLength(1);
     expect(calls.map((c) => c.kind)).toEqual(["operator", "plan", "implement", "review"]);
     expect(result.rounds).toBe(1);
     expect(result.delegations).toBe(3);
   });
 
-  it("uygulama, planın çıktısını bağlam olarak alır", async () => {
+  it("passes the plan output to the implementation as context", async () => {
     const { engine, calls } = harness((input) => {
       if (input.kind === "operator") return ok(PLAN);
-      if (input.kind === "plan") return ok("ADIMLAR:\n1. avatars tablosu ekle");
+      if (input.kind === "plan") return ok("STEPS:\n1. add the avatars table");
       if (input.kind === "implement") return ok("STATUS: COMPLETED");
       return ok("VERDICT: PASS");
     });
@@ -111,15 +111,15 @@ describe("Engine: mutlu yol", () => {
     await engine.runTask(task);
 
     const implPrompt = calls.find((c) => c.kind === "implement")?.prompt ?? "";
-    expect(implPrompt).toContain("avatars tablosu ekle");
-    expect(implPrompt).toContain("ÖNCEKİ ADIMLARIN ÇIKTISI");
+    expect(implPrompt).toContain("add the avatars table");
+    expect(implPrompt).toContain("OUTPUT OF THE PREVIOUS STEPS");
   });
 
-  it("passFastPath kapalıysa ikinci operatör değerlendirmesini yapar", async () => {
+  it("performs the second operator evaluation when passFastPath is off", async () => {
     const { engine, calls } = harness(
       (input, i) => {
         if (input.kind === "operator") {
-          return i === 0 ? ok(PLAN) : ok('{"status":"complete","final":"Bitti","verification":"testler geçti"}');
+          return i === 0 ? ok(PLAN) : ok('{"status":"complete","final":"Done","verification":"tests passed"}');
         }
         if (input.kind === "plan") return ok("plan");
         if (input.kind === "implement") return ok("STATUS: COMPLETED");
@@ -130,24 +130,24 @@ describe("Engine: mutlu yol", () => {
 
     const result = await engine.runTask(task);
     expect(calls.filter((c) => c.kind === "operator")).toHaveLength(2);
-    expect(result.final).toBe("Bitti");
+    expect(result.final).toBe("Done");
   });
 
-  it("operatör doğrudan yanıt verebilir: delegasyon açmaz", async () => {
+  it("lets the operator answer directly without opening a delegation", async () => {
     const { engine, calls } = harness(() =>
-      ok('{"status":"complete","final":"Sistemde 64 beceri etkin.","verification":"envanterden okundu"}'),
+      ok('{"status":"complete","final":"There are 64 skills enabled in the system.","verification":"read from the inventory"}'),
     );
 
     const result = await engine.runTask(task);
     expect(result.outcome).toBe("done");
-    expect(result.final).toContain("64 beceri");
+    expect(result.final).toContain("64 skills");
     expect(calls).toHaveLength(1);
     expect(result.delegations).toBe(0);
   });
 });
 
-describe("Engine: inceleme ve turlar", () => {
-  it("FAIL sonrası ikinci turda hedefli düzeltme açar ve PASS ile biter", async () => {
+describe("Engine: review and rounds", () => {
+  it("opens a targeted fix in the second round after FAIL and ends on PASS", async () => {
     const { engine, calls } = harness((input, i) => {
       if (input.kind === "operator") {
         return i === 0
@@ -156,17 +156,17 @@ describe("Engine: inceleme ve turlar", () => {
               JSON.stringify({
                 status: "continue",
                 assignments: [
-                  { id: "fix", agentId: "backend", kind: "implement", instruction: "Token kontrolü ekle" },
-                  { id: "recheck", agentId: "security", kind: "review", instruction: "Düzeltmeyi doğrula", dependsOn: ["fix"] },
+                  { id: "fix", agentId: "backend", kind: "implement", instruction: "Add the token check" },
+                  { id: "recheck", agentId: "security", kind: "review", instruction: "Verify the fix", dependsOn: ["fix"] },
                 ],
               }),
             );
       }
       if (input.kind === "plan") return ok("plan");
       if (input.kind === "implement") return ok("STATUS: COMPLETED");
-      // İlk inceleme FAIL, ikinci PASS.
+      // The first review is FAIL, the second PASS.
       return calls.filter((c) => c.kind === "review").length === 1
-        ? ok("BULGULAR:\n- [CRITICAL] src/auth.ts: token doğrulanmıyor\nVERDICT: FAIL")
+        ? ok("FINDINGS:\n- [CRITICAL] src/auth.ts: the token is not validated\nVERDICT: FAIL")
         : ok("VERDICT: PASS");
     });
 
@@ -175,10 +175,10 @@ describe("Engine: inceleme ve turlar", () => {
     expect(result.rounds).toBe(2);
     expect(result.outcome).toBe("done");
     const fixPrompt = calls.find((c) => c.assignmentId === "fix")?.prompt ?? "";
-    expect(fixPrompt).toContain("Token kontrolü ekle");
+    expect(fixPrompt).toContain("Add the token check");
   });
 
-  it("tur sınırına ulaşınca kısmi teslimat yapar", async () => {
+  it("delivers partially once the round limit is reached", async () => {
     const { engine } = harness((input) => {
       if (input.kind === "operator") return ok(PLAN);
       if (input.kind === "plan") return ok("plan");
@@ -188,30 +188,30 @@ describe("Engine: inceleme ve turlar", () => {
 
     const result = await engine.runTask(task);
     expect(result.rounds).toBe(3);
-    expect(result.final).toContain("Tur sınırına ulaşıldı");
+    expect(result.final).toContain("The round limit was reached");
   });
 
-  it("kararsız inceleme çıktısını sessizce PASS saymaz", async () => {
+  it("never silently counts an undecided review as PASS", async () => {
     const { engine } = harness((input, i) => {
       if (input.kind === "operator") {
-        return i === 0 ? ok(PLAN) : ok('{"status":"complete","final":"kapanış"}');
+        return i === 0 ? ok(PLAN) : ok('{"status":"complete","final":"closing"}');
       }
       if (input.kind === "plan") return ok("plan");
       if (input.kind === "implement") return ok("STATUS: COMPLETED");
-      return ok("Bence iyi görünüyor."); // VERDICT satırı yok
+      return ok("Looks good to me."); // no VERDICT line
     });
 
     const result = await engine.runTask(task);
-    // Hızlı yol devreye girmedi; karar ikinci turdaki operatör değerlendirmesine kaldı.
+    // The fast path did not trigger; the decision fell to the operator evaluation in round two.
     expect(result.rounds).toBe(2);
-    expect(result.final).toBe("kapanış");
+    expect(result.final).toBe("closing");
   });
 });
 
-describe("Engine: protokol dayanıklılığı", () => {
-  it("bozuk çıktıdan sonra düzeltme talimatıyla yeniden dener", async () => {
+describe("Engine: protocol resilience", () => {
+  it("retries with a repair instruction after malformed output", async () => {
     const { engine, calls } = harness((input, i) => {
-      if (input.kind === "operator") return i === 0 ? ok("Tabii, hemen başlıyorum!") : ok(PLAN);
+      if (input.kind === "operator") return i === 0 ? ok("Sure, starting right away!") : ok(PLAN);
       if (input.kind === "plan") return ok("plan");
       if (input.kind === "implement") return ok("STATUS: COMPLETED");
       return ok("VERDICT: PASS");
@@ -220,35 +220,35 @@ describe("Engine: protokol dayanıklılığı", () => {
     const result = await engine.runTask(task);
     expect(result.outcome).toBe("done");
     const second = calls.filter((c) => c.kind === "operator")[1]?.prompt ?? "";
-    expect(second).toContain("PROTOKOL DÜZELTMESİ");
+    expect(second).toContain("PROTOCOL REPAIR");
   });
 
-  it("deneme hakkı bitince görevi başarısız sayar", async () => {
-    const { engine, calls } = harness(() => ok("hiç JSON yok"));
+  it("fails the task once the attempts are exhausted", async () => {
+    const { engine, calls } = harness(() => ok("no JSON at all"));
 
     const result = await engine.runTask(task);
     expect(result.outcome).toBe("failed");
-    expect(result.final).toContain("geçerli bir karar üretemedi");
-    // 1 ilk deneme + protocolRetries(2) = 3
+    expect(result.final).toContain("could not produce a valid decision");
+    // 1 first attempt + protocolRetries(2) = 3
     expect(calls).toHaveLength(3);
   });
 
-  it("operatör somut engeli bildirirse görev bloklanır", async () => {
-    const { engine } = harness(() => ok('{"status":"blocked","blocked":"Repo salt okunur","needed":"yazma izni"}'));
+  it("blocks the task when the operator reports a concrete blocker", async () => {
+    const { engine } = harness(() => ok('{"status":"blocked","blocked":"The repo is read only","needed":"write permission"}'));
 
     const result = await engine.runTask(task);
     expect(result.outcome).toBe("blocked");
-    expect(result.final).toContain("Repo salt okunur");
-    expect(result.final).toContain("yazma izni");
+    expect(result.final).toContain("The repo is read only");
+    expect(result.final).toContain("write permission");
   });
 });
 
-describe("Engine: kurtarma", () => {
-  it("geçici hatada aynı agent ile yeniden dener", async () => {
+describe("Engine: recovery", () => {
+  it("retries with the same agent on a transient error", async () => {
     let implAttempts = 0;
     const { engine } = harness((input, i) => {
       if (input.kind === "operator") {
-        return i === 0 ? ok(PLAN) : ok('{"status":"complete","final":"tamam"}');
+        return i === 0 ? ok(PLAN) : ok('{"status":"complete","final":"ok"}');
       }
       if (input.kind === "plan") return ok("plan");
       if (input.kind === "implement") {
@@ -263,11 +263,11 @@ describe("Engine: kurtarma", () => {
     expect(result.outcome).toBe("done");
   });
 
-  it("yetki hatasında agent'ı karantinaya alır ve işi devreder", async () => {
+  it("quarantines the agent on an auth error and hands the work over", async () => {
     const seen: string[] = [];
     const { engine } = harness((input, i) => {
       if (input.kind === "operator") {
-        return i === 0 ? ok(PLAN) : ok('{"status":"complete","final":"devredildi"}');
+        return i === 0 ? ok(PLAN) : ok('{"status":"complete","final":"handed over"}');
       }
       if (input.kind === "plan") return ok("plan");
       if (input.kind === "implement") {
@@ -283,11 +283,11 @@ describe("Engine: kurtarma", () => {
     expect(result.outcome).toBe("done");
   });
 
-  it("sessizlik aşımında ilerlemenin korunduğunu bildirir", async () => {
+  it("reports that progress is preserved on a silence timeout", async () => {
     const { engine } = harness(
       (input, i) => {
         if (input.kind === "operator") {
-          return i === 0 ? ok(PLAN) : ok('{"status":"complete","final":"kapanış"}');
+          return i === 0 ? ok(PLAN) : ok('{"status":"complete","final":"closing"}');
         }
         if (input.kind === "plan") return ok("plan");
         if (input.kind === "implement") return fail({ message: "no output", stalled: true });
@@ -302,13 +302,13 @@ describe("Engine: kurtarma", () => {
     expect(result.outcome).toBe("done");
   });
 
-  it("bağımlı olduğu iş başarısızsa alt işi hiç başlatmaz", async () => {
+  it("never starts a downstream job when the work it depends on failed", async () => {
     const started: string[] = [];
     const { engine } = harness(
       (input, i) => {
         started.push(String(input.assignmentId));
         if (input.kind === "operator") {
-          return i === 0 ? ok(PLAN) : ok('{"status":"complete","final":"kapanış"}');
+          return i === 0 ? ok(PLAN) : ok('{"status":"complete","final":"closing"}');
         }
         if (input.kind === "plan") return ok("plan");
         if (input.kind === "implement") return fail({ message: "segmentation fault" });
@@ -318,36 +318,36 @@ describe("Engine: kurtarma", () => {
     );
 
     await engine.runTask(task);
-    // auto-review, impl'e bağlı olduğu için hiç çağrılmadı.
+    // auto-review was never called because it depends on impl.
     expect(started.filter((id) => id.startsWith("auto-review"))).toHaveLength(0);
   });
 });
 
-describe("Engine: güvenlik ve bütçeler", () => {
-  it("otonom onay olmadan başlatılmaz", async () => {
+describe("Engine: safety and budgets", () => {
+  it("does not start without autonomous consent", async () => {
     const { engine, calls } = harness(() => ok(PLAN), { autonomousConsentAcceptedAt: null });
     const result = await engine.runTask(task);
     expect(result.outcome).toBe("failed");
-    expect(result.final).toContain("Otonom çalışma onayı");
+    expect(result.final).toContain("autonomous execution consent");
     expect(calls).toHaveLength(0);
   });
 
-  it("günlük çağrı bütçesi dolduğunda görev başlatılmaz", async () => {
+  it("does not start the task once the daily call budget is exhausted", async () => {
     const { engine, calls } = harness(() => ok(PLAN));
     engine.resetSession(FALLBACK_CONFIG.dailyCallBudget);
     const result = await engine.runTask(task);
-    expect(result.final).toContain("Günlük çağrı bütçesi");
+    expect(result.final).toContain("daily call budget");
     expect(calls).toHaveLength(0);
   });
 
-  it("riskli plan reddedilirse görev bloklanır", async () => {
+  it("blocks the task when a risky plan is rejected", async () => {
     const requestApproval = vi.fn().mockResolvedValue(false);
     const { engine } = harness(
       () =>
         ok(
           JSON.stringify({
             status: "plan",
-            planSummary: "Sunucuya deploy et",
+            planSummary: "Deploy to the server",
             assignments: [{ id: "d", agentId: "devops", kind: "implement", instruction: "git push && deploy" }],
           }),
         ),
@@ -358,10 +358,10 @@ describe("Engine: güvenlik ve bütçeler", () => {
     const result = await engine.runTask(task);
     expect(requestApproval).toHaveBeenCalledOnce();
     expect(result.outcome).toBe("blocked");
-    expect(result.final).toContain("reddedildi");
+    expect(result.final).toContain("rejected");
   });
 
-  it("riskli olmayan plan onay istemez", async () => {
+  it("does not ask for approval for a plan that is not risky", async () => {
     const requestApproval = vi.fn().mockResolvedValue(true);
     const { engine } = harness(
       (input, i) => {
@@ -380,7 +380,7 @@ describe("Engine: güvenlik ve bütçeler", () => {
     expect(requestApproval).not.toHaveBeenCalled();
   });
 
-  it("sandbox açıkken uzmana yazma sınırını bildirir", async () => {
+  it("states the write boundary to the specialist while the sandbox is on", async () => {
     const { engine, calls } = harness((input) => {
       if (input.kind === "operator") return ok(PLAN);
       if (input.kind === "plan") return ok("plan");
@@ -389,12 +389,12 @@ describe("Engine: güvenlik ve bütçeler", () => {
     });
 
     await engine.runTask(task);
-    expect(calls.find((c) => c.kind === "implement")?.prompt).toContain("DIŞINA yazma");
+    expect(calls.find((c) => c.kind === "implement")?.prompt).toContain("Do not write OUTSIDE");
   });
 });
 
-describe("Engine: yaşam döngüsü kancaları", () => {
-  it("görev öncesi checkpoint alır ve canlı diff'i durdurur", async () => {
+describe("Engine: lifecycle hooks", () => {
+  it("takes a pre-task checkpoint and stops the live diff", async () => {
     const createCheckpoint = vi.fn().mockResolvedValue(undefined);
     const stop = vi.fn().mockResolvedValue([{ path: "a.ts", action: "modified", added: 2, removed: 0, previewStatus: "ok", hunks: [] }]);
     const startLiveDiff = vi.fn().mockResolvedValue(stop);
@@ -416,7 +416,7 @@ describe("Engine: yaşam döngüsü kancaları", () => {
     expect(result.files).toHaveLength(1);
   });
 
-  it("bütçeyi aşan görev metnini dosyaya taşır", async () => {
+  it("spills task text that exceeds the budget to a file", async () => {
     const writeSpill = vi.fn().mockResolvedValue(undefined);
     const { engine, calls } = harness(
       () => ok('{"status":"complete","final":"ok"}'),
@@ -424,23 +424,23 @@ describe("Engine: yaşam döngüsü kancaları", () => {
       { writeSpill },
     );
 
-    const long = { ...task, prompt: `BAŞ${"x".repeat(9000)}SON` };
+    const long = { ...task, prompt: `HEAD${"x".repeat(9000)}TAIL` };
     const result = await engine.runTask(long);
 
     expect(writeSpill).toHaveBeenCalledWith("C:/p", ".nexcode/TASK-t1.md", long.prompt);
     expect(calls[0]?.prompt).toContain(".nexcode/TASK-t1.md");
-    expect(result.warnings.some((w) => w.includes("taşındı"))).toBe(true);
+    expect(result.warnings.some((w) => w.includes("was moved into"))).toBe(true);
   });
 
-  it("teslimat sonrası proje profilini revize eder", async () => {
+  it("revises the project profile after delivery", async () => {
     const reviseProjectContext = vi.fn().mockResolvedValue(undefined);
-    const { engine } = harness(() => ok('{"status":"complete","final":"bitti"}'), {}, { reviseProjectContext });
+    const { engine } = harness(() => ok('{"status":"complete","final":"done"}'), {}, { reviseProjectContext });
 
     await engine.runTask(task);
-    expect(reviseProjectContext).toHaveBeenCalledWith("C:/p", "bitti");
+    expect(reviseProjectContext).toHaveBeenCalledWith("C:/p", "done");
   });
 
-  it("olay akışında delegasyon, sonuç ve teslimat yayınlanır", async () => {
+  it("publishes delegation, result and delivery on the event stream", async () => {
     const { engine, events } = harness((input) => {
       if (input.kind === "operator") return ok(PLAN);
       if (input.kind === "plan") return ok("plan");
@@ -455,22 +455,22 @@ describe("Engine: yaşam döngüsü kancaları", () => {
     expect(types.has("activity")).toBe(true);
     expect(types.has("message")).toBe(true);
     expect(types.has("result")).toBe(true);
-    // Sıra numaraları monoton artar.
+    // Sequence numbers increase monotonically.
     const seqs = events.map((e) => e.seq);
     expect([...seqs].sort((a, b) => a - b)).toEqual(seqs);
   });
 });
 
 describe("planHash / isRiskyPlan", () => {
-  it("aynı plan aynı hash'i üretir, değişen plan farklı", () => {
+  it("produces the same hash for the same plan and a different one when it changes", () => {
     expect(planHash("a")).toBe(planHash("a"));
     expect(planHash("a")).not.toBe(planHash("b"));
     expect(planHash("")).toHaveLength(16);
   });
 
-  it("riskli desenleri büyük/küçük harften bağımsız yakalar", () => {
-    expect(isRiskyPlan("Sonra GIT PUSH yap", ["git push"])).toBe(true);
-    expect(isRiskyPlan("testleri çalıştır", ["git push"])).toBe(false);
-    expect(isRiskyPlan("her şey", [""])).toBe(false);
+  it("matches risky patterns case insensitively", () => {
+    expect(isRiskyPlan("Then run GIT PUSH", ["git push"])).toBe(true);
+    expect(isRiskyPlan("run the tests", ["git push"])).toBe(false);
+    expect(isRiskyPlan("anything", [""])).toBe(false);
   });
 });

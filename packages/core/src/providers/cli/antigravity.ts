@@ -8,15 +8,16 @@ import type {
 import { type CliRunner, spawnRunner, buildTaggedPrompt } from "./runner";
 
 export interface AntigravityCliAdapterOptions {
-  /** CLI binary yolu (varsayılan "antigravity"). Eski Gemini CLI ile uyumlu. */
+  /** CLI binary path (defaults to "antigravity"). Compatible with the older Gemini CLI. */
   binaryPath?: string;
   runner?: CliRunner;
 }
 
 /**
- * Antigravity CLI adapter'ı: Google abonelik/ücretsiz katman modu, DevOps Agent için
- * (PRD §8.6, §9.2). Google, Gemini CLI'ı Antigravity'ye geçiriyor (tarih varsayım).
- * `--output-format json` zarfı varsa parse eder; yoksa düz stdout'u sonuç sayar (toleranslı).
+ * Antigravity CLI adapter: Google subscription and free tier mode, used by the DevOps
+ * Agent. Google is migrating the Gemini CLI to Antigravity.
+ * Parses the `--output-format json` envelope when present; otherwise it tolerantly treats
+ * plain stdout as the result.
  */
 export class AntigravityCliAdapter implements AIProviderAdapter {
   readonly id = "antigravity";
@@ -36,7 +37,7 @@ export class AntigravityCliAdapter implements AIProviderAdapter {
 
     if (result.exitCode !== 0) {
       throw new Error(
-        `Antigravity CLI çıkış ${String(result.exitCode)}: ${result.stderr || result.stdout}`,
+        `Antigravity CLI exited with ${String(result.exitCode)}: ${result.stderr || result.stdout}`,
       );
     }
 
@@ -61,7 +62,7 @@ interface AntigravityJson {
   stats?: { tokens?: { input?: number; output?: number } };
 }
 
-/** JSON zarfını ({response, stats}) parse eder; JSON değilse ham metni sonuç sayar (saf fonksiyon). */
+/** Parses the JSON envelope ({response, stats}); falls back to the raw text when it is not JSON (pure function). */
 export function parseAntigravityOutput(stdout: string): CompletionResult {
   const trimmed = stdout.trim();
   try {
@@ -77,7 +78,7 @@ export function parseAntigravityOutput(stdout: string): CompletionResult {
       };
     }
   } catch {
-    // JSON değil: düz metin moduna düş.
+    // Not JSON: fall back to plain text mode.
   }
   return { text: trimmed, usage: { inputTokens: 0, outputTokens: 0 }, stopReason: null };
 }

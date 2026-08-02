@@ -8,16 +8,17 @@ import { effectiveInvocation, materializePrompt, specFor } from "./adapters";
 import { logger } from "../../logger";
 
 /**
- * CLI sağlık kontrolü.
+ * CLI health check.
  *
- * İki değişmez:
- * 1. Sağlık kontrolü, normal çalışma ile **aynı** argüman ve prompt materyalizasyonunu
- *    kullanır. Aksi halde `{PROMPT_FILE}` gibi yer tutucular literal olarak geçer ve
- *    sağlıklı bir CLI yanlışlıkla `failed` sayılıp katalogdan düşer.
- * 2. Geçici prompt dosyası **her çıkış yolunda** (başarı, hata, timeout) silinir.
+ * Two invariants:
+ * 1. The health check uses the **same** argument and prompt materialisation as normal
+ *    execution. Otherwise placeholders such as `{PROMPT_FILE}` are passed literally and a
+ *    healthy CLI is wrongly counted as `failed` and drops out of the catalogue.
+ * 2. The temporary prompt file is deleted on **every exit path** (success, error, timeout).
  *
- * Önbellek sürümlüdür: yürütme sözleşmesi değiştiğinde `HEALTH_CONTRACT_VERSION` artırılır
- * ve eski kayıtlar startup'ta geçersizleşir: kullanıcının elle cache temizlemesi gerekmez.
+ * The cache is versioned: when the execution contract changes, `HEALTH_CONTRACT_VERSION` is
+ * bumped and old records are invalidated at startup, so the user never has to clear the
+ * cache by hand.
  */
 
 export const HEALTH_CONTRACT_VERSION = 1;
@@ -38,13 +39,13 @@ export function isHealthy(result: HealthResult | undefined): boolean {
   return result?.status === "ready";
 }
 
-/** Sürümlü ve TTL'li sağlık önbelleği. */
+/** Versioned health cache with a TTL. */
 export class HealthCache {
   private readonly entries = new Map<string, HealthResult>();
 
   constructor(initial: Readonly<Record<string, HealthResult>> = {}) {
     for (const [id, result] of Object.entries(initial)) {
-      // Eski sözleşme sürümünden gelen kayıtlar hiç yüklenmez.
+      // Records from an older contract version are never loaded.
       if (result.contractVersion === HEALTH_CONTRACT_VERSION) this.entries.set(id, result);
     }
   }
@@ -72,7 +73,7 @@ export class HealthCache {
     return Object.fromEntries(this.entries);
   }
 
-  /** Motorun `buildCatalog` girdisi için `{ agentId: healthy }` haritası. */
+  /** `{ agentId: healthy }` map for the engine's `buildCatalog` input. */
   healthMap(now: Date = new Date()): Record<string, boolean> {
     const map: Record<string, boolean> = {};
     for (const id of this.entries.keys()) {
@@ -92,7 +93,7 @@ export interface ProbeInput {
   cwd?: string;
 }
 
-/** Bir CLI'ı gerçek çalışma yoluyla dener ve sonucu sınıflandırır. */
+/** Tries a CLI through its real execution path and classifies the result. */
 export async function probeCli(input: ProbeInput, now: () => Date = () => new Date()): Promise<HealthResult> {
   const spec = specFor(input.adapter);
   const invocation = effectiveInvocation({
@@ -121,14 +122,14 @@ export async function probeCli(input: ProbeInput, now: () => Date = () => new Da
 
     const checkedAt = now().toISOString();
     if (outcome.timedOut) {
-      return { status: "timeout", checkedAt, contractVersion: HEALTH_CONTRACT_VERSION, detail: "Yanıt süresi aşıldı." };
+      return { status: "timeout", checkedAt, contractVersion: HEALTH_CONTRACT_VERSION, detail: "Response timed out." };
     }
     if (outcome.exitCode === 0) {
       return {
         status: "ready",
         checkedAt,
         contractVersion: HEALTH_CONTRACT_VERSION,
-        detail: spec?.label ?? "CLI hazır",
+        detail: spec?.label ?? "CLI ready",
       };
     }
 
@@ -149,7 +150,7 @@ export async function probeCli(input: ProbeInput, now: () => Date = () => new Da
       detail: String(error).slice(0, 300),
     };
   } finally {
-    // Geçici prompt dosyası her çıkış yolunda temizlenir.
+    // The temporary prompt file is cleaned up on every exit path.
     if (tempDir !== null) rmSync(tempDir, { recursive: true, force: true });
   }
 }

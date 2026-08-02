@@ -3,10 +3,11 @@ import { discoverClis } from "@nexcode/core/providers";
 import { runDoctor, formatDoctorReport } from "@nexcode/core";
 
 /**
- * Kurulum denetimi.
+ * Setup diagnosis.
  *
- * Kurulu CLI'ları tarar, yapılandırmayı doğrular ve motorun görev alabilecek durumda olup
- * olmadığını söyler. Bir şey çalışmadığında ilk bakılacak yer burasıdır.
+ * Scans the installed CLIs, validates the configuration and reports whether the engine is
+ * in a state where it can take work. This is the first place to look when something does
+ * not run.
  */
 export function runDoctorCommand(flags: Record<string, string | boolean>): number {
   const ctx = createContext();
@@ -16,7 +17,7 @@ export function runDoctorCommand(flags: Record<string, string | boolean>): numbe
   const report = runDoctor({
     config,
     discovered,
-    // Sağlık probu süreç açar; `doctor` hızlı ve yan etkisiz kalsın diye burada boş geçilir.
+    // The health probe spawns processes; it is left empty here so `doctor` stays fast and side effect free.
     health: {},
     dataDir: ctx.dataDir,
     providersWithKeys: [],
@@ -31,9 +32,9 @@ export function runDoctorCommand(flags: Record<string, string | boolean>): numbe
 
   process.stdout.write(`${formatDoctorReport(report)}\n`);
 
-  process.stdout.write(`\nBulunan CLI'lar (${String(discovered.length)})\n`);
+  process.stdout.write(`\nDiscovered CLIs (${String(discovered.length)})\n`);
   if (discovered.length === 0) {
-    process.stdout.write("  Hiçbiri bulunamadı. En az bir kodlama CLI'ı kurulu ve giriş yapılmış olmalı.\n");
+    process.stdout.write("  None found. At least one coding CLI must be installed and signed in.\n");
   } else {
     for (const cli of discovered) {
       process.stdout.write(`  ${cli.adapter.padEnd(12)} ${cli.command}\n`);

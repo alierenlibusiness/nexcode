@@ -35,13 +35,14 @@ import {
 } from "../verify/verify-gate";
 
 /**
- * Motorun ana döngüsü.
+ * The main loop of the engine.
  *
- * Bir görev için: checkpoint, operatör planı, (onay), paralel/zincirli delegasyon,
- * bağımsız inceleme, doğrulama kapısı, değerlendirme, yeni tur veya teslimat.
+ * For one task: checkpoint, operator plan, optional approval, parallel or chained
+ * delegation, independent review, verification gate, evaluation, then another round or
+ * delivery.
  *
- * Bu modül saftır (dosya sistemi, süreç ve veritabanı erişimi `EngineDeps` üzerinden
- * enjekte edilir), böylece tüm akış sahte agent'larla test edilebilir.
+ * This module is pure (file system, process and database access are injected through
+ * `EngineDeps`), so the whole flow is testable with fake agents.
  */
 
 export interface EngineTask {
@@ -49,16 +50,17 @@ export interface EngineTask {
   prompt: string;
   executionMode: ExecutionMode;
   /**
-   * Agent süreçlerinin, snapshot'ın, canlı diff'in ve doğrulama kapısının hedefi.
-   * Worktree izolasyonu açıkken bu, izole ağaçtır.
+   * Target of the agent processes, the snapshot, the live diff and the verification gate.
+   * While worktree isolation is on this is the isolated tree.
    */
   workingDir: string;
   /**
-   * Özgün depo. Proje profili (`.nexcode/CONTEXT.md`) burada okunur ve buraya yazılır;
-   * worktree'ye yazılırsa görev bitiminde ağaçla birlikte kaybolur. Verilmezse `workingDir`.
+   * The original repository. The project profile (`.nexcode/CONTEXT.md`) is read from and
+   * written to here; written into the worktree it would be lost with the tree at the end of
+   * the task. Defaults to `workingDir`.
    */
   projectDir?: string;
-  /** Proje profilini bu görev için atla. */
+  /** Skip the project profile for this task. */
   fresh?: boolean;
 }
 
@@ -71,7 +73,7 @@ export interface InvokeInput {
   workingDir: string;
   timeoutSeconds: number;
   silenceSeconds: number;
-  /** Canlı terminal görünümü için akan çıktı. */
+  /** Streaming output for the live terminal view. */
   onChunk: (chunk: string, stream: "stdout" | "stderr") => void;
 }
 
@@ -79,40 +81,41 @@ export type InvokeResult =
   | { ok: true; text: string; calls: number; usdCost: number }
   | { ok: false; failure: FailureInput; calls: number; usdCost: number };
 
-/** Motorun dış dünyaya bağlandığı tek nokta. */
+/** The single point where the engine connects to the outside world. */
 export interface EngineDeps {
   config: () => NexcodeConfig;
   events: EngineEventBus;
-  /** Bir agent'ı (API adapter ya da CLI süreci) çalıştırır. */
+  /** Runs an agent (an API adapter or a CLI process). */
   invoke: (input: InvokeInput) => Promise<InvokeResult>;
-  /** `roles/<file>` içeriğini döndürür. */
+  /** Returns the contents of `roles/<file>`. */
   loadRole: (roleFile: string) => Promise<string>;
-  /** Göreve göre skorlanmış beceri kısa listesi. */
+  /** Skill shortlist scored against the task. */
   matchSkills: (goal: string, kind: AssignmentKind) => Promise<SkillHint[]>;
   /**
-   * Hangi agent'ların gerçekten çalıştırılabildiği (`id` -> çalıştırılabilir mi).
+   * Which agents can actually be executed (`id` -> is it runnable).
    *
-   * Yalnızca `invoke` bunu bilebilir: bir profil CLI komutu ya da API yolu olmadan
-   * çalışamaz. Verilmezse tüm agent'lar çalıştırılabilir sayılır. Çalıştırılamayan bir
-   * profil katalogda kalırsa operatör ona iş verir ve tur boşa gider.
+   * Only `invoke` can know this: a profile cannot run without a CLI command or an API
+   * path. When omitted, every agent counts as runnable. If a profile that cannot run stays
+   * in the catalog, the operator assigns work to it and the round is wasted.
    */
   agentHealth?: () => Record<string, boolean>;
-  /** Çalışma klasörünün `.nexcode/CONTEXT.md` profili. */
+  /** The `.nexcode/CONTEXT.md` profile of the working directory. */
   loadProjectContext: (workingDir: string) => Promise<string>;
-  /** Bütçeyi aşan görev metnini çalışma klasörüne yazar. */
+  /** Writes task text that exceeds the budget into the working directory. */
   writeSpill: (workingDir: string, relativePath: string, content: string) => Promise<void>;
-  /** Görev öncesi checkpoint; `versioning` kapalıysa çağrılmaz. */
+  /** Pre-task checkpoint; not called while `versioning` is off. */
   createCheckpoint?: (taskId: string, workingDir: string) => Promise<void>;
-  /** Canlı diff taramasını başlatır; durdurma fonksiyonu döner. */
+  /** Starts the live diff scan; returns the stop function. */
   startLiveDiff?: (taskId: string, workingDir: string) => Promise<() => Promise<FileChangeSummary[]>>;
   /**
-   * Doğrulama kapısı. Verilmezse kapı hiç çalışmaz ve önceki davranış birebir korunur.
-   * Kapı, turun tüm atamaları bittikten sonra ve tamamlama kararlarından ÖNCE koşar.
+   * The verification gate. When omitted the gate never runs and the earlier behaviour is
+   * preserved exactly. The gate runs after all assignments of the round finish and BEFORE
+   * any completion decision.
    */
   verifyGate?: VerifyGate;
-  /** Riskli plan için insan onayı ister. */
+  /** Asks for human approval of a risky plan. */
   requestApproval?: (input: { taskId: string; planSummary: string; planHash: string }) => Promise<boolean>;
-  /** Görev bitiminde proje profilini revize eder. */
+  /** Revises the project profile at the end of the task. */
   reviseProjectContext?: (workingDir: string, delivery: string) => Promise<void>;
   notify?: (input: { taskId: string; outcome: "done" | "failed"; text: string }) => Promise<void>;
   now?: () => Date;
@@ -145,8 +148,8 @@ interface AssignmentRecord {
 const defaultSleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Kriptografik olmayan, kararlı 64-bit FNV-1a. Onay kuyruğundaki planın değişip
- * değişmediğini tespit etmek için kullanılır: güvenlik sınırı değil, kurcalama tespitidir.
+ * A non-cryptographic, stable 64-bit FNV-1a. Used to detect whether the plan in the
+ * approval queue changed: it is tamper detection, not a security boundary.
  */
 export function planHash(text: string): string {
   let hi = 0x811c9dc5;
@@ -159,7 +162,7 @@ export function planHash(text: string): string {
   return `${hi.toString(16).padStart(8, "0")}${lo.toString(16).padStart(8, "0")}`;
 }
 
-/** Plan metni riskli bir işlem içeriyor mu (yalnızca `approvalMode: "ask"` için anlamlı). */
+/** Whether the plan text contains a risky operation (only meaningful for `approvalMode: "ask"`). */
 export function isRiskyPlan(text: string, patterns: readonly string[]): boolean {
   const haystack = text.toLowerCase();
   return patterns.some((pattern) => pattern.trim() !== "" && haystack.includes(pattern.toLowerCase()));
@@ -176,17 +179,18 @@ export class Engine {
     return this.running;
   }
 
-  /** Yeni bir oturum başlarken karantina ve sayaçları sıfırlar. */
+  /** Resets the quarantine and the counters when a new session starts. */
   resetSession(callsToday = 0): void {
     this.quarantine.clear();
     this.callsToday = callsToday;
   }
 
   /**
-   * Tek bir görevi uçtan uca yürütür.
+   * Runs a single task end to end.
    *
-   * Otonom onay alınmadan çalıştırılamaz; günlük çağrı bütçesi aşıldığında görev
-   * başlatılmaz. Her iki durumda da neden kullanıcıya `log` olayı olarak bildirilir.
+   * It cannot run without autonomous consent, and the task is not started once the daily
+   * call budget is exceeded. In both cases the reason is reported to the user as a `log`
+   * event.
    */
   async runTask(task: EngineTask): Promise<TaskOutcome> {
     const config = this.deps.config();
@@ -195,12 +199,12 @@ export class Engine {
     const warnings: string[] = [];
 
     if (config.autonomousConsentAcceptedAt === null) {
-      return this.abort(task, "Otonom çalışma onayı alınmadan motor başlatılamaz.", warnings);
+      return this.abort(task, "The engine cannot start without autonomous execution consent.", warnings);
     }
     if (this.callsToday >= config.dailyCallBudget) {
       return this.abort(
         task,
-        `Günlük çağrı bütçesi (${String(config.dailyCallBudget)}) doldu; görev başlatılmadı.`,
+        `The daily call budget (${String(config.dailyCallBudget)}) is exhausted; the task was not started.`,
         warnings,
       );
     }
@@ -208,7 +212,7 @@ export class Engine {
     const operatorId = resolveOperatorId(config);
     const operator = operatorId === null ? undefined : config.agents[operatorId];
     if (operator === undefined) {
-      return this.abort(task, "Etkin bir operatör agent'ı yok; görev başlatılamaz.", warnings);
+      return this.abort(task, "There is no enabled operator agent; the task cannot start.", warnings);
     }
 
     this.running = true;
@@ -222,11 +226,11 @@ export class Engine {
       const policy = roundPolicyFor(task.executionMode, task.prompt, config);
       this.emitStatus(task.id, operator.id, 0, policy, config);
 
-      // Görev metni bütçeyi aşıyorsa tam metin çalışma klasörüne taşınır.
+      // When the task text exceeds the budget the full text spills into the working directory.
       const digest = digestTaskPrompt(task.id, task.prompt, config.taskPromptCharBudget);
       if (digest.spill !== null) {
         await this.deps.writeSpill(task.workingDir, digest.spill.relativePath, digest.spill.content);
-        warnings.push(`Görev metni ${digest.spill.relativePath} dosyasına taşındı.`);
+        warnings.push(`The task text was moved into ${digest.spill.relativePath}.`);
       }
 
       if (config.versioning && this.deps.createCheckpoint !== undefined) {
@@ -237,7 +241,7 @@ export class Engine {
       }
 
       const operatorRole = await this.deps.loadRole(config.operator.roleFile);
-      // Proje profili özgün depoda tutulur; izole ağaç görev bitiminde silinebilir.
+      // The project profile is kept in the original repository; the isolated tree may be removed after the task.
       const projectContext =
         config.projectContext && task.fresh !== true
           ? await this.deps.loadProjectContext(projectDirOf(task))
@@ -261,7 +265,7 @@ export class Engine {
         });
         const skills = config.skills.autoMatch ? await this.deps.matchSkills(task.prompt, "plan") : [];
 
-        // ── Operatör kararı (protokol hatasında sınırlı tekrar) ──
+        // ── Operator decision (bounded retries on a protocol error) ──
         let decision: OperatorDecision | null = null;
         let repair: string | undefined;
         for (let attempt = 0; attempt <= config.operator.protocolRetries; attempt++) {
@@ -285,7 +289,7 @@ export class Engine {
 
           if (!result.ok) {
             const summary = describeFailure(result.failure, operator);
-            this.deps.events.emit("log", task.id, { level: "error", message: "Operatör çağrısı başarısız", detail: summary }, now);
+            this.deps.events.emit("log", task.id, { level: "error", message: "Operator call failed", detail: summary }, now);
             return this.finish(task, "failed", summary, "", "", round, delegations, calls, usdCost, files, warnings);
           }
 
@@ -295,32 +299,32 @@ export class Engine {
             break;
           }
           repair = protocolRepairInstruction(parsed.error);
-          warnings.push(`Operatör protokol hatası (deneme ${String(attempt + 1)}): ${parsed.error}`);
-          this.deps.events.emit("log", task.id, { level: "warn", message: "Protokol hatası", detail: parsed.error }, now);
+          warnings.push(`Operator protocol error (attempt ${String(attempt + 1)}): ${parsed.error}`);
+          this.deps.events.emit("log", task.id, { level: "warn", message: "Protocol error", detail: parsed.error }, now);
         }
 
         if (decision === null) {
-          const message = "Operatör, izin verilen deneme sayısında geçerli bir karar üretemedi.";
+          const message = "The operator could not produce a valid decision within the allowed attempts.";
           return this.finish(task, "failed", message, "", "", round, delegations, calls, usdCost, files, warnings);
         }
 
         if (decision.status === "blocked") {
-          const text = `${decision.blocked}${decision.needed === "" ? "" : `\n\nGereken: ${decision.needed}`}`;
+          const text = `${decision.blocked}${decision.needed === "" ? "" : `\n\nNeeded: ${decision.needed}`}`;
           return this.finish(task, "blocked", text, "", "", round, delegations, calls, usdCost, files, warnings);
         }
 
         if (decision.status === "complete") {
-          // Çalıştırılmış kanıt modelin beyanının önündedir: kırmızı kapıya rağmen verilen
-          // "tamamlandı" kararı BİR kez reddedilir ve düzeltme turu zorlanır. İkinci kez
-          // gelirse teslimat uyarıyla yapılır; saatlerce süren iş çöpe atılmaz.
+          // Executed evidence comes ahead of the model's claim: a "complete" decision made
+          // despite a red gate is rejected ONCE and a repair round is forced. If it comes a
+          // second time the delivery happens with a warning; hours of work are not thrown away.
           if (!completionRejected && this.deps.verifyGate?.isBlocking(config, verify) === true) {
             completionRejected = true;
             const reason = verifySummary(verify);
-            warnings.push(`Kırmızı doğrulama kapısına rağmen tamamlama kararı reddedildi: ${reason}`);
+            warnings.push(`Completion decision rejected despite a red verification gate: ${reason}`);
             this.deps.events.emit(
               "log",
               task.id,
-              { level: "warn", message: "Doğrulama kapısı teslimatı engelledi", detail: reason },
+              { level: "warn", message: "The verification gate blocked delivery", detail: reason },
               now,
             );
             continue;
@@ -343,7 +347,7 @@ export class Engine {
           );
         }
 
-        // ── Atama normalizasyonu ve rol zinciri ──
+        // ── Assignment normalisation and role chain ──
         const normalized = normalizeAssignments(decision.assignments, catalog, policy);
         warnings.push(...normalized.warnings);
         const chained = enforceRoleChain(normalized.assignments, catalog, policy, round);
@@ -351,11 +355,11 @@ export class Engine {
         const assignments = chained.assignments;
 
         if (assignments.length === 0) {
-          const message = "Operatör planı yürütülebilir hiçbir atama içermiyor.";
+          const message = "The operator plan contains no executable assignment.";
           return this.finish(task, "failed", message, "", "", round, delegations, calls, usdCost, files, warnings);
         }
 
-        // ── Onay kapısı ──
+        // ── Approval gate ──
         const planText = `${decision.planSummary}\n${assignments.map((a) => a.instruction).join("\n")}`;
         if (
           config.approvalMode === "ask" &&
@@ -371,7 +375,7 @@ export class Engine {
             return this.finish(
               task,
               "blocked",
-              "Riskli plan kullanıcı tarafından reddedildi.",
+              "The risky plan was rejected by the user.",
               "",
               "",
               round,
@@ -384,12 +388,12 @@ export class Engine {
           }
         }
 
-        // ── Delegasyonların yürütülmesi ──
+        // ── Executing the delegations ──
         const roundRecords: AssignmentRecord[] = [];
         for (const batch of parallelBatches(assignments)) {
           const settled = await Promise.all(
             batch.map(async (assignment) => {
-              // Bağımlı olduğu iş başarısızsa bu işi hiç başlatma.
+              // Do not start this work at all when the work it depends on failed.
               const blockedBy = assignment.dependsOn.filter((dep) =>
                 [...history, ...roundRecords].some((r) => r.assignment.id === dep && r.status === "failed"),
               );
@@ -397,7 +401,7 @@ export class Engine {
                 return {
                   assignment,
                   status: "failed" as const,
-                  output: `Bağımlı olduğu iş başarısız oldu: ${blockedBy.join(", ")}`,
+                  output: `The work it depends on failed: ${blockedBy.join(", ")}`,
                   verdict: null,
                   calls: 0,
                   usdCost: 0,
@@ -423,7 +427,7 @@ export class Engine {
         const reviews = roundRecords.filter((r) => r.assignment.kind === "review" && r.verdict !== null);
         latestVerdict = reviews.length > 0 ? (reviews[reviews.length - 1]?.verdict ?? null) : null;
 
-        // ── Doğrulama kapısı: tek çağrı noktası, tamamlama kararlarından ÖNCE ──
+        // ── Verification gate: a single call site, BEFORE any completion decision ──
         if (this.deps.verifyGate !== undefined) {
           verify = await this.deps.verifyGate.run(config, task.workingDir);
           if (verify.ran) {
@@ -432,7 +436,7 @@ export class Engine {
               task.id,
               {
                 level: verify.ok ? "info" : "warn",
-                message: "Doğrulama kapısı",
+                message: "Verification gate",
                 detail: verifySummary(verify),
               },
               now,
@@ -446,8 +450,8 @@ export class Engine {
           hasFailure: roundRecords.some((r) => r.status === "failed"),
         };
 
-        // ── PASS hızlı yolu: ikinci operatör çağrısını atla ──
-        // Kırmızı kapı bu kestirmeyi kapatır; karar operatöre gider.
+        // ── PASS fast path: skip the second operator call ──
+        // A red gate disables this shortcut; the decision goes to the operator.
         const fastPathAllowed = this.deps.verifyGate?.allowsFastPath(verify) ?? true;
         if (fastPathAllowed && shouldFastPathDeliver(outcome, config.operator.passFastPath)) {
           files = stopLiveDiff === null ? files : await stopLiveDiff();
@@ -471,9 +475,9 @@ export class Engine {
           files = stopLiveDiff === null ? files : await stopLiveDiff();
           stopLiveDiff = null;
           const partial = outcome.hasFailure
-            ? "Tur sınırına ulaşıldı; iş kısmen tamamlandı."
-            : "Tur sınırına ulaşıldı; teslimat mevcut haliyle sunuluyor.";
-          // Tur bütçesi bittiğinde kırmızı kapı işi çöpe atmaz, kalan riske yazılır.
+            ? "The round limit was reached; the work is partially complete."
+            : "The round limit was reached; the delivery is presented as it stands.";
+          // When the round budget runs out a red gate does not discard the work; it is recorded as remaining risk.
           if (verify.ran && !verify.ok) warnings.push(verifySummary(verify));
           return this.finish(
             task,
@@ -501,7 +505,7 @@ export class Engine {
       return this.finish(
         task,
         "failed",
-        "Tur bütçesi tükendi.",
+        "The round budget is exhausted.",
         "",
         "",
         policy.maxRounds,
@@ -517,7 +521,7 @@ export class Engine {
     }
   }
 
-  /** Bir atamayı yürütür; kurtarma politikasını (yeniden deneme / devir) uygular. */
+  /** Runs an assignment and applies the recovery policy (retry or failover). */
   private async runAssignment(
     task: EngineTask,
     assignment: NormalizedAssignment,
@@ -558,14 +562,14 @@ export class Engine {
         return {
           assignment: current,
           status: "failed",
-          output: "Agent profili bulunamadı.",
+          output: "Agent profile not found.",
           verdict: null,
           calls,
           usdCost,
         };
       }
 
-      // Rol metni agent profilinden çözülür; devir sonrası yeni agent'ın rolü geçerlidir.
+      // The role text is resolved from the agent profile; after a failover the new agent's role applies.
       const roleText = await this.deps.loadRole(profile.roleFile);
 
       this.deps.events.emit(
@@ -620,7 +624,7 @@ export class Engine {
         return { assignment: current, status: "completed", output: result.text, verdict, calls, usdCost };
       }
 
-      // ── Kurtarma ──
+      // ── Recovery ──
       const failure = classifyFailure(result.failure);
       const alternative = catalog.find(
         (a) => a.id !== current.agentId && a.allowedKinds.includes(current.kind) && !this.quarantine.has(a.id),
@@ -640,7 +644,7 @@ export class Engine {
       this.deps.events.emit(
         "log",
         task.id,
-        { level: "warn", message: `Delegasyon başarısız (${failure})`, detail: decision.reason },
+        { level: "warn", message: `Delegation failed (${failure})`, detail: decision.reason },
         now,
       );
 
@@ -658,7 +662,7 @@ export class Engine {
           agentName: alternative.name,
           adapter: alternative.adapter,
           role: alternative.role,
-          instruction: `${current.instruction}\n\n[Not: önceki agent bu işi tamamlayamadı (${failure}). Baştan ele al.]`,
+          instruction: `${current.instruction}\n\n[Note: the previous agent could not complete this work (${failure}). Approach it from scratch.]`,
         };
         attempt = 0;
         continue;
@@ -732,7 +736,7 @@ export class Engine {
       },
     });
 
-    // Günlük bütçe sayacı tek noktadan beslenir: operatör ve uzman çağrıları dahil.
+    // The daily budget counter is fed from a single point, including operator and specialist calls.
     this.callsToday += result.calls;
 
     this.deps.events.emit(
@@ -824,7 +828,7 @@ export class Engine {
         void this.deps.notify({ taskId: task.id, outcome, text: final });
       }
     }
-    // Profil özgün depoya yazılır; izole ağaç görev sonrası kaldırılabilir.
+    // The profile is written to the original repository; the isolated tree may be removed after the task.
     if (outcome === "done" && config.projectContext && this.deps.reviseProjectContext !== undefined) {
       void this.deps.reviseProjectContext(projectDirOf(task), final);
     }
@@ -846,22 +850,22 @@ export class Engine {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Yardımcılar
+// Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Proje profilinin okunup yazılacağı dizin: izolasyon varken özgün depo. */
+/** Directory the project profile is read from and written to: the original repo while isolated. */
 function projectDirOf(task: EngineTask): string {
   return task.projectDir ?? task.workingDir;
 }
 
-/** Modelin doğrulama beyanına, gerçekten çalıştırılmış kapının sonucunu ekler. */
+/** Appends the result of the gate that actually ran to the model's verification claim. */
 function mergeVerification(modelClaim: string, verify: VerifyReport): string {
   if (!verify.ran) return modelClaim;
   const gate = verifySummary(verify);
   return modelClaim.trim() === "" ? gate : `${modelClaim.trim()}\n\n${gate}`;
 }
 
-/** Kırmızı kapı, teslim edilen işin kalan riskine açıkça yazılır. */
+/** A red gate is recorded explicitly in the remaining risk of the delivered work. */
 function mergeRisk(modelRisk: string, verify: VerifyReport): string {
   if (!verify.ran || verify.ok) return modelRisk;
   const gate = verifySummary(verify);
@@ -869,7 +873,7 @@ function mergeRisk(modelRisk: string, verify: VerifyReport): string {
 }
 
 function describeFailure(failure: FailureInput, agent: AgentProfile): string {
-  const parts = [`${agent.name} işi tamamlayamadı: ${failure.message}`];
+  const parts = [`${agent.name} could not complete the work: ${failure.message}`];
   if (failure.stderr !== undefined && failure.stderr.trim() !== "") {
     parts.push(failure.stderr.trim().slice(0, 500));
   }
@@ -880,7 +884,7 @@ function summarizeHistory(history: readonly AssignmentRecord[]): string {
   if (history.length === 0) return "";
   return history
     .map((record) => {
-      const status = record.status === "completed" ? "TAMAMLANDI" : "BAŞARISIZ";
+      const status = record.status === "completed" ? "COMPLETED" : "FAILED";
       const verdict = record.verdict === null ? "" : ` · VERDICT: ${record.verdict}`;
       return [
         `── ${record.assignment.id} (${record.assignment.kind} · ${record.assignment.agentName}): ${status}${verdict}`,
@@ -893,7 +897,7 @@ function summarizeHistory(history: readonly AssignmentRecord[]): string {
 function summarizeDelivery(records: readonly AssignmentRecord[]): string {
   const implementations = records.filter((r) => r.assignment.kind === "implement" && r.status === "completed");
   const source = implementations.length > 0 ? implementations : records.filter((r) => r.status === "completed");
-  if (source.length === 0) return "Teslim edilebilir çıktı üretilmedi.";
+  if (source.length === 0) return "No deliverable output was produced.";
   return source.map((r) => r.output.trim()).join("\n\n");
 }
 

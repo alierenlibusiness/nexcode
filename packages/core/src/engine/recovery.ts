@@ -1,25 +1,26 @@
 import type { NexcodeConfig } from "../config/schema";
 
 /**
- * Hata sınıflandırması ve kurtarma politikası.
+ * Failure classification and recovery policy.
  *
- * Geçici sağlayıcı hatalarında delegasyon aynı agent ile üstel bekleyerek yeniden denenir;
- * kalıcı hatada iş aynı yetenekteki sağlıklı bir agent'a devredilir. Operatöre geri dönüp
- * yeni bir plan turu harcamak **son çaredir**: pahalıdır ve tamamlanmış işi tekrarlatır.
+ * On a transient provider error the delegation is retried with the same agent using
+ * exponential backoff; on a permanent error the work is handed to a healthy agent with the
+ * same capability. Going back to the operator and spending a new planning round is the
+ * **last resort**: it is expensive and makes completed work repeat.
  */
 
 export type FailureClass =
-  /** Rate limit, aşırı yük, ağ dalgalanması: aynı agent ile beklenip tekrar denenir. */
+  /** Rate limit, overload, network jitter: wait and retry with the same agent. */
   | "transient"
-  /** Oturum açılmamış / yetkisiz: agent bu oturumda kullanılamaz. */
+  /** Not signed in or unauthorised: the agent cannot be used in this session. */
   | "auth"
-  /** Model bulunamadı veya erişilemiyor: agent bu oturumda kullanılamaz. */
+  /** Model not found or not reachable: the agent cannot be used in this session. */
   | "model"
-  /** Toplam süre tavanı aşıldı. */
+  /** The total time ceiling was exceeded. */
   | "timeout"
-  /** Uzun süre yeni çıktı gelmedi. Süreç HİÇ çalışmadı demek değildir; ilerleme korunur. */
+  /** No new output for a long time. It does NOT mean the process never ran; progress is preserved. */
   | "stalled"
-  /** Diğer her şey. */
+  /** Everything else. */
   | "permanent";
 
 const TRANSIENT_SIGNALS = [
@@ -52,6 +53,7 @@ const AUTH_SIGNALS = [
   "authentication",
   "invalid api key",
   "no credentials",
+  // Turkish CLI wording, kept so Turkish-locale CLI output is classified correctly.
   "oturum aç",
 ];
 
@@ -68,13 +70,13 @@ export interface FailureInput {
   message: string;
   stderr?: string;
   exitCode?: number;
-  /** Toplam süre tavanı aşıldı. */
+  /** The total time ceiling was exceeded. */
   timedOut?: boolean;
-  /** Sessizlik sınırı aşıldı. */
+  /** The silence limit was exceeded. */
   stalled?: boolean;
 }
 
-/** Bir delegasyon hatasını kurtarma politikasının anlayacağı sınıfa çevirir. */
+/** Turns a delegation failure into a class the recovery policy understands. */
 export function classifyFailure(input: FailureInput): FailureClass {
   if (input.stalled === true) return "stalled";
   if (input.timedOut === true) return "timeout";
@@ -90,30 +92,30 @@ export type RecoveryAction = "retry" | "failover" | "give-up";
 
 export interface RecoveryDecision {
   action: RecoveryAction;
-  /** `retry` için beklenecek süre. */
+  /** How long to wait for a `retry`. */
   delayMs: number;
-  /** Agent bu oturum boyunca katalog dışında tutulsun mu. */
+  /** Whether the agent should be kept out of the catalog for this session. */
   quarantine: boolean;
   reason: string;
 }
 
 export interface RecoveryInput {
   failure: FailureClass;
-  /** Bu agent üzerinde şimdiye kadar yapılmış yeniden deneme sayısı. */
+  /** Number of retries performed on this agent so far. */
   attempt: number;
-  /** Bu atama için şimdiye kadar kullanılmış devir sayısı. */
+  /** Number of failovers used for this assignment so far. */
   failoversUsed: number;
-  /** Devredilebilecek, aynı yetenekte sağlıklı başka bir agent var mı. */
+  /** Whether another healthy agent with the same capability is available to take over. */
   hasAlternative: boolean;
   resilience: NexcodeConfig["resilience"];
 }
 
 /**
- * Bir başarısızlıktan sonra ne yapılacağına karar verir.
+ * Decides what to do after a failure.
  *
- * - `transient` → `transientRetries` kadar üstel bekleyerek aynı agent.
- * - `auth` / `model` → agent oturum boyunca karantinaya alınır, iş devredilir.
- * - `timeout` / `stalled` / `permanent` → devir; karantina yok (geçici koşul olabilir).
+ * - `transient` -> the same agent, with exponential backoff, up to `transientRetries`.
+ * - `auth` / `model` -> the agent is quarantined for the session and the work is handed over.
+ * - `timeout` / `stalled` / `permanent` -> failover without quarantine (it may be temporary).
  */
 export function decideRecovery(input: RecoveryInput): RecoveryDecision {
   const { failure, attempt, failoversUsed, hasAlternative, resilience } = input;
@@ -124,7 +126,7 @@ export function decideRecovery(input: RecoveryInput): RecoveryDecision {
       action: "retry",
       delayMs: delaySeconds * 1000,
       quarantine: false,
-      reason: `Geçici sağlayıcı hatası; ${String(delaySeconds)} sn sonra aynı agent ile yeniden denenecek.`,
+      reason: `Transient provider error; retrying with the same agent in ${String(delaySeconds)}s.`,
     };
   }
 
@@ -136,8 +138,8 @@ export function decideRecovery(input: RecoveryInput): RecoveryDecision {
       delayMs: 0,
       quarantine,
       reason: quarantine
-        ? `Agent bu oturumda kullanılamıyor (${failure}); iş aynı yetenekteki başka bir agent'a devrediliyor.`
-        : `Kalıcı hata (${failure}); iş aynı yetenekteki başka bir agent'a devrediliyor.`,
+        ? `The agent cannot be used in this session (${failure}); the work is handed to another agent with the same capability.`
+        : `Permanent error (${failure}); the work is handed to another agent with the same capability.`,
     };
   }
 
@@ -146,25 +148,25 @@ export function decideRecovery(input: RecoveryInput): RecoveryDecision {
     delayMs: 0,
     quarantine,
     reason: hasAlternative
-      ? `Devir hakkı tükendi (${String(resilience.maxFailoverAgents)}); atama başarısız sayılıyor.`
-      : `Aynı yetenekte kullanılabilir başka agent yok; atama başarısız sayılıyor.`,
+      ? `Failover budget exhausted (${String(resilience.maxFailoverAgents)}); the assignment counts as failed.`
+      : `No other agent with the same capability is available; the assignment counts as failed.`,
   };
 }
 
 /**
- * `stalled` durumunun kullanıcıya gösterilen özeti.
+ * The user facing summary of the `stalled` condition.
  *
- * Bir CLI önce dosya ve araç çıktıları üretip yalnızca son adımda sessiz kalabilir; bu yüzden
- * mesaj "hiç çalışmadı" demez: o ana kadarki ilerleme kaydının korunduğunu söyler.
+ * A CLI may produce file and tool output first and only fall silent on the last step, so the
+ * message does not say "it never ran": it says the progress made up to that point is preserved.
  */
 export function stalledSummary(silenceSeconds: number): string {
   return [
-    `Agent ${String(silenceSeconds)} saniye boyunca yeni çıktı üretmediği için delegasyon sonlandırıldı.`,
-    "Bu, sürecin hiç çalışmadığı anlamına gelmez: o ana kadarki ilerleme kayıtları korunmuştur.",
+    `The delegation was terminated because the agent produced no new output for ${String(silenceSeconds)} seconds.`,
+    "This does not mean the process never ran: the progress recorded up to that point is preserved.",
   ].join(" ");
 }
 
-/** Oturum boyunca sorunlu agent'ları katalog dışında tutan basit kayıt. */
+/** A simple registry that keeps problematic agents out of the catalog for the session. */
 export class QuarantineRegistry {
   private readonly entries = new Map<string, string>();
 

@@ -1,33 +1,33 @@
 import { createContext } from "../context";
 
 /**
- * Otonom çalışma onayı.
+ * Autonomous execution consent.
  *
- * Motor bu onay olmadan başlatılamaz. Masaüstü uygulamasında onay penceresiyle alınır;
- * panelsiz kullanımda kullanıcının açıkça bu komutu çalıştırması gerekir. Onay bir kez
- * verilir ve yapılandırmada zaman damgasıyla saklanır.
+ * The engine cannot start without this consent. The desktop application collects it
+ * through a consent dialog; without the panel the user has to run this command
+ * explicitly. Consent is granted once and stored in the configuration with a timestamp.
  */
 
 const NOTICE = `
-Otonom çalışma onayı
-====================
+Autonomous execution consent
+============================
 
-NEXCODE motoru, kurulu kodlama CLI'larını SENİN adına ve SENİN yetkilerinle çalıştırır.
-Kabul ettiğinde motor şunları yapabilir:
+The NEXCODE engine runs your installed coding CLIs on YOUR behalf and with YOUR
+permissions. Once you accept, the engine can:
 
-  - Çalışma klasöründeki dosyaları okur, oluşturur, değiştirir ve siler
-  - Kurulu CLI'ları kendi oturumunla ve kotanla çağırır
-  - Tanımladığın doğrulama komutlarını (test, lint, derleme) çalıştırır
-  - Etkinse görev başına git worktree ve branch açar, o branch'e commit atar
+  - Read, create, modify and delete files in the working directory
+  - Invoke installed CLIs with your own session and your own quota
+  - Run the verification commands you define (test, lint, build)
+  - When enabled, open a git worktree and branch per task and commit to that branch
 
-Motorun KENDİLİĞİNDEN yapmadıkları:
+What the engine does NOT do on its own:
 
-  - Uzağa hiçbir şey göndermez (push, PR yok)
-  - Riskli plan, approvalMode "ask" iken senin onayını bekler
-  - Her görev öncesi checkpoint alır; geri alma tek komuttur
+  - It sends nothing to a remote (no push, no PR)
+  - A risky plan waits for your approval while approvalMode is "ask"
+  - It takes a checkpoint before every task; undo is a single command
 
-Kabul etmek için:  nexcode consent --accept
-Geri almak için :  nexcode consent --revoke
+To accept: nexcode consent --accept
+To revoke: nexcode consent --revoke
 `;
 
 export function runConsentCommand(flags: Record<string, string | boolean>): number {
@@ -36,24 +36,24 @@ export function runConsentCommand(flags: Record<string, string | boolean>): numb
 
   if (flags.revoke === true) {
     ctx.configRepo.save({ ...config, autonomousConsentAcceptedAt: null });
-    process.stdout.write("Otonom çalışma onayı geri alındı. Motor artık başlatılamaz.\n");
+    process.stdout.write("Autonomous execution consent revoked. The engine can no longer start.\n");
     return 0;
   }
 
   if (flags.accept === true) {
     const acceptedAt = new Date().toISOString();
     ctx.configRepo.save({ ...config, autonomousConsentAcceptedAt: acceptedAt });
-    process.stdout.write(`Otonom çalışma onaylandı (${acceptedAt}).\n\nBaşlatmak için: nexcode run\n`);
+    process.stdout.write(`Autonomous execution accepted (${acceptedAt}).\n\nTo start: nexcode run\n`);
     return 0;
   }
 
   process.stdout.write(NOTICE);
   if (config.autonomousConsentAcceptedAt !== null) {
-    process.stdout.write(`\nDurum: onaylı (${config.autonomousConsentAcceptedAt})\n`);
+    process.stdout.write(`\nStatus: accepted (${config.autonomousConsentAcceptedAt})\n`);
     return 0;
   }
 
-  process.stdout.write("\nDurum: onaylanmadı\n");
-  // Onaysız durum bir hata değil, bir gerekliliktir; script'ler bunu ayırt edebilsin diye 1.
+  process.stdout.write("\nStatus: not accepted\n");
+  // Not having consent is a requirement rather than an error; exit 1 so scripts can tell them apart.
   return 1;
 }

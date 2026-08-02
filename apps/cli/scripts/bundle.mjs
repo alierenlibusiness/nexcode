@@ -4,23 +4,23 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
- * CLI'ı tek dosyaya bundle eder.
+ * Bundles the CLI into a single file.
  *
- * Neden bundle: `@nexcode/core` scope'lu bir addır ve o npm organizasyonuna sahip olmayan
- * biri onu yayımlayamaz. Çekirdeği CLI'ın içine gömerek yayımlanacak **tek, scope'suz**
- * paket kalır: `nexcode`. Kullanıcı `npm install -g nexcode` yazdığında ikinci bir paketin
- * varlığına, sürüm eşleşmesine ya da scope sahipliğine bağımlı olmaz.
+ * Why bundle: `@nexcode/core` is a scoped name and nobody outside that npm organisation
+ * can publish it. Embedding the core inside the CLI leaves a **single, unscoped** package
+ * to publish: `nexcode`. When a user runs `npm install -g nexcode` they do not depend on a
+ * second package, on version matching, or on scope ownership.
  *
- * `better-sqlite3` dışarıda bırakılır: yerel derlenen bir native modüldür, bundle edilemez
- * ve kurulumda kendi ikilisini üretmesi gerekir.
+ * `better-sqlite3` is left external: it is a locally compiled native module, it cannot be
+ * bundled, and it has to produce its own binary at install time.
  */
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "..");
 const outfile = path.join(root, "dist", "cli.js");
 
-// Önceki derlemelerden kalan dosyalar (tip bildirimleri, test çıktıları) tarball'a
-// sızmasın diye çıktı klasörü her seferinde sıfırlanır.
+// The output folder is reset every time so files left over from earlier builds
+// (type declarations, test output) do not leak into the tarball.
 rmSync(path.join(root, "dist"), { recursive: true, force: true });
 
 await build({
@@ -30,28 +30,28 @@ await build({
   platform: "node",
   target: "node22",
   format: "cjs",
-  // Native modül ve onun isteğe bağlı bağımlılıkları çözümleme aşamasında dışarıda kalır.
+  // The native module and its optional dependencies stay out of the resolution step.
   external: ["better-sqlite3", "@napi-rs/keyring", "electron"],
-  // Banner eklenmez: `src/cli.ts` zaten shebang taşıyor ve esbuild onu koruyor.
-  // İkincisini eklemek ikinci satıra geçersiz bir `#!` bırakır ve dosya çalışmaz.
+  // No banner is added: `src/cli.ts` already carries a shebang and esbuild preserves it.
+  // Adding a second one leaves an invalid `#!` on line two and the file will not run.
   legalComments: "none",
   minify: false,
   sourcemap: false,
   logLevel: "warning",
 });
 
-// `require.main === module` kontrolü bundle sonrası da doğru çalışsın diye giriş dosyası
-// doğrudan çalıştırılabilir olmalıdır.
+// The entry file has to stay directly executable so the `require.main === module` check
+// still works after bundling.
 chmodSync(outfile, 0o755);
 
 const bytes = readFileSync(outfile).byteLength;
 console.log(`bundle: dist/cli.js (${String(Math.round(bytes / 1024))} KB)`);
 
-// Yayımlanan pakette çalışma zamanı bağımlılığı yalnızca native modüldür; geri kalanı
-// bundle içinde olduğundan kurulum sırasında indirilmez.
+// The only runtime dependency of the published package is the native module; everything
+// else is inside the bundle and is not downloaded at install time.
 const pkgPath = path.join(root, "package.json");
 const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
 if (pkg.dependencies?.["@nexcode/core"] !== undefined) {
-  console.warn("UYARI: package.json hala @nexcode/core bagimliligi tasiyor.");
+  console.warn("WARNING: package.json still carries an @nexcode/core dependency.");
 }
 writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
