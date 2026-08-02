@@ -1,5 +1,5 @@
-// Native bağımlılıklı MCP katmanı (node:child_process). Yalnızca main process'te kullanılır.
-// Renderer bu alt yola (`@nexcode/core/mcp`) erişmemelidir; saf protokol tipleri için
-// `@nexcode/core` yeterlidir.
+// MCP layer with a native dependency (node:child_process). Used only in the main process.
+// The renderer must not reach into this subpath (`@nexcode/core/mcp`); `@nexcode/core` is
+// enough for the pure protocol types.
 export * from "./client";
 export * from "./manager";

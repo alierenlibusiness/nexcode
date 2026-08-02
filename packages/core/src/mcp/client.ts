@@ -2,7 +2,8 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { logger } from "../logger";
 import type { JsonObject, JsonValue } from "../json";
 
-// JSON tipleri saf `../json` modülündedir; bu dosya native olduğundan renderer'a sızmamalıdır.
+// The JSON types live in the pure `../json` module; this file is native and must not leak
+// into the renderer.
 export type { JsonValue, JsonObject } from "../json";
 
 export interface McpServerConfig {
@@ -20,7 +21,7 @@ export interface McpTool {
   inputSchema?: JsonObject;
 }
 
-/** JSON-RPC 2.0 yanıtı (MCP sunucusundan gelen). */
+/** A JSON-RPC 2.0 response coming from the MCP server. */
 interface JsonRpcResponse {
   jsonrpc?: string;
   id?: number | string | null;

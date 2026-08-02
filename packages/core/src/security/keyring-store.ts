@@ -2,9 +2,9 @@ import { Entry } from "@napi-rs/keyring";
 import type { SecretStore } from "./secret-store";
 
 /**
- * OS keychain tabanlı sır deposu (Windows Credential Manager / macOS Keychain).
- * Native bağımlılık içerir: yalnızca Electron main process'te kullanılmalıdır
- * (renderer bu alt yola `@nexcode/core/keyring` erişmemelidir).
+ * OS keychain backed secret store (Windows Credential Manager / macOS Keychain).
+ * It carries a native dependency, so it must only be used in the Electron main process
+ * (the renderer must not reach into the `@nexcode/core/keyring` subpath).
  */
 export class KeyringSecretStore implements SecretStore {
   async set(service: string, account: string, secret: string): Promise<void> {
@@ -15,7 +15,7 @@ export class KeyringSecretStore implements SecretStore {
     try {
       return new Entry(service, account).getPassword();
     } catch {
-      // Kayıt yoksa keyring hata fırlatır → yok kabul et.
+      // The keyring throws when there is no record, so treat that as absent.
       return null;
     }
   }

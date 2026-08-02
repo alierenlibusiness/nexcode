@@ -3,18 +3,19 @@ import type { NexcodeConfig, ExecutionMode } from "../config/schema";
 import { EXECUTION_MODES } from "../config/schema";
 
 /**
- * Dışa dönük MCP sunucusu.
+ * The outbound MCP server.
  *
- * NEXCODE'u başka bir kodlama agent'ına (Claude Code, Codex, Gemini, OpenCode) araç olarak
- * sunar: o agent kendi akışının içinden NEXCODE'a görev kuyruklayabilir, durum sorabilir ve
- * onay bekleyenleri listeleyebilir.
+ * Exposes NEXCODE to another coding agent (Claude Code, Codex, Gemini, OpenCode) as a tool:
+ * that agent can queue a task into NEXCODE from inside its own flow, query status and list
+ * what is awaiting approval.
  *
- * Bu modül saf protokol katmanıdır: taşıma (stdio) ve uygulama işlemleri `McpServerHost`
- * port'undan gelir, böylece tüm sözleşme süreç açmadan test edilebilir.
+ * This module is a pure protocol layer: the transport (stdio) and the application operations
+ * arrive through the `McpServerHost` port, so the whole contract is testable without
+ * spawning a process.
  *
- * Güvenlik değişmezi: motoru başlatıp durdurma aracı yalnızca `mcpServer.allowEngineControl`
- * açıkken katalogda görünür ve yalnızca o zaman çağrılabilir. Harici bir istemci, kullanıcı
- * açıkça izin vermedikçe otonom yürütmeyi tetikleyemez.
+ * Safety invariant: the engine start/stop tool only appears in the catalog and can only be
+ * called while `mcpServer.allowEngineControl` is on. An external client cannot trigger
+ * autonomous execution unless the user explicitly grants permission.
  */
 
 export const MCP_PROTOCOL_VERSION = "2024-11-05";
@@ -37,7 +38,7 @@ export interface McpApprovalView {
   createdAt: string;
 }
 
-/** Sunucunun çalışan uygulamaya bağlandığı tek nokta. */
+/** The single point where the server connects to the running application. */
 export interface McpServerHost {
   config: () => NexcodeConfig;
   createTask: (input: { prompt: string; workingDir?: string; executionMode?: ExecutionMode }) => Promise<McpTaskView>;
@@ -45,7 +46,7 @@ export interface McpServerHost {
   listTasks: () => Promise<McpTaskView[]>;
   listApprovals: () => Promise<McpApprovalView[]>;
   resolveApproval: (approvalId: string, approved: boolean) => Promise<boolean>;
-  /** Yalnızca `allowEngineControl` açıkken çağrılır. */
+  /** Called only while `allowEngineControl` is on. */
   setEngineRunning: (running: boolean) => Promise<boolean>;
 }
 
@@ -78,22 +79,22 @@ const ERROR = {
 
 const ENGINE_CONTROL_TOOL = "nexcode_engine_control";
 
-/** Araç kataloğu. `allowEngineControl` kapalıyken motor kontrolü listede yer almaz. */
+/** The tool catalog. Engine control is absent from the list while `allowEngineControl` is off. */
 export function toolCatalog(cfg: NexcodeConfig): McpToolDefinition[] {
   const tools: McpToolDefinition[] = [
     {
       name: "nexcode_create_task",
       description:
-        "NEXCODE kuyruğuna yeni bir görev ekler. Görev, operatör yönetimindeki uzman agent ekibi tarafından yürütülür.",
+        "Adds a new task to the NEXCODE queue. The task is executed by the operator-led team of specialist agents.",
       inputSchema: {
         type: "object",
         properties: {
-          prompt: { type: "string", description: "Görevin hedefi. Ne yapılması gerektiğini açıkça yaz." },
-          workingDir: { type: "string", description: "Çalışma klasörü. Verilmezse yapılandırmadaki varsayılan kullanılır." },
+          prompt: { type: "string", description: "The goal of the task. State clearly what needs to be done." },
+          workingDir: { type: "string", description: "Working directory. The configured default is used when omitted." },
           executionMode: {
             type: "string",
             enum: [...EXECUTION_MODES],
-            description: "Yürütme derinliği. auto varsayılandır.",
+            description: "Execution depth. auto is the default.",
           },
         },
         required: ["prompt"],
@@ -101,31 +102,31 @@ export function toolCatalog(cfg: NexcodeConfig): McpToolDefinition[] {
     },
     {
       name: "nexcode_task_status",
-      description: "Bir görevin güncel durumunu, teslimat özetini ve kalan riskini döndürür.",
+      description: "Returns the current status, delivery summary and remaining risk of a task.",
       inputSchema: {
         type: "object",
-        properties: { taskId: { type: "string", description: "Görev id'si." } },
+        properties: { taskId: { type: "string", description: "Task id." } },
         required: ["taskId"],
       },
     },
     {
       name: "nexcode_list_tasks",
-      description: "Kuyruktaki ve tamamlanmış görevleri listeler.",
+      description: "Lists queued and completed tasks.",
       inputSchema: { type: "object", properties: {} },
     },
     {
       name: "nexcode_list_approvals",
-      description: "İnsan onayı bekleyen riskli planları listeler.",
+      description: "Lists risky plans awaiting human approval.",
       inputSchema: { type: "object", properties: {} },
     },
     {
       name: "nexcode_resolve_approval",
-      description: "Bekleyen bir onayı kabul eder ya da reddeder.",
+      description: "Accepts or rejects a pending approval.",
       inputSchema: {
         type: "object",
         properties: {
-          approvalId: { type: "string", description: "Onay kaydının id'si." },
-          approved: { type: "boolean", description: "true kabul, false ret." },
+          approvalId: { type: "string", description: "Id of the approval record." },
+          approved: { type: "boolean", description: "true accepts, false rejects." },
         },
         required: ["approvalId", "approved"],
       },
@@ -135,10 +136,10 @@ export function toolCatalog(cfg: NexcodeConfig): McpToolDefinition[] {
   if (cfg.mcpServer.allowEngineControl) {
     tools.push({
       name: ENGINE_CONTROL_TOOL,
-      description: "NEXCODE motorunu başlatır ya da durdurur. Durdurma uçuştaki görevi yarıda kesmez.",
+      description: "Starts or stops the NEXCODE engine. Stopping does not interrupt an in-flight task.",
       inputSchema: {
         type: "object",
-        properties: { running: { type: "boolean", description: "true başlatır, false durdurur." } },
+        properties: { running: { type: "boolean", description: "true starts, false stops." } },
         required: ["running"],
       },
     });
@@ -151,10 +152,10 @@ export class McpServer {
   constructor(private readonly host: McpServerHost) {}
 
   /**
-   * Tek bir JSON-RPC isteğini karşılar.
+   * Serves a single JSON-RPC request.
    *
-   * Bildirimler (`id` yok) için `null` döner ve hiçbir yanıt yazılmaz; JSON-RPC sözleşmesi
-   * bildirimlere yanıt verilmesini yasaklar.
+   * Returns `null` for notifications (no `id`) and writes no response; the JSON-RPC contract
+   * forbids responding to notifications.
    */
   async handle(request: JsonRpcRequest): Promise<JsonRpcResponse | null> {
     const id = request.id ?? null;
@@ -162,9 +163,9 @@ export class McpServer {
     const isNotification = request.id === undefined || request.id === null;
 
     if (method === "") {
-      return isNotification ? null : this.error(id, ERROR.invalidRequest, "method alanı zorunludur");
+      return isNotification ? null : this.error(id, ERROR.invalidRequest, "the method field is required");
     }
-    // `notifications/*` yalnızca bilgilendirmedir; yanıt üretilmez.
+    // `notifications/*` is informational only; no response is produced.
     if (method.startsWith("notifications/")) return null;
 
     try {
@@ -186,7 +187,7 @@ export class McpServer {
           return await this.callTool(id, request.params);
 
         default:
-          return isNotification ? null : this.error(id, ERROR.methodNotFound, `Bilinmeyen method: ${method}`);
+          return isNotification ? null : this.error(id, ERROR.methodNotFound, `Unknown method: ${method}`);
       }
     } catch (error) {
       return this.error(id, ERROR.internal, String(error));
@@ -194,28 +195,28 @@ export class McpServer {
   }
 
   private async callTool(id: number | string | null, params: JsonValue | undefined): Promise<JsonRpcResponse> {
-    if (!isObject(params)) return this.error(id, ERROR.invalidParams, "params bir nesne olmalıdır");
+    if (!isObject(params)) return this.error(id, ERROR.invalidParams, "params must be an object");
 
     const name = params.name;
-    if (typeof name !== "string") return this.error(id, ERROR.invalidParams, "tool adı zorunludur");
+    if (typeof name !== "string") return this.error(id, ERROR.invalidParams, "the tool name is required");
 
     const args = isObject(params.arguments) ? params.arguments : {};
     const cfg = this.host.config();
 
-    // Kapalı motor kontrolü katalogda görünmez; doğrudan çağrı da reddedilir.
+    // Disabled engine control is absent from the catalog; a direct call is rejected too.
     if (name === ENGINE_CONTROL_TOOL && !cfg.mcpServer.allowEngineControl) {
-      return this.error(id, ERROR.methodNotFound, "Motor kontrolü bu kurulumda kapalı.");
+      return this.error(id, ERROR.methodNotFound, "Engine control is disabled in this installation.");
     }
 
     switch (name) {
       case "nexcode_create_task": {
         const prompt = args.prompt;
         if (typeof prompt !== "string" || prompt.trim() === "") {
-          return this.error(id, ERROR.invalidParams, "prompt boş olamaz");
+          return this.error(id, ERROR.invalidParams, "prompt cannot be empty");
         }
         const mode = args.executionMode;
         if (mode !== undefined && !isExecutionMode(mode)) {
-          return this.error(id, ERROR.invalidParams, `executionMode geçersiz: ${String(mode)}`);
+          return this.error(id, ERROR.invalidParams, `executionMode is invalid: ${String(mode)}`);
         }
 
         const task = await this.host.createTask({
@@ -223,53 +224,53 @@ export class McpServer {
           ...(typeof args.workingDir === "string" ? { workingDir: args.workingDir } : {}),
           ...(mode !== undefined ? { executionMode: mode } : {}),
         });
-        return this.text(id, `Görev kuyruğa alındı.\nid: ${task.id}\nbaşlık: ${task.title}\ndurum: ${task.status}`);
+        return this.text(id, `Task queued.\nid: ${task.id}\ntitle: ${task.title}\nstatus: ${task.status}`);
       }
 
       case "nexcode_task_status": {
         const taskId = args.taskId;
-        if (typeof taskId !== "string") return this.error(id, ERROR.invalidParams, "taskId zorunludur");
+        if (typeof taskId !== "string") return this.error(id, ERROR.invalidParams, "taskId is required");
 
         const task = await this.host.getTask(taskId);
-        if (task === null) return this.text(id, `Görev bulunamadı: ${taskId}`);
+        if (task === null) return this.text(id, `Task not found: ${taskId}`);
         return this.text(id, describeTask(task));
       }
 
       case "nexcode_list_tasks": {
         const tasks = await this.host.listTasks();
-        if (tasks.length === 0) return this.text(id, "Kuyruk boş.");
+        if (tasks.length === 0) return this.text(id, "The queue is empty.");
         return this.text(id, tasks.map((t) => `- ${t.id} [${t.status}] ${t.title}`).join("\n"));
       }
 
       case "nexcode_list_approvals": {
         const approvals = await this.host.listApprovals();
-        if (approvals.length === 0) return this.text(id, "Onay bekleyen plan yok.");
-        return this.text(id, approvals.map((a) => `- ${a.id} [${a.actionType}] görev: ${a.taskId}`).join("\n"));
+        if (approvals.length === 0) return this.text(id, "No plans are awaiting approval.");
+        return this.text(id, approvals.map((a) => `- ${a.id} [${a.actionType}] task: ${a.taskId}`).join("\n"));
       }
 
       case "nexcode_resolve_approval": {
         const approvalId = args.approvalId;
         const approved = args.approved;
-        if (typeof approvalId !== "string") return this.error(id, ERROR.invalidParams, "approvalId zorunludur");
-        if (typeof approved !== "boolean") return this.error(id, ERROR.invalidParams, "approved boolean olmalıdır");
+        if (typeof approvalId !== "string") return this.error(id, ERROR.invalidParams, "approvalId is required");
+        if (typeof approved !== "boolean") return this.error(id, ERROR.invalidParams, "approved must be a boolean");
 
         const done = await this.host.resolveApproval(approvalId, approved);
         return this.text(
           id,
-          done ? `Onay ${approved ? "kabul edildi" : "reddedildi"}: ${approvalId}` : `Onay bulunamadı: ${approvalId}`,
+          done ? `Approval ${approved ? "accepted" : "rejected"}: ${approvalId}` : `Approval not found: ${approvalId}`,
         );
       }
 
       case ENGINE_CONTROL_TOOL: {
         const running = args.running;
-        if (typeof running !== "boolean") return this.error(id, ERROR.invalidParams, "running boolean olmalıdır");
+        if (typeof running !== "boolean") return this.error(id, ERROR.invalidParams, "running must be a boolean");
 
         const applied = await this.host.setEngineRunning(running);
-        return this.text(id, applied ? `Motor ${running ? "başlatıldı" : "durduruldu"}.` : "Motor durumu değişmedi.");
+        return this.text(id, applied ? `Engine ${running ? "started" : "stopped"}.` : "The engine state did not change.");
       }
 
       default:
-        return this.error(id, ERROR.methodNotFound, `Bilinmeyen araç: ${name}`);
+        return this.error(id, ERROR.methodNotFound, `Unknown tool: ${name}`);
     }
   }
 
@@ -277,7 +278,7 @@ export class McpServer {
     return { jsonrpc: "2.0", id, result };
   }
 
-  /** MCP araç sonuçları `content` dizisi olarak döner. */
+  /** MCP tool results are returned as a `content` array. */
   private text(id: number | string | null, body: string): JsonRpcResponse {
     return this.ok(id, { content: [{ type: "text", text: body }] });
   }
@@ -288,10 +289,10 @@ export class McpServer {
 }
 
 /**
- * Satır tabanlı JSON-RPC taşıması.
+ * Line based JSON-RPC transport.
  *
- * Her istek tek satırlık JSON'dur. Bozuk satır bağlantıyı düşürmez: JSON-RPC hata yanıtı
- * yazılır ve akış devam eder.
+ * Every request is a single line of JSON. A malformed line does not drop the connection: a
+ * JSON-RPC error response is written and the stream continues.
  */
 export function createLineHandler(
   server: McpServer,
@@ -305,7 +306,7 @@ export function createLineHandler(
     try {
       request = JSON.parse(trimmed) as JsonRpcRequest;
     } catch {
-      write(JSON.stringify({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "Geçersiz JSON" } }));
+      write(JSON.stringify({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "Invalid JSON" } }));
       return;
     }
 
@@ -317,14 +318,14 @@ export function createLineHandler(
 function describeTask(task: McpTaskView): string {
   const lines = [
     `id: ${task.id}`,
-    `başlık: ${task.title}`,
-    `durum: ${task.status}`,
-    `mod: ${task.executionMode}`,
-    `oluşturulma: ${task.createdAt}`,
+    `title: ${task.title}`,
+    `status: ${task.status}`,
+    `mode: ${task.executionMode}`,
+    `created: ${task.createdAt}`,
   ];
-  if (task.delivery !== undefined && task.delivery.trim() !== "") lines.push("", "teslimat:", task.delivery.trim());
+  if (task.delivery !== undefined && task.delivery.trim() !== "") lines.push("", "delivery:", task.delivery.trim());
   if (task.remainingRisk !== undefined && task.remainingRisk.trim() !== "") {
-    lines.push("", "kalan risk:", task.remainingRisk.trim());
+    lines.push("", "remaining risk:", task.remainingRisk.trim());
   }
   return lines.join("\n");
 }

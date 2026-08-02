@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { InMemorySecretStore } from "./secret-store";
 
 describe("InMemorySecretStore", () => {
-  it("sır yazar, okur ve siler", async () => {
+  it("writes, reads and deletes a secret", async () => {
     const store = new InMemorySecretStore();
 
     expect(await store.get("anthropic", "default")).toBeNull();
@@ -15,7 +15,7 @@ describe("InMemorySecretStore", () => {
     expect(await store.delete("anthropic", "default")).toBe(false);
   });
 
-  it("servis/hesap çiftlerini izole tutar", async () => {
+  it("keeps service and account pairs isolated", async () => {
     const store = new InMemorySecretStore();
     await store.set("openai", "u1", "a");
     await store.set("openai", "u2", "b");

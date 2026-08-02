@@ -1,8 +1,8 @@
-// Saf (native-bağımsız) genel API. Renderer ve main process güvenle import edebilir.
-// Native bağımlılıklı modüller ayrı alt yollardadır:
-//   `@nexcode/core/db`        better-sqlite3 (yalnızca main)
-//   `@nexcode/core/keyring`   OS keychain (yalnızca main)
-//   `@nexcode/core/providers` node:child_process (yalnızca main)
+// The pure (native-free) public API. The renderer and the main process can both import it.
+// Modules with a native dependency live under separate subpaths:
+//   `@nexcode/core/db`        better-sqlite3 (main only)
+//   `@nexcode/core/keyring`   OS keychain (main only)
+//   `@nexcode/core/providers` node:child_process (main only)
 export * from "./domain/agent";
 export * from "./domain/task";
 export * from "./domain/workspace";
@@ -11,11 +11,11 @@ export * from "./ipc/channels";
 export * from "./ipc/contract";
 export * from "./logger";
 
-// Yapılandırma sözleşmesi.
+// The configuration contract.
 export * from "./config/schema";
 export * from "./config/defaults";
 
-// Orkestrasyon motoru: saf çekirdek. Süreç, dosya ve DB erişimi EngineDeps ile enjekte edilir.
+// Orchestration engine: the pure core. Process, file and DB access are injected via EngineDeps.
 export * from "./engine/events";
 export * from "./engine/protocol";
 export * from "./engine/rounds";
@@ -27,7 +27,7 @@ export * from "./engine/live-diff";
 export * from "./engine/engine";
 export * from "./engine/supervisor";
 
-// Runtime servisleri: saf çekirdek, dosya sistemi erişimi port'lar üzerinden.
+// Runtime services: pure core, with file system access through ports.
 export * from "./worktree/worktree";
 export * from "./verify/verify-gate";
 export * from "./skills/registry";
@@ -40,7 +40,7 @@ export * from "./doctor";
 export * from "./approval/gate";
 export * from "./agents/definitions";
 
-// Sağlayıcılar: tip ve katalog katmanı. Süreç başlatan runner ayrı alt yoldadır.
+// Providers: the type and catalog layer. The runner that spawns processes is in a separate subpath.
 export * from "./providers/cli/adapters";
 export * from "./providers/cli/output";
 export * from "./providers/types";
@@ -53,7 +53,7 @@ export * from "./providers/openai-compatible";
 export * from "./providers/google";
 export * from "./providers/connection";
 
-// MCP: saf protokol katmanı. İstemci ve yönetici `node:child_process`'e bağlı olduğundan
-// burada DEĞİL, `@nexcode/core/mcp` alt yolundadır (yalnızca main process).
+// MCP: the pure protocol layer. The client and the manager depend on `node:child_process`,
+// so they are NOT here but under the `@nexcode/core/mcp` subpath (main process only).
 export * from "./json";
 export * from "./mcp/server";
