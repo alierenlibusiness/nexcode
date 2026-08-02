@@ -1,8 +1,8 @@
 import { normalizeConfig, type AgentProfile, type NexcodeConfig } from "./schema";
 
 /**
- * Yıkıcı ya da geri alınamaz işlemleri işaret eden metinler. `approvalMode: "ask"` iken
- * bunlardan birini içeren plan yürütülmeden önce insan onayına alınır (PRD §12).
+ * Strings that signal a destructive or irreversible operation. While `approvalMode: "ask"`,
+ * a plan containing one of these goes to human approval before it runs.
  */
 export const DEFAULT_RISKY_PATTERNS: readonly string[] = [
   "rm -rf",
@@ -40,9 +40,9 @@ export const DEFAULT_RISKY_PATTERNS: readonly string[] = [
 ];
 
 /**
- * Yerleşik 6 alan agent'ı: hibrit roster'ın sabit çekirdeği (PRD §8).
- * Her biri bir orkestrasyon rolü taşır; bu rol alabileceği görev türünü BAĞLAYICI kılar.
- * Keşfedilen CLI agent'ları bunların yanına eklenir, yerlerini almaz.
+ * The six built-in domain agents: the fixed core of the hybrid roster.
+ * Each carries an orchestration role, and that role makes the kind of work it can take
+ * BINDING. Discovered CLI agents are added alongside these, never in place of them.
  */
 export const DEFAULT_AGENT_PROFILES: Readonly<Record<string, AgentProfile>> = {
   ceo: {
@@ -97,7 +97,7 @@ export const DEFAULT_AGENT_PROFILES: Readonly<Record<string, AgentProfile>> = {
     role: "reviewer",
     domain: "security",
     roleFile: "reviewer.md",
-    // Tetiklemeli rol: sürekli/yüksek hacimli değil, bu yüzden API anahtarı yeterli.
+    // A triggered role: not continuous or high volume, so an API key is enough.
     connection: "api_only",
     autonomy: "autonomous",
     model: { provider: "anthropic", modelId: "claude-opus-4-8" },
@@ -114,7 +114,7 @@ export const DEFAULT_AGENT_PROFILES: Readonly<Record<string, AgentProfile>> = {
     roleFile: "reviewer.md",
     connection: "api_only",
     autonomy: "autonomous",
-    // Eskalasyon zincirinin ilk (en ucuz) kademesi; zincir `escalation.qa` altındadır.
+    // The first and cheapest tier of the escalation chain; the chain lives under `escalation.qa`.
     model: { provider: "deepseek", modelId: "deepseek-v4-flash" },
     modelOverride: false,
     args: [],
@@ -128,7 +128,7 @@ export const DEFAULT_AGENT_PROFILES: Readonly<Record<string, AgentProfile>> = {
     domain: "devops",
     roleFile: "executor.md",
     connection: "api_only",
-    // Production'a otonom dokunmaz: her adım insan onayı ister.
+    // Never touches production autonomously: every step asks for human approval.
     autonomy: "manual",
     model: { provider: "google", modelId: "gemini-3.5-flash" },
     modelOverride: false,
@@ -138,9 +138,9 @@ export const DEFAULT_AGENT_PROFILES: Readonly<Record<string, AgentProfile>> = {
 };
 
 /**
- * Config dosyası okunamadığında ya da bozuk olduğunda kullanılan güvenli taban.
- * `resources/nexcode.config.default.json` ile aynı değerleri taşır; o dosya
- * kullanıcıya görünen paylaşılabilir şablon, bu ise kod içi son çare kopyasıdır.
+ * The safe base used when the config file cannot be read or is corrupt.
+ * It carries the same values as `resources/nexcode.config.default.json`; that file is the
+ * shareable template users see, while this is the in-code last resort copy.
  */
 export const FALLBACK_CONFIG: NexcodeConfig = normalizeConfig({
   version: 1,
@@ -196,7 +196,7 @@ export const FALLBACK_CONFIG: NexcodeConfig = normalizeConfig({
   agents: DEFAULT_AGENT_PROFILES,
   schedules: [],
   escalation: {
-    // Ucuzdan pahalıya: basit görev ilk kademede çözülür, yalnızca gerekirse yükselir.
+    // Cheap to expensive: a simple task is solved at the first tier and only escalates when it has to.
     qa: [
       { provider: "deepseek", modelId: "deepseek-v4-flash" },
       { provider: "minimax", modelId: "minimax-m3" },

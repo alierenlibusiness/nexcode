@@ -1,7 +1,7 @@
-/** Yerleşik 6 agent rolü (PRD §8). */
+/** The six built-in agent roles. */
 export type AgentRole = "ceo" | "frontend" | "backend" | "security" | "qa" | "devops";
 
-/** Agent durum makinesi (PRD §10). */
+/** The agent state machine. */
 export type AgentStatus =
   | "idle"
   | "thinking"
@@ -11,13 +11,13 @@ export type AgentStatus =
   | "blocked"
   | "completed";
 
-/** Kademeli otonomi seviyeleri (PRD Prensip 12). */
+/** Graduated autonomy levels. */
 export type AutonomyLevel = "manual" | "supervised" | "autonomous";
 
-/** Bağlantı modu: API anahtarı ya da CLI abonelik (PRD §9). */
+/** Connection mode: API key or CLI subscription. */
 export type ConnectionMode = "api" | "cli";
 
-/** Bir agent'ın bağlandığı model referansı (PRD §7). */
+/** The model reference an agent connects through. */
 export interface ModelRef {
   provider: string;
   modelId: string;
@@ -29,7 +29,7 @@ export interface CostBudget {
   maxUsdPerDay: number;
 }
 
-/** Agent veri modeli (PRD §7, §14). */
+/** The agent data model. */
 export interface Agent {
   id: string;
   workspaceId: string;

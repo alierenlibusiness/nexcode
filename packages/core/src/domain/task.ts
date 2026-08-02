@@ -1,10 +1,11 @@
 import type { ExecutionMode } from "../config/schema";
 
 /**
- * Görev durumu: Kanban panosunun sütunları ve motorun yaşam döngüsü aynı sözlüğü kullanır.
+ * Task status: the Kanban board columns and the engine lifecycle use the same vocabulary.
  *
- * `approval` yalnızca `approvalMode: "ask"` ve riskli plan durumunda oluşur; görsel panoda
- * ayrı sütun yoktur, onay bekleyen görev Komuta Merkezi'ndeki onay kartında görünür.
+ * `approval` only occurs with `approvalMode: "ask"` and a risky plan; there is no separate
+ * column on the board, and a task awaiting approval shows up on the approval card in the
+ * Command Center.
  */
 export type TaskStatus = "pending" | "approval" | "running" | "done" | "failed" | "blocked";
 
@@ -17,31 +18,31 @@ export const TASK_STATUSES: readonly TaskStatus[] = [
   "blocked",
 ];
 
-/** Görev türü: normal görev ya da tamamlanmış bir görev hakkındaki salt-okunur sohbet. */
+/** Task kind: an ordinary task, or a read-only conversation about a completed task. */
 export type TaskKind = "task" | "operator-chat";
 
-/** Görev veri modeli (PRD §14). */
+/** The task data model. */
 export interface Task {
   id: string;
-  /** Kullanıcının yazdığı hedef metni. */
+  /** The goal text the user wrote. */
   prompt: string;
-  /** Listelerde gösterilen kısa başlık (prompt'un ilk satırı). */
+  /** Short title shown in lists (the first line of the prompt). */
   title: string;
   status: TaskStatus;
   executionMode: ExecutionMode;
   workingDir: string;
   kind: TaskKind;
-  /** `operator-chat` görevlerinde ana görevin id'si. */
+  /** Id of the main task, on `operator-chat` tasks. */
   parentTaskId: string | null;
-  /** Görevi üreten zamanlama (varsa): Pano'da "⏱ zamanlanmış" rozeti. */
+  /** The schedule that produced the task, if any: the "scheduled" badge on the Board. */
   scheduleId: string | null;
-  /** Onay kuyruğundaki planın hash'i; plan değişirse onay geçersizleşir. */
+  /** Hash of the plan in the approval queue; if the plan changes, the approval is invalidated. */
   planHash: string | null;
   priority: number;
   createdAt: string;
   startedAt: string | null;
   completedAt: string | null;
-  /** Teslimat özeti ve kanıtları. */
+  /** Delivery summary and its evidence. */
   delivery: string;
   verification: string;
   remainingRisk: string;
@@ -52,7 +53,7 @@ export interface Task {
   changedFiles: number;
 }
 
-/** Yıkıcı/onay gerektiren eylem türleri (PRD §6.8, §12). */
+/** Action kinds that are destructive or otherwise require approval. */
 export type ApprovalActionType =
   | "risky_plan"
   | "git_push"
@@ -65,8 +66,8 @@ export type ApprovalActionType =
 
 export type ApprovalStatus = "pending" | "approved" | "rejected";
 
-/** Prompt'tan listelerde gösterilecek kısa başlığı türetir. */
+/** Derives the short title shown in lists from the prompt. */
 export function titleFromPrompt(prompt: string, maxLength = 80): string {
-  const firstLine = prompt.split(/\r?\n/).find((line) => line.trim() !== "")?.trim() ?? "(boş görev)";
+  const firstLine = prompt.split(/\r?\n/).find((line) => line.trim() !== "")?.trim() ?? "(empty task)";
   return firstLine.length > maxLength ? `${firstLine.slice(0, maxLength - 1)}…` : firstLine;
 }

@@ -1,4 +1,4 @@
-/** Yapısal (JSON) loglama. */
+/** Structured (JSON) logging. */
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
 export type LogFields = Record<string, unknown>;
@@ -13,11 +13,11 @@ export interface LogRecord {
 export type LogSink = (record: LogRecord) => void;
 
 /**
- * Loglar **standart hataya** yazılır, standart çıktıya değil.
+ * Logs are written to **stderr**, not to stdout.
  *
- * Standart çıktı programın kendi çıktısına ayrılmıştır. MCP stdio sunucusu stdout'u
- * JSON-RPC protokolü için kullanır; oraya düşen tek bir log satırı istemcinin
- * ayrıştırmasını bozar ve bağlantıyı öldürür.
+ * Stdout is reserved for the program's own output. The MCP stdio server uses stdout for the
+ * JSON-RPC protocol; a single log line landing there breaks the client's parsing and kills
+ * the connection.
  */
 const defaultSink: LogSink = (record) => {
   process.stderr.write(`${JSON.stringify(record)}\n`);
@@ -25,7 +25,7 @@ const defaultSink: LogSink = (record) => {
 
 let sink: LogSink = defaultSink;
 
-/** Log hedefini değiştirir (ör. masaüstünde dosyaya ya da devtools'a yazmak için). */
+/** Changes the log destination (for example writing to a file or devtools on the desktop). */
 export function setLogSink(next: LogSink | null): void {
   sink = next ?? defaultSink;
 }
